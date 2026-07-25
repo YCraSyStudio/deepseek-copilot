@@ -1,0 +1,141 @@
+{
+  "repository": "YarCrasy/deepseek-copilot",
+  "issues": [
+    {
+      "id": "002",
+      "priority": "P0",
+      "title": "[P0] Serialize generations and isolate conversation transitions",
+      "bodyFile": ".github/issue-bodies/002-p0-serialize-generations.md",
+      "labels": ["BUG", "INTEGRATION", "FRONTEND"],
+      "dependsOn": []
+    },
+    {
+      "id": "003",
+      "priority": "P0",
+      "title": "[P0] Pin an immutable workspace context for every run",
+      "bodyFile": ".github/issue-bodies/003-p0-pin-workspace-context.md",
+      "labels": ["BUG", "INTEGRATION"],
+      "dependsOn": []
+    },
+    {
+      "id": "004",
+      "priority": "P0",
+      "title": "[P0] Make terminal auto-approval fail closed and scope session trust",
+      "bodyFile": ".github/issue-bodies/004-p0-harden-terminal-execution.md",
+      "labels": ["BUG", "IMPROVEMENT", "INTEGRATION"],
+      "dependsOn": ["003", "005"]
+    },
+    {
+      "id": "005",
+      "priority": "P0",
+      "title": "[P0] Make elevated permissions workspace-scoped and transactional",
+      "bodyFile": ".github/issue-bodies/005-p0-transactional-permission-updates.md",
+      "labels": ["BUG", "INTEGRATION", "FRONTEND"],
+      "dependsOn": []
+    },
+    {
+      "id": "006",
+      "priority": "P0",
+      "title": "[P0] Preserve protocol-valid DeepSeek tool transcripts",
+      "bodyFile": ".github/issue-bodies/006-p0-preserve-deepseek-tool-transcripts.md",
+      "labels": ["BUG", "INTEGRATION"],
+      "dependsOn": ["002"]
+    },
+    {
+      "id": "007",
+      "priority": "P0",
+      "title": "[P0] Keep API credentials host-side and bind them to secure origins",
+      "bodyFile": ".github/issue-bodies/007-p0-protect-api-credentials.md",
+      "labels": ["BUG", "INTEGRATION", "FRONTEND"],
+      "dependsOn": []
+    },
+    {
+      "id": "008",
+      "priority": "P0",
+      "title": "[P0] Make disabled history truly ephemeral",
+      "bodyFile": ".github/issue-bodies/008-p0-make-disabled-history-ephemeral.md",
+      "labels": ["BUG", "INTEGRATION", "FRONTEND"],
+      "dependsOn": ["002"]
+    },
+    {
+      "id": "009",
+      "priority": "P1",
+      "title": "[P1] Guarantee tool-call identity, terminal states, and auditability",
+      "bodyFile": ".github/issue-bodies/009-p1-tool-call-integrity-and-audit.md",
+      "labels": ["BUG", "INTEGRATION", "FRONTEND"],
+      "dependsOn": ["002", "006"]
+    },
+    {
+      "id": "010",
+      "priority": "P1",
+      "title": "[P1] Prevent file tools from overwriting unsaved editor buffers",
+      "bodyFile": ".github/issue-bodies/010-p1-protect-unsaved-editor-buffers.md",
+      "labels": ["BUG", "INTEGRATION"],
+      "dependsOn": ["003"]
+    },
+    {
+      "id": "011",
+      "priority": "P1",
+      "title": "[P1] Make settings and history storage concurrency-safe",
+      "bodyFile": ".github/issue-bodies/011-p1-make-storage-concurrency-safe.md",
+      "labels": ["BUG", "INTEGRATION"],
+      "dependsOn": []
+    },
+    {
+      "id": "012",
+      "priority": "P1",
+      "title": "[P1] Harden streaming timeouts, bounds, and partial-response recovery",
+      "bodyFile": ".github/issue-bodies/012-p1-harden-streaming-resilience.md",
+      "labels": ["BUG", "INTEGRATION", "FRONTEND"],
+      "dependsOn": ["002", "006"]
+    },
+    {
+      "id": "013",
+      "priority": "P1",
+      "title": "[P1] Guarantee child-process shutdown on timeout and cancellation",
+      "bodyFile": ".github/issue-bodies/013-p1-guarantee-process-shutdown.md",
+      "labels": ["BUG", "INTEGRATION"],
+      "dependsOn": ["002"]
+    },
+    {
+      "id": "014",
+      "priority": "P1",
+      "title": "[P1] Version and synchronize the webview-host protocol",
+      "bodyFile": ".github/issue-bodies/014-p1-version-webview-host-protocol.md",
+      "labels": ["BUG", "INTEGRATION", "FRONTEND"],
+      "dependsOn": ["002", "005", "008"]
+    },
+    {
+      "id": "015",
+      "priority": "P1",
+      "title": "[P1] Align DeepSeek provider options with the documented API contract",
+      "bodyFile": ".github/issue-bodies/015-p1-align-deepseek-provider-contract.md",
+      "labels": ["BUG", "INTEGRATION"],
+      "dependsOn": ["006"]
+    },
+    {
+      "id": "016",
+      "priority": "P1",
+      "title": "[P1] Add production CI, E2E coverage, and packaged-VSIX release gates",
+      "bodyFile": ".github/issue-bodies/016-p1-add-production-ci-and-e2e-gates.md",
+      "labels": ["IMPROVEMENT", "INTEGRATION"],
+      "dependsOn": []
+    },
+    {
+      "id": "017",
+      "priority": "P2",
+      "title": "[P2] Align the extension manifest, VSIX contents, and release metadata",
+      "bodyFile": ".github/issue-bodies/017-p2-fix-package-manifest-and-vsix.md",
+      "labels": ["BUG", "INTEGRATION", "DOCUMENTATION"],
+      "dependsOn": ["016"]
+    },
+    {
+      "id": "018",
+      "priority": "P2",
+      "title": "[P2] Add managed, redacted production diagnostics",
+      "bodyFile": ".github/issue-bodies/018-p2-add-managed-redacted-diagnostics.md",
+      "labels": ["IMPROVEMENT", "INTEGRATION"],
+      "dependsOn": []
+    }
+  ]
+}

@@ -16,7 +16,7 @@ Lists files/folders. Useful for exploration before editing.
 
 ## `search_content`
 
-Searches text or patterns in the workspace. It should avoid excessive output.
+Searches literal text case-insensitively in workspace files, with an optional workspace-relative glob filter. Sensitive, binary, and oversized files are skipped, and the result size is bounded.
 
 ## `run_terminal_command`
 

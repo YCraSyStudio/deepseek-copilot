@@ -7,10 +7,17 @@ export interface ToolWorkspaceStat {
   size: number;
 }
 
+export interface ToolWorkspaceFindOptions {
+  includePattern: string;
+  maxResults: number;
+  signal?: AbortSignal;
+}
+
 export interface ToolWorkspaceHost {
   getRootPath(): string | undefined;
   setRootPath?(rootPath: string | undefined): void;
   realPath?(absolutePath: string): Promise<string>;
+  findFiles?(options: ToolWorkspaceFindOptions): Promise<string[]>;
   readFile(path: string): Promise<Uint8Array>;
   writeFile(path: string, content: Uint8Array): Promise<void>;
   stat(path: string): Promise<ToolWorkspaceStat>;
@@ -115,6 +122,23 @@ function createValidatingWorkspaceHost(host: ToolWorkspaceHost): ToolWorkspaceHo
     getRootPath: host.getRootPath.bind(host),
     setRootPath: host.setRootPath?.bind(host),
     realPath: host.realPath?.bind(host),
+    findFiles: host.findFiles
+      ? async (options: ToolWorkspaceFindOptions) => {
+          const rootPath = host.getRootPath();
+          if (!rootPath) {
+            throw new Error("No workspace folder open");
+          }
+          const paths = await host.findFiles!(options);
+          const accepted = new Set<string>();
+          for (const rawPath of paths) {
+            const resolved = resolveWorkspacePath(rawPath, rootPath, { allowSensitive: true });
+            if (!isSensitiveWorkspacePath(resolved.relativePath)) {
+              accepted.add(resolved.relativePath);
+            }
+          }
+          return [...accepted];
+        }
+      : undefined,
     readFile: async (rawPath: string) => host.readFile(await validate(rawPath)),
     writeFile: async (rawPath: string, content: Uint8Array) => host.writeFile(await validate(rawPath, true), content),
     stat: async (rawPath: string) => host.stat(await validate(rawPath)),
@@ -164,7 +188,7 @@ function looksLikeUri(rawPath: string): boolean {
   return /^[a-zA-Z][a-zA-Z\d+.-]*:/.test(rawPath) && !/^[a-zA-Z]:[\\/]/.test(rawPath);
 }
 
-function isSensitiveWorkspacePath(relativePath: string): boolean {
+export function isSensitiveWorkspacePath(relativePath: string): boolean {
   return relativePath
     .split("/")
     .filter(Boolean)

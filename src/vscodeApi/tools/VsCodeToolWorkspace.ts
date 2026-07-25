@@ -1,7 +1,7 @@
 import * as path from "path";
 import { realpath } from "fs/promises";
 import * as vscode from "vscode";
-import type { ToolWorkspaceEntryType, ToolWorkspaceHost, ToolWorkspaceStat } from "@/core/tools/ToolWorkspace";
+import type { ToolWorkspaceEntryType, ToolWorkspaceFindOptions, ToolWorkspaceHost, ToolWorkspaceStat } from "@/core/tools/ToolWorkspace";
 
 export function createVsCodeToolWorkspace(): ToolWorkspaceHost {
   const inlinePreview = createInlineDiffPreview();
@@ -26,6 +26,31 @@ export function createVsCodeToolWorkspace(): ToolWorkspaceHost {
 
     realPath(absolutePath: string): Promise<string> {
       return realpath(absolutePath);
+    },
+
+    async findFiles(options: ToolWorkspaceFindOptions): Promise<string[]> {
+      const rootUri = getRootUri();
+      if (!rootUri) {
+        throw new Error("No workspace folder open");
+      }
+      if (options.signal?.aborted) {
+        throw createAbortError();
+      }
+
+      const cancellation = new vscode.CancellationTokenSource();
+      const onAbort = () => cancellation.cancel();
+      options.signal?.addEventListener("abort", onAbort, { once: true });
+      try {
+        const include = new vscode.RelativePattern(rootUri, options.includePattern);
+        const resources = await vscode.workspace.findFiles(include, undefined, options.maxResults, cancellation.token);
+        if (options.signal?.aborted) {
+          throw createAbortError();
+        }
+        return resources.map((resource) => toRelativeWorkspacePath(rootUri, resource));
+      } finally {
+        options.signal?.removeEventListener("abort", onAbort);
+        cancellation.dispose();
+      }
     },
 
     async readFile(relativePath: string): Promise<Uint8Array> {
@@ -74,6 +99,31 @@ function toWorkspaceUri(root: vscode.Uri | undefined, relativePath: string): vsc
     throw new Error("No workspace folder open");
   }
   return vscode.Uri.joinPath(root, relativePath);
+}
+
+function toRelativeWorkspacePath(root: vscode.Uri, resource: vscode.Uri): string {
+  if (root.scheme !== resource.scheme || root.authority !== resource.authority) {
+    throw new Error("Workspace search returned a resource outside the selected workspace");
+  }
+  const relativePath = root.scheme === "file"
+    ? path.relative(root.fsPath, resource.fsPath)
+    : path.posix.relative(root.path, resource.path);
+  if (
+    relativePath === ".." ||
+    relativePath.startsWith("../") ||
+    relativePath.startsWith("..\\") ||
+    path.posix.isAbsolute(relativePath) ||
+    path.win32.isAbsolute(relativePath)
+  ) {
+    throw new Error("Workspace search returned a resource outside the selected workspace");
+  }
+  return relativePath.replace(/\\/g, "/");
+}
+
+function createAbortError(): Error {
+  const error = new Error("Workspace search cancelled");
+  error.name = "AbortError";
+  return error;
 }
 
 function toEntryType(type: vscode.FileType): ToolWorkspaceEntryType {

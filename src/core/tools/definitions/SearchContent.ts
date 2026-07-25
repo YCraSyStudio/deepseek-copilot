@@ -1,123 +1,257 @@
-import { exec } from "child_process";
-import { promisify } from "util";
 import type { ToolDefinition } from "@/adapters";
-import type { RegisteredTool, ToolMetadata } from "../Types";
-import { getToolWorkspaceHost } from "../ToolWorkspace";
-import { createStructuredResult } from "./StructuredResult";
+import type { RegisteredTool, ToolHandlerContext, ToolMetadata } from "../Types";
+import { getToolWorkspaceHost, type ToolWorkspaceHost } from "../ToolWorkspace";
+import { bufferLooksBinary, createStructuredResult } from "./StructuredResult";
 
-const execAsync = promisify(exec);
 const MAX_SEARCH_RESULTS = 50;
+const MAX_CANDIDATE_FILES = 10_000;
+const MAX_SEARCH_FILE_BYTES = 2 * 1024 * 1024;
+const MAX_SEARCH_OUTPUT_BYTES = 256 * 1024;
+const MAX_QUERY_CHARACTERS = 4096;
+const MAX_PATTERN_CHARACTERS = 1024;
+const MAX_RESULT_LINE_CHARACTERS = 2000;
+const SEARCH_TIMEOUT_MS = 15_000;
 
-async function handleSearchContent(args: Record<string, unknown>): Promise<string> {
-  const query = args.query as string;
-  const filePattern = args.filePattern as string | undefined;
+interface SearchResult {
+  file: string;
+  line: number;
+  text: string;
+}
 
-  if (!query) {
-    return "Error: query parameter is required";
+async function handleSearchContent(args: Record<string, unknown>, context?: ToolHandlerContext): Promise<string> {
+  const query = typeof args.query === "string" ? args.query : "";
+  if (!query.trim()) {
+    throw new Error("query parameter is required");
+  }
+  if (query.length > MAX_QUERY_CHARACTERS) {
+    throw new Error(`query must not exceed ${MAX_QUERY_CHARACTERS} characters`);
   }
 
-  let rootPath = "";
+  const includePattern = normalizeFilePattern(args.filePattern);
+  const workspace = getToolWorkspaceHost();
+  if (!workspace.getRootPath()) {
+    throw new Error("No workspace folder open");
+  }
+  if (!workspace.findFiles) {
+    throw new Error("Workspace content search is unavailable in this environment");
+  }
+
+  const cancellation = createSearchCancellation(context?.signal);
   try {
-    const workspaceRoot = getToolWorkspaceHost().getRootPath();
-    if (!workspaceRoot) {
-      return "Error: No workspace folder open";
-    }
-
-    rootPath = workspaceRoot;
-
-    let cmd = `rg --no-heading --line-number --max-count 50 -i`;
-    if (filePattern) {
-      cmd += ` --glob '${filePattern.replace(/'/g, "'\\''")}'`;
-    }
-    cmd += ` -- '${query.replace(/'/g, "'\\''")}' '${rootPath.replace(/'/g, "'\\''")}'`;
-
-    const { stdout } = await execAsync(cmd, {
-      maxBuffer: 1024 * 1024,
-      timeout: 15_000,
+    const candidatePaths = await workspace.findFiles({
+      includePattern,
+      maxResults: MAX_CANDIDATE_FILES + 1,
+      signal: cancellation.signal,
     });
-
-    if (!stdout.trim()) {
-      return `No results found for query: '${query}'`;
+    throwIfAborted(cancellation.signal);
+    return await searchCandidateFiles({
+      workspace,
+      candidatePaths,
+      query,
+      includePattern,
+      signal: cancellation.signal,
+    });
+  } catch (error: unknown) {
+    if (context?.signal?.aborted) {
+      throw createAbortError("Content search cancelled");
     }
-
-    return createSearchResultPayload(query, parseRipgrepResults(stdout, rootPath));
-  } catch (err: unknown) {
-    // rg returns exit code 1 when no matches found (no output)
-    const rgError = getRipgrepError(err);
-    if (rgError.code === 1 && (!rgError.stdout || rgError.stdout === "")) {
-      return `No results found for query: '${query}'`;
+    if (cancellation.didTimeOut()) {
+      throw new Error(`Content search timed out after ${SEARCH_TIMEOUT_MS} ms`);
     }
-    // Return partial results if available
-    if (rgError.stdout) {
-      return createSearchResultPayload(query, parseRipgrepResults(rgError.stdout, rootPath), true);
+    if (isAbortError(error)) {
+      throw error;
     }
-    return `Error searching content: ${getErrorMessage(err)}`;
+    throw new Error(`Content search failed: ${getErrorMessage(error)}`, { cause: error });
+  } finally {
+    cancellation.dispose();
   }
 }
 
-function getRipgrepError(err: unknown): { code?: number; stdout?: string } {
-  if (!err || typeof err !== "object") {
-    return {};
-  }
-  const record = err as { code?: unknown; stdout?: unknown };
-  return {
-    code: typeof record.code === "number" ? record.code : undefined,
-    stdout: typeof record.stdout === "string" ? record.stdout : undefined,
-  };
-}
+async function searchCandidateFiles(options: {
+  workspace: ToolWorkspaceHost;
+  candidatePaths: string[];
+  query: string;
+  includePattern: string;
+  signal: AbortSignal;
+}): Promise<string> {
+  const { workspace, query, includePattern, signal } = options;
+  const candidatePaths = options.candidatePaths.slice(0, MAX_CANDIDATE_FILES);
+  const normalizedQuery = query.toLowerCase();
+  const results: SearchResult[] = [];
+  let retainedBytes = Buffer.byteLength(query, "utf8") + Buffer.byteLength(includePattern, "utf8");
+  let scannedFiles = 0;
+  let skippedFiles = 0;
+  let truncated = options.candidatePaths.length > candidatePaths.length;
 
-function createSearchResultPayload(query: string, results: Array<{ file: string; line: number; text: string }>, forcedTruncated = false): string {
-  const visibleResults = results.slice(0, MAX_SEARCH_RESULTS);
+  searchLoop:
+  for (const filePath of candidatePaths) {
+    throwIfAborted(signal);
+
+    try {
+      const stat = await workspace.stat(filePath);
+      if (stat.type !== "file") {
+        continue;
+      }
+      if (stat.size > MAX_SEARCH_FILE_BYTES) {
+        skippedFiles += 1;
+        truncated = true;
+        continue;
+      }
+
+      const content = await workspace.readFile(filePath);
+      if (content.byteLength > MAX_SEARCH_FILE_BYTES) {
+        skippedFiles += 1;
+        truncated = true;
+        continue;
+      }
+      scannedFiles += 1;
+      if (bufferLooksBinary(content)) {
+        skippedFiles += 1;
+        continue;
+      }
+
+      const lines = Buffer.from(content).toString("utf8").split(/\r\n|\n|\r/);
+      for (let index = 0; index < lines.length; index += 1) {
+        throwIfAborted(signal);
+        const line = lines[index];
+        if (!line.toLowerCase().includes(normalizedQuery)) {
+          continue;
+        }
+
+        if (results.length >= MAX_SEARCH_RESULTS) {
+          truncated = true;
+          break searchLoop;
+        }
+
+        const preview = truncateResultLine(line.trim());
+        const result = { file: filePath, line: index + 1, text: preview.text };
+        const resultBytes = Buffer.byteLength(JSON.stringify(result), "utf8");
+        if (retainedBytes + resultBytes > MAX_SEARCH_OUTPUT_BYTES) {
+          truncated = true;
+          break searchLoop;
+        }
+
+        results.push(result);
+        retainedBytes += resultBytes;
+        truncated ||= preview.truncated;
+      }
+    } catch (error: unknown) {
+      if (isAbortError(error) || signal.aborted) {
+        throw createAbortError("Content search cancelled");
+      }
+      skippedFiles += 1;
+      truncated = true;
+    }
+  }
+
   return createStructuredResult("SearchResults", {
     query,
-    results: visibleResults,
-    truncated: forcedTruncated || results.length > visibleResults.length,
+    filePattern: includePattern,
+    results,
+    truncated,
+    scannedFiles,
+    skippedFiles,
   });
 }
 
-function getErrorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
+function normalizeFilePattern(value: unknown): string {
+  if (value === undefined) {
+    return "**/*";
+  }
+  if (typeof value !== "string") {
+    throw new Error("filePattern must be a string");
+  }
+
+  const pattern = value.trim().replace(/\\/g, "/");
+  if (!pattern) {
+    return "**/*";
+  }
+  if (pattern.length > MAX_PATTERN_CHARACTERS) {
+    throw new Error(`filePattern must not exceed ${MAX_PATTERN_CHARACTERS} characters`);
+  }
+  if (pattern.includes("\0")) {
+    throw new Error("filePattern contains an invalid null byte");
+  }
+  if (pattern.startsWith("/") || /^[a-zA-Z]:\//.test(pattern) || pattern.split("/").includes("..")) {
+    throw new Error("filePattern must stay inside the workspace");
+  }
+  return pattern.includes("/") ? pattern : `**/${pattern}`;
 }
 
-function parseRipgrepResults(stdout: string, rootPath: string): Array<{ file: string; line: number; text: string }> {
-  return stdout
-    .trim()
-    .split("\n")
-    .filter(Boolean)
-    .map((line) => {
-      const match = line.match(/^(.+?):(\d+):(.*)$/);
-      if (!match) {
-        return null;
-      }
-      return {
-        file: normalizePath(match[1], rootPath),
-        line: Number.parseInt(match[2], 10),
-        text: match[3].trim(),
-      };
-    })
-    .filter((result): result is { file: string; line: number; text: string } => result !== null);
+function truncateResultLine(value: string): { text: string; truncated: boolean } {
+  if (value.length <= MAX_RESULT_LINE_CHARACTERS) {
+    return { text: value, truncated: false };
+  }
+  return {
+    text: `${value.slice(0, MAX_RESULT_LINE_CHARACTERS - 1)}…`,
+    truncated: true,
+  };
 }
 
-function normalizePath(filePath: string, rootPath: string): string {
-  return filePath.startsWith(rootPath) ? filePath.slice(rootPath.length).replace(/^[/\\]/, "") : filePath;
+function createSearchCancellation(parentSignal: AbortSignal | undefined): {
+  signal: AbortSignal;
+  didTimeOut(): boolean;
+  dispose(): void;
+} {
+  const controller = new AbortController();
+  let timedOut = false;
+  const onParentAbort = () => controller.abort();
+  if (parentSignal?.aborted) {
+    controller.abort();
+  } else {
+    parentSignal?.addEventListener("abort", onParentAbort, { once: true });
+  }
+  const timeout = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, SEARCH_TIMEOUT_MS);
+
+  return {
+    signal: controller.signal,
+    didTimeOut: () => timedOut,
+    dispose: () => {
+      clearTimeout(timeout);
+      parentSignal?.removeEventListener("abort", onParentAbort);
+    },
+  };
+}
+
+function throwIfAborted(signal: AbortSignal): void {
+  if (signal.aborted) {
+    throw createAbortError("Content search cancelled");
+  }
+}
+
+function createAbortError(message: string): Error {
+  const error = new Error(message);
+  error.name = "AbortError";
+  return error;
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && (error.name === "AbortError" || error.name === "Canceled");
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 export const searchContentDefinition: ToolDefinition = {
   type: "function",
   function: {
     name: "search_content",
-    description: "Search for text in project files using ripgrep. Returns file, line, and matching content.",
+    description: "Search for literal text in project files. Returns file, line, and matching content.",
     strict: true,
     parameters: {
       type: "object",
       properties: {
         query: {
           type: "string",
-          description: "Text to search for. Not treated as a regex by default.",
+          description: "Literal text to search for, matched case-insensitively.",
         },
         filePattern: {
           type: "string",
-          description: "File pattern filter, for example *.ts or *.md.",
+          description: "Optional workspace-relative glob filter, for example *.ts or src/**/*.md.",
         },
       },
       required: ["query"],
