@@ -1,4 +1,5 @@
 import { mkdir, readdir, readFile, rename, rm, stat } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import * as path from "node:path";
 import * as vscode from "vscode";
 import type { Conversation, ConversationSummary } from "@/adapters";
@@ -24,7 +25,11 @@ export class HistoryManager {
   private mutationQueue: Promise<void> = Promise.resolve();
 
   constructor(private readonly context: vscode.ExtensionContext) {
-    this.legacyHistoryCleared = clearLegacyWorkspaceHistory(context.workspaceState);
+    this.legacyHistoryCleared = initializeLegacyHistory(context.workspaceState);
+  }
+
+  async initialize(): Promise<void> {
+    await this.legacyHistoryCleared;
   }
 
   getWorkspaceUri(): string {
@@ -167,7 +172,51 @@ function toSummary(record: StoredConversation): ConversationSummary {
 
 async function clearLegacyWorkspaceHistory(workspaceState: vscode.Memento): Promise<void> {
   const keys = workspaceState.keys().filter((key) => key.startsWith(CONVERSATION_STORAGE_KEY));
-  await Promise.all(keys.map((key) => workspaceState.update(key, undefined)));
+  const bodyPrefix = `${CONVERSATION_STORAGE_KEY}.body.`;
+  for (const key of keys.filter((candidate) => candidate.startsWith(bodyPrefix))) {
+    const stored = workspaceState.get<unknown>(key);
+    const envelope = stored && typeof stored === "object" ? stored as { schemaVersion?: unknown; conversation?: unknown } : undefined;
+    if (envelope?.schemaVersion === 1 && isConversation(envelope.conversation)) {
+      try {
+        const migrated = migrateLegacyConversation(envelope.conversation);
+        const target = getConversationPath(migrated.id);
+        await writeJsonFileAtomic(target, migrated);
+        const verified = JSON.parse(await readFile(target, "utf8")) as unknown;
+        if (!isConversation(verified) || verified.schemaVersion !== 2 || verified.id !== migrated.id) {
+          continue;
+        }
+      } catch {
+        continue;
+      }
+    }
+    await workspaceState.update(key, undefined);
+  }
+  await Promise.all(keys.filter((key) => !key.startsWith(bodyPrefix)).map((key) => workspaceState.update(key, undefined)));
+}
+
+async function initializeLegacyHistory(workspaceState: vscode.Memento): Promise<void> {
+  await clearLegacyWorkspaceHistory(workspaceState);
+  await mkdir(getHistoryDirectory(), { recursive: true });
+  const entries = await readdir(getHistoryDirectory(), { withFileTypes: true });
+  for (const entry of entries) {
+    if (!entry.isFile() || !entry.name.endsWith(".json")) {
+      continue;
+    }
+    const filePath = path.join(getHistoryDirectory(), entry.name);
+    try {
+      const parsed = JSON.parse(await readFile(filePath, "utf8")) as unknown;
+      if (!isConversation(parsed) || !needsLegacyConversationMigration(parsed)) {
+        continue;
+      }
+      await writeJsonFileAtomic(filePath, migrateLegacyConversation(parsed));
+      const verified = JSON.parse(await readFile(filePath, "utf8")) as unknown;
+      if (!isConversation(verified) || verified.schemaVersion !== 2) {
+        throw new Error("Conversation migration verification failed");
+      }
+    } catch {
+      // The normal history reader will isolate malformed data without blocking activation.
+    }
+  }
 }
 
 async function isolateCorruptHistoryFile(filePath: string): Promise<void> {
@@ -191,7 +240,44 @@ function normalizeConversation(conversation: Conversation): Conversation {
     toolCalls: message.toolCalls?.map(normalizeToolCall),
     timeline: message.timeline ?? undefined,
   }));
-  return { ...conversation, title: createConversationTitle(messages, conversation.title), messages };
+  return { ...conversation, schemaVersion: 2, title: createConversationTitle(messages, conversation.title), messages };
+}
+
+function needsLegacyConversationMigration(conversation: Conversation): boolean {
+  if (conversation.schemaVersion !== 2) {
+    return true;
+  }
+  return conversation.messages.some((message) =>
+    (message.role === "user" || message.role === "assistant" || message.role === "error") &&
+    (!message.generationId || ((message.role === "assistant" || message.role === "error") && !message.generationStatus)),
+  );
+}
+
+function migrateLegacyConversation(conversation: Conversation): Conversation {
+  let currentGenerationId: string | undefined;
+  const messages = conversation.messages.map((message, index) => {
+    if (message.role === "user") {
+      currentGenerationId = message.generationId ?? createLegacyGenerationId(conversation.id, message.id, index);
+      return { ...message, generationId: currentGenerationId };
+    }
+
+    if (message.role === "assistant" || message.role === "error") {
+      currentGenerationId = message.generationId ?? currentGenerationId ?? createLegacyGenerationId(conversation.id, message.id, index);
+      return {
+        ...message,
+        generationId: currentGenerationId,
+        generationStatus: message.generationStatus ?? (message.role === "error" ? "error" : "completed"),
+      };
+    }
+
+    return currentGenerationId && !message.generationId ? { ...message, generationId: currentGenerationId } : message;
+  });
+  return normalizeConversation({ ...conversation, schemaVersion: 2, messages });
+}
+
+function createLegacyGenerationId(conversationId: string, messageId: string, index: number): string {
+  const digest = createHash("sha256").update(`${conversationId}\0${messageId}\0${index}`).digest("hex").slice(0, 32);
+  return `legacy-${digest}`;
 }
 
 function normalizeToolCall<T extends NonNullable<Conversation["messages"][number]["toolCalls"]>[number]>(toolCall: T): T {

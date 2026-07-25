@@ -1,4 +1,4 @@
-[Previous page: State and Messaging](State-and-Messaging.md)
+[Back](INDEX.md)
 
 # UI Structure
 
@@ -17,6 +17,8 @@
 - path autocomplete through `FileSelector`.
 - streaming.
 - tool confirmations.
+- targeted stop, queue, and interrupt-and-guide controls while a generation is active.
+- recoverable draft prompts after an interrupted VS Code session.
 
 `HistoryView`
 
@@ -30,6 +32,7 @@
 - model.
 - reasoning.
 - generation parameters.
+- concurrent generation limit.
 - tool modes.
 
 ## Shared components
@@ -45,6 +48,4 @@
 
 A `tabs/providers` folder may still exist from the migration. Its content must represent DeepSeek-only configuration, not a provider selector.
 
----
-
-[Next page: Overview](../tools/INDEX.md)
+[Back](INDEX.md)

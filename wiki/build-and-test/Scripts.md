@@ -1,4 +1,4 @@
-[Previous page: Overview](INDEX.md)
+[Back](INDEX.md)
 
 # Scripts
 
@@ -29,6 +29,4 @@ If the environment uses `nvm`, load it first:
 source ~/.nvm/nvm.sh
 ```
 
----
-
-[Next page: Verification](Verification.md)
+[Back](INDEX.md)

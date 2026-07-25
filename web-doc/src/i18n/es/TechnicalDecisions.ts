@@ -25,10 +25,19 @@ export const technicalDecisions: PageContent = {
       ],
     },
     {
+      title: "Propiedad y recuperación de generaciones",
+      items: [
+        "Un coordinador permite una generación activa por conversación y concurrencia acotada entre conversaciones. El límite configurable es 8 de forma predeterminada y se restringe al intervalo de 1 a 16.",
+        "Los IDs de petición cliente, generación y conversación vinculan colas, streams, aprobaciones de herramientas, cancelación y snapshots con la ejecución correcta.",
+        "Interrupt and guide encola primero la nueva indicación y después aborta la ejecución actual; los envíos normales se añaden al final de la cola de la conversación.",
+        "Los checkpoints atómicos con revisión conservan timelines parciales, estado de herramientas, configuración sin secretos y prompts encolados. La activación restaura la salida interrumpida y ofrece los prompts encolados como borradores.",
+      ],
+    },
+    {
       title: "Herramientas y terminal",
       items: [
         "El estado de herramientas tiene un único ciclo nativo que termina en completed, rejected, cancelled o error; un rechazo no se codifica como error de ejecución.",
-        "Las llamadas se ejecutan secuencialmente para preservar el orden de escritura y las aprobaciones independientes; el orquestador bloquea duplicados con el mismo nombre y argumentos.",
+        "Las llamadas de una ronda se ejecutan secuencialmente y el orquestador bloquea duplicados con el mismo nombre y argumentos. Entre generaciones concurrentes, las herramientas de lectura pueden solaparse y las mutaciones se serializan por workspace.",
         "El terminal usa spawn, cancelación del árbol de procesos, resultados estructurados, salida acotada por principio y final, y detección de códigos de salida distintos de cero.",
         "La autorización de rutas resuelve rutas reales y ancestros existentes para impedir escapes por symlinks o junctions. La conversación conserva el URI del workspace elegido en entornos multi-root.",
         "Las escrituras confirmadas llevan guardas SHA-256 para que una edición falle si el contenido en disco cambia después de la previsualización.",
@@ -39,7 +48,7 @@ export const technicalDecisions: PageContent = {
       items: [
         "SSE admite comentarios, CRLF, campos data con o sin espacios, eventos multilínea, finalización del decoder, diagnósticos de JSON inválido y cancelación del reader.",
         "Las peticiones a DeepSeek normalizan URLs, usan un timeout de 60 segundos por intento y un máximo de tres intentos para fallos transitorios, respetando Retry-After.",
-        "Los ajustes y el historial viven bajo ~/.yrs-dpsk-copilot/. El historial usa un archivo JSON validado por conversación y deriva la lista directamente de esos archivos.",
+        "Los ajustes, el historial de conversaciones con esquema v2 y los checkpoints viven bajo ~/.yrs-dpsk-copilot/. Los checkpoints nunca contienen la API key y los historiales o checkpoints inválidos se aíslan.",
         "El contexto tiene presupuestos agregados, detección de binarios, datos Git staged y unstaged, fuentes AGENTS.md acotadas y delimitadores explícitos de datos no confiables.",
       ],
     },

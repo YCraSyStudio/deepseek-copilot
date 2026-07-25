@@ -11,7 +11,7 @@ export type ApiSectionProps = {
 };
 
 export type AdvancedSectionProps = {
-  config: Pick<AppConfig, "temperature" | "topP" | "maxTokens" | "maxToolRounds" | "baseUrl" | "thinkingMode" | "enableBetaFeatures">;
+  config: Pick<AppConfig, "temperature" | "topP" | "maxTokens" | "maxToolRounds" | "maxConcurrentGenerations" | "baseUrl" | "thinkingMode" | "enableBetaFeatures">;
   updateConfig: UpdateConfigFn;
   saveOnBlur: SaveOnBlurFn;
 };

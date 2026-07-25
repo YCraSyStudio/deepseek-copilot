@@ -4,8 +4,19 @@ export const changelog: PageContent = {
   navTitle: "Changelog",
   title: "Changelog",
   description: "Cambios relevantes y estado preview.",
-  lead: "La versión 0.1.1 refuerza la ejecución cronológica de herramientas, el terminal, el streaming de API, el contexto y el historial.",
+  lead: "La versión 0.1.2 añade generaciones concurrentes aisladas, colas por conversación, checkpoints recuperables y ejecución más segura en el workspace.",
   sections: [
+    {
+      title: "0.1.2 coordinación de generaciones",
+      items: [
+        "Añadida una generación activa por conversación con concurrencia configurable entre conversaciones de 1 a 16 y valor predeterminado 8.",
+        "Añadidos los controles Queue message e Interrupt and guide, cancelación dirigida y eventos de streaming y herramientas vinculados a su generación.",
+        "Añadidos checkpoints atómicos que recuperan salida parcial, cancelan herramientas sin finalizar y exponen prompts encolados como borradores tras reiniciar.",
+        "Introducido el esquema de conversación v2 con propiedad de generación y una migración verificada durante la activación para historiales antiguos válidos o parcialmente migrados; la compatibilidad permanece hasta que se publique su limpieza programada.",
+        "Cada generación queda fijada al workspace de su conversación y las herramientas mutantes se serializan por workspace, permitiendo lecturas concurrentes.",
+        "Añadido cierre coordinado del provider para guardar checkpoints, cancelar y vaciar escrituras durante la desactivación de la extensión.",
+      ],
+    },
     {
       title: "0.1.1 fiabilidad y seguridad",
       items: [

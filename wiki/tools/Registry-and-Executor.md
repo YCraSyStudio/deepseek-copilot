@@ -1,4 +1,4 @@
-[Previous page: Safety and Confirmations](Safety-and-Confirmations.md)
+[Back](INDEX.md)
 
 # Registry and Executor
 
@@ -21,6 +21,7 @@ Responsibilities:
 - check execution mode.
 - run handler.
 - return structured result.
+- serialize non-read-only operations by workspace while allowing read-only tools to proceed concurrently.
 
 ## `ToolWorkspace`
 
@@ -35,6 +36,6 @@ Interface that separates `core` from VS Code. It exposes capabilities such as:
 
 The current VS Code implementation is `VsCodeToolWorkspace`.
 
----
+`runWithToolWorkspaceHost` binds a validating host through `AsyncLocalStorage` for the lifetime of one generation. This keeps concurrent conversations pinned to their own workspace instead of racing on the process-wide default host.
 
-[Next page: Overview](../storage/INDEX.md)
+[Back](INDEX.md)

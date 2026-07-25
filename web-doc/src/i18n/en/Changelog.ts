@@ -4,8 +4,19 @@ export const changelog: PageContent = {
   navTitle: "Changelog",
   title: "Changelog",
   description: "Relevant changes and preview status.",
-  lead: "Version 0.1.1 hardens chronological tool execution, terminal processes, API streaming, context, and workspace history.",
+  lead: "Version 0.1.2 adds isolated concurrent generations, per-conversation queues, recoverable checkpoints, and safer workspace execution.",
   sections: [
+    {
+      title: "0.1.2 generation coordination",
+      items: [
+        "Added one active generation per conversation with configurable cross-conversation concurrency from 1 to 16, defaulting to 8.",
+        "Added Queue message and Interrupt and guide controls, targeted cancellation, and generation-bound stream and tool events.",
+        "Added atomic generation checkpoints that recover partial output, cancel unfinished tools, and expose queued prompts as drafts after restart.",
+        "Introduced conversation schema v2 with generation ownership and a verified activation-time migration for valid legacy or partially migrated history; compatibility remains active until its scheduled cleanup release.",
+        "Pinned each generation to its conversation workspace and serialized mutating tools per workspace while allowing concurrent read-only work.",
+        "Added coordinated provider shutdown so active work is checkpointed, cancelled, and flushed during extension deactivation.",
+      ],
+    },
     {
       title: "0.1.1 reliability and security",
       items: [

@@ -78,7 +78,8 @@ export const settings = {
     },
     limits: {
       maxTokens: "Max Tokens",
-      maxToolRounds: "Max tool rounds"
+      maxToolRounds: "Max tool rounds",
+      maxConcurrentGenerations: "Concurrent generations"
     }
   }
 } satisfies TranslationCatalog;

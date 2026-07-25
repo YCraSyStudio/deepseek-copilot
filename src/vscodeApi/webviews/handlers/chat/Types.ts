@@ -1,4 +1,5 @@
 export interface SendMessagePayload {
+  clientRequestId: string;
   text: string;
   modelId: string;
   reasoning: string;

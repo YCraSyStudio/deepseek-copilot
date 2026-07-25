@@ -1,4 +1,4 @@
-[Previous page: Overview](INDEX.md)
+[Back](INDEX.md)
 
 # Dependency Rules
 
@@ -17,6 +17,8 @@
 - `core` may depend on `adapters`.
 - `deepseekApi` may depend on `adapters`.
 - `ui/chat` should communicate with the backend only through the message contract.
+- Concurrent generations must use an async-scoped `ToolWorkspace`; do not switch the process-wide host while a run is active.
+- Conversation writes remain serialized per conversation, and mutating tools remain serialized per workspace.
 
 ## When to create an interface
 
@@ -31,6 +33,4 @@ Create an interface when domain logic needs to:
 
 The concrete implementation should live in `src/vscodeApi`.
 
----
-
-[Next page: Layers](Layers.md)
+[Back](INDEX.md)

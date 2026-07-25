@@ -78,7 +78,8 @@ export const settings = {
     },
     limits: {
       maxTokens: "Tokens máximos",
-      maxToolRounds: "Máximo de rondas de herramientas"
+      maxToolRounds: "Máximo de rondas de herramientas",
+      maxConcurrentGenerations: "Generaciones simultáneas"
     }
   }
 } satisfies TranslationCatalog;

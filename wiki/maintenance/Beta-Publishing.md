@@ -1,4 +1,4 @@
-[Previous page: Migration Status](Migration-Status.md)
+[Back](INDEX.md)
 
 # Beta Publishing
 
@@ -52,14 +52,20 @@ Do not use the deprecated `vsce` package. Older versions still require explicit 
 - Send a prompt that needs a file and select a path through `./` autocomplete.
 - Verify tool call confirmation, execution, and result rendering.
 - Switch between Chat, History, and Settings while a tool call is pending.
-- Cancel generation and verify the prompt returns to the input.
-- Verify the cancelled prompt is not kept in conversation history or the next request context.
+- Queue a second prompt in the same conversation.
+- Start another conversation and verify both generations can progress concurrently.
+- Use Interrupt and guide and verify the guidance runs before older queued prompts.
+- Cancel generation and verify the interrupted turn retains the prompt and any partial response.
+- Close and reopen VS Code during active and queued work; verify partial output is saved and queued prompts appear as recoverable drafts.
 - Open a file from a tool result.
 - Verify Settings tooltips and select controls render correctly.
 
 ## Known beta constraints
 
 - DeepSeek is the only AI provider.
+- At most one generation runs per conversation; the global concurrent-generation limit is configurable from 1 to 16.
 - Tool execution is workspace-sensitive and should be reviewed before auto approval.
 - The webview tooltip system mimics VS Code theme variables but cannot invoke native VS Code hover widgets directly.
 - Explorer clipboard URI access is not used; workspace references are entered through path autocomplete.
+
+[Back](INDEX.md)

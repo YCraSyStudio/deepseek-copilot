@@ -4,6 +4,9 @@ export function isConversation(value: unknown): value is Conversation {
   if (!isRecord(value) || !isBoundedString(value.id, 512) || !isBoundedString(value.title, 4096) || !isBoundedString(value.model, 256) || !isBoundedString(value.workspaceUri, 32_768)) {
     return false;
   }
+  if (value.schemaVersion !== 2 && value.schemaVersion !== undefined) {
+    return false;
+  }
   if (!isTimestamp(value.createdAt) || !isTimestamp(value.updatedAt) || !Array.isArray(value.messages) || value.messages.length > 10_000) {
     return false;
   }
@@ -15,6 +18,12 @@ function isConversationMessage(value: unknown): value is ConversationMessage {
     return false;
   }
   if (value.createdAt !== undefined && !isTimestamp(value.createdAt)) {
+    return false;
+  }
+  if (value.generationId !== undefined && !isBoundedString(value.generationId, 512)) {
+    return false;
+  }
+  if (value.generationStatus !== undefined && !["completed", "interrupted", "error"].includes(value.generationStatus as string)) {
     return false;
   }
   if (value.timeline !== undefined && (!Array.isArray(value.timeline) || value.timeline.length > 10_000 || !value.timeline.every(isTimelineEvent))) {

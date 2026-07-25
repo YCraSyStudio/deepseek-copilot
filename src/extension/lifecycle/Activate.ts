@@ -6,6 +6,7 @@ import { registerExtensionApi } from "@/vscodeApi/activation/RegisterExtensionAp
 import { SettingsManager } from "@/vscodeApi/storage";
 import { createVsCodeToolWorkspace } from "@/vscodeApi/tools/VsCodeToolWorkspace";
 import { WebviewProvider } from "@/vscodeApi/webviews/WebviewProvider";
+import { setActiveProvider } from "./ExtensionRuntime";
 
 type LegacySettingKey = Exclude<keyof AppConfig, "apiKey" | "userId" | "includeHomeAgents" | "interfaceLanguage"> | "responseFormat";
 
@@ -18,6 +19,7 @@ const LEGACY_SETTING_KEYS: ReadonlyArray<LegacySettingKey> = [
   "topP",
   "maxTokens",
   "maxToolRounds",
+  "maxConcurrentGenerations",
   "responseFormat",
   "permissionMode",
   "toolExecutionModes",
@@ -32,6 +34,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   setToolWorkspaceHost(createVsCodeToolWorkspace());
 
   const provider = new WebviewProvider(context.extensionUri, context);
+  setActiveProvider(provider);
+  await provider.initialize();
   registerExtensionApi(context, provider);
 }
 

@@ -2,6 +2,10 @@ import type { ToolCall } from "@/adapters";
 import { ToolRegistry } from "./ToolRegistry";
 import { FORCED_HANDLERS } from "./definitions";
 import type { DangerLevel, ExecutionResult, ConfirmationRequiredResult, ToolHandlerContext } from "./Types";
+import { getToolWorkspaceHost } from "./ToolWorkspace";
+
+const READ_ONLY_TOOLS = new Set(["read_file", "list_directory", "search_content"]);
+const workspaceMutationQueues = new Map<string, Promise<void>>();
 
 /**
  * Executes tool calls and propagates handler-level confirmation requests.
@@ -13,6 +17,13 @@ export class ToolExecutor {
    * Validate and execute a tool call.
    */
   async execute(toolCall: ToolCall, context: ToolHandlerContext = {}): Promise<ExecutionResult> {
+    if (!READ_ONLY_TOOLS.has(toolCall.function.name)) {
+      return runWorkspaceMutation(() => this.executeInternal(toolCall, context));
+    }
+    return this.executeInternal(toolCall, context);
+  }
+
+  private async executeInternal(toolCall: ToolCall, context: ToolHandlerContext): Promise<ExecutionResult> {
     const validation = this.registry.validate(toolCall);
 
     if (!validation.valid) {
@@ -79,6 +90,13 @@ export class ToolExecutor {
    * Execute a tool call after explicit user confirmation.
    */
   async executeForced(toolCall: ToolCall, context: ToolHandlerContext = {}): Promise<ExecutionResult> {
+    if (!READ_ONLY_TOOLS.has(toolCall.function.name)) {
+      return runWorkspaceMutation(() => this.executeForcedInternal(toolCall, context));
+    }
+    return this.executeForcedInternal(toolCall, context);
+  }
+
+  private async executeForcedInternal(toolCall: ToolCall, context: ToolHandlerContext): Promise<ExecutionResult> {
     const validation = this.registry.validate(toolCall);
 
     if (!validation.valid) {
@@ -133,6 +151,24 @@ export class ToolExecutor {
       return null;
     } catch {
       return null;
+    }
+  }
+}
+
+async function runWorkspaceMutation<T>(operation: () => Promise<T>): Promise<T> {
+  const key = getToolWorkspaceHost().getRootPath() ?? "workspace:unknown";
+  const previous = workspaceMutationQueues.get(key) ?? Promise.resolve();
+  let release!: () => void;
+  const current = new Promise<void>((resolve) => { release = resolve; });
+  const tail = previous.then(() => current, () => current);
+  workspaceMutationQueues.set(key, tail);
+  await previous.catch(() => undefined);
+  try {
+    return await operation();
+  } finally {
+    release();
+    if (workspaceMutationQueues.get(key) === tail) {
+      workspaceMutationQueues.delete(key);
     }
   }
 }

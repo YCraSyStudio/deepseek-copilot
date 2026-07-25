@@ -1,4 +1,4 @@
-[Previous page: Scripts](Scripts.md)
+[Back](INDEX.md)
 
 # Verification
 
@@ -29,13 +29,19 @@ In Extension Development Host:
 - save API key.
 - test connection.
 - send a message with streaming.
-- cancel generation.
+- send messages in different conversations and verify they can run concurrently up to the configured limit.
+- send a second message in the same conversation and verify it remains queued.
+- use Interrupt and guide and verify the guidance runs before older queued prompts.
+- cancel a generation and verify its user message and partial assistant output remain marked as interrupted.
+- reload or recreate the webview during a run and verify the generation snapshot restores visible state.
+- close VS Code with active and queued work, then verify partial output and queued prompts recover on activation.
 - use history.
 - type `./` or `../` in the chat input and select a suggested path.
 - execute a safe tool.
 - confirm or cancel a dangerous tool.
 - open a file from preview.
-- cancel generation and verify the prompt returns to the input and is not kept in history/context.
+- delete a conversation with active or queued work and verify its run, queue, and checkpoint are removed first.
+- run mutating tools from concurrent conversations and verify mutations remain serialized within the same workspace.
 
 ## API validation
 
@@ -56,6 +62,4 @@ Review [Official DeepSeek references](../deepseek-api/Official-References.md) wh
 - documented paths and message names match the current source tree.
 - related documentation changes ship in the same commit as code changes.
 
----
-
-[Next page: Overview](../maintenance/INDEX.md)
+[Back](INDEX.md)

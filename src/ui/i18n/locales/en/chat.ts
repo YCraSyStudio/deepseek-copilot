@@ -29,6 +29,10 @@ export const chat = {
     jumpToLatest: "Jump to the latest response block",
     latest: "Latest",
     streaming: "DeepSeek response is streaming.",
-    finished: "Response generation finished."
+    finished: "Response generation finished.",
+    queueMessage: "Queue message",
+    interruptAndGuide: "Interrupt and guide",
+    recoveredDrafts: "Drafts recovered after VS Code closed:",
+    restoreDraft: "Restore"
   }
 } satisfies TranslationCatalog;

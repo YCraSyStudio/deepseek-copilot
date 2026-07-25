@@ -31,6 +31,7 @@ export function useChatMessagesController({
   const [internalMessages, setInternalMessages] = useState<ChatMessage[]>([]);
   const [internalIsProcessing, setInternalIsProcessing] = useState(false);
   const internalListRef = useRef<HTMLDivElement | null>(null);
+  const activeGenerationIdRef = useRef<string | undefined>(undefined);
   const { nextMessageId, streamingMessageIdRef, appendTimelineDelta, appendTimelineToolGroup, flushTimelineDeltas, resetStreaming } = useStreamHandler();
 
   const messages = externalMessages ?? internalMessages;
@@ -80,20 +81,27 @@ export function useChatMessagesController({
       [nextMessageId, setMessages, streamingMessageIdRef, flushTimelineDeltas],
     ),
 
-    onShowTyping: useCallback(() => {
+    onShowTyping: useCallback((generationId?: string) => {
+      activeGenerationIdRef.current = generationId;
       setProcessing(true);
       resetStreaming();
     }, [setProcessing, resetStreaming]),
 
     onStreamTimelineDelta: useCallback(
-      ({ eventId, eventType, content }) => {
+      ({ generationId, eventId, eventType, content }) => {
+        if (activeGenerationIdRef.current && generationId && generationId !== activeGenerationIdRef.current) {
+          return;
+        }
         appendTimelineDelta(eventId, eventType, content, setMessages);
       },
       [appendTimelineDelta, setMessages],
     ),
 
     onStreamTimelineToolGroup: useCallback(
-      (event) => {
+      (event, generationId) => {
+        if (activeGenerationIdRef.current && generationId && generationId !== activeGenerationIdRef.current) {
+          return;
+        }
         appendTimelineToolGroup(event, setMessages);
       },
       [appendTimelineToolGroup, setMessages],
@@ -101,13 +109,15 @@ export function useChatMessagesController({
 
     onStreamDone: useCallback(
       (info) => {
+        if (activeGenerationIdRef.current && info.generationId && info.generationId !== activeGenerationIdRef.current) {
+          return;
+        }
+        activeGenerationIdRef.current = undefined;
         flushTimelineDeltas();
         setProcessing(false);
 
         if (info.cancelled) {
           resetStreaming();
-          setMessages(removeCancelledTurn);
-          onGenerationCancelled?.();
           focusInput();
           return;
         }
@@ -122,7 +132,11 @@ export function useChatMessagesController({
     ),
 
     onStreamError: useCallback(
-      (error: string) => {
+      (error: string, generationId?: string) => {
+        if (activeGenerationIdRef.current && generationId && generationId !== activeGenerationIdRef.current) {
+          return;
+        }
+        activeGenerationIdRef.current = undefined;
         setProcessing(false);
         resetStreaming();
         setMessages((current) => [...current, { id: nextMessageId(), role: "error", content: error }]);
@@ -152,24 +166,6 @@ export function useChatMessagesController({
   };
 
   return { messages, isProcessing, listRef, dispatcher };
-}
-
-function removeCancelledTurn(current: ChatMessage[]): ChatMessage[] {
-  const next = [...current];
-
-  while (next.length > 0 && next[next.length - 1].role === "assistant" && !next[next.length - 1].content.trim()) {
-    next.pop();
-  }
-
-  if (next.length > 0 && next[next.length - 1].role === "assistant") {
-    next.pop();
-  }
-
-  if (next.length > 0 && next[next.length - 1].role === "user") {
-    next.pop();
-  }
-
-  return next;
 }
 
 function updateStreamedAssistant(

@@ -25,10 +25,19 @@ export const technicalDecisions: PageContent = {
       ],
     },
     {
+      title: "Generation ownership and recovery",
+      items: [
+        "A coordinator permits one active generation per conversation and bounded concurrency across conversations. The configurable limit defaults to 8 and is clamped from 1 to 16.",
+        "Client request IDs, generation IDs, and conversation IDs bind queues, streams, tool approvals, cancellation, and snapshots to the correct run.",
+        "Interrupt and guide queues the new instruction first and then aborts the current run; ordinary sends append to the conversation queue.",
+        "Atomic revisioned checkpoints preserve partial timelines, tool state, non-secret configuration, and queued prompts. Activation restores interrupted output and offers queued prompts as drafts.",
+      ],
+    },
+    {
       title: "Tools and terminal",
       items: [
         "Tool state has one native lifecycle ending in completed, rejected, cancelled, or error; rejection is not encoded as an execution error.",
-        "Calls execute sequentially to preserve write order and independent approvals; duplicate name-and-argument calls are blocked by the orchestrator.",
+        "Calls within a tool round execute sequentially and duplicate name-and-argument calls are blocked. Across concurrent generations, read-only tools may overlap while workspace mutations are serialized per workspace.",
         "Terminal uses spawn with process-tree cancellation, structured results, bounded head-and-tail output, and non-zero exit detection.",
         "Path authorization resolves real paths and existing ancestors to prevent symlink or junction escapes. Conversations retain their selected multi-root workspace URI.",
         "Confirmed file writes carry SHA-256 guards so edits and overwrites fail if disk content changes after preview.",
@@ -39,7 +48,7 @@ export const technicalDecisions: PageContent = {
       items: [
         "SSE supports comments, CRLF, data fields with or without spaces, multiline events, decoder finalization, malformed JSON diagnostics, and reader cancellation.",
         "DeepSeek requests use normalized URLs, a 60-second per-attempt timeout, and at most three retries for transient failures while respecting Retry-After.",
-        "Settings and conversation history live under ~/.yrs-dpsk-copilot/. History uses one validated JSON file per conversation and derives its list directly from those files.",
+        "Settings, schema-v2 conversation history, and generation checkpoints live under ~/.yrs-dpsk-copilot/. Checkpoints never contain the API key, and malformed history or checkpoint files are isolated.",
         "Context has aggregate budgets, binary detection, staged and unstaged Git data, bounded AGENTS.md sources, and explicit untrusted-data delimiters.",
       ],
     },

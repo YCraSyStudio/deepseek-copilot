@@ -1,4 +1,4 @@
-[Previous page: Chat Streaming](Chat-Streaming.md)
+[Back](INDEX.md)
 
 # Models and Configuration
 
@@ -15,6 +15,8 @@ Official reference:
 The webview settings UI persists the `AppConfig` fields supported by
 `src/vscodeApi/storage/SettingsManager.ts`. Settings are global to the extension
 and do not use VS Code configuration contributions.
+
+`maxConcurrentGenerations` controls cross-conversation concurrency. It defaults to 8 and is normalized to an integer from 1 to 16; each conversation still permits only one active generation.
 
 ## Streaming behavior
 
@@ -41,6 +43,4 @@ The product does not expose `provider`. DeepSeek is the only supported integrati
 - In thinking mode, `temperature` and `top_p` do not affect output according to the official guide.
 - FIM beta requires base URL `https://api.deepseek.com/beta`; do not mix it with the normal endpoint without an explicit decision.
 
----
-
-[Next page: Official References](Official-References.md)
+[Back](INDEX.md)

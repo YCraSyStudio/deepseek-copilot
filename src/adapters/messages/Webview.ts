@@ -58,9 +58,30 @@ export interface ConversationMessage {
   toolCallId?: string;
   toolName?: string;
   createdAt?: number;
+  generationId?: string;
+  generationStatus?: "completed" | "interrupted" | "error";
+}
+
+export interface QueuedGenerationMessage {
+  clientRequestId: string;
+  text: string;
+  queuedAt: number;
+}
+
+export interface GenerationSnapshot {
+  generationId: string;
+  conversationId: string;
+  status: "starting" | "streaming" | "awaiting_confirmation" | "running_tool" | "interrupted" | "completed" | "error";
+  userMessage: ConversationMessage;
+  content: string;
+  timeline: AssistantTimelineEvent[];
+  toolCalls: StoredToolCall[];
+  queue: QueuedGenerationMessage[];
 }
 
 export interface Conversation {
+  /** Required for new data; optional only during the temporary v1 migration window. */
+  schemaVersion?: 2;
   id: string;
   title: string;
   createdAt: number;
@@ -114,13 +135,26 @@ export type WebviewToHandlerMessage =
   | { type: "testConnection"; apiKey: string; baseUrl: string; model: string }
   | {
       type: "sendMessage";
+      clientRequestId: string;
       text: string;
       modelId: string;
       reasoning: string;
       conversationId?: string;
       referencedFiles?: Array<{ path: string; content?: string; type: "file" | "directory"; selection?: { startLine: number; startCharacter: number; endLine: number; endCharacter: number } }>;
     }
-  | { type: "cancelGeneration" }
+  | {
+      type: "steerGeneration";
+      generationId: string;
+      clientRequestId: string;
+      text: string;
+      modelId: string;
+      reasoning: string;
+      conversationId: string;
+      referencedFiles?: Array<{ path: string; content?: string; type: "file" | "directory"; selection?: { startLine: number; startCharacter: number; endLine: number; endCharacter: number } }>;
+    }
+  | { type: "cancelGeneration"; generationId: string }
+  | { type: "getGenerationSnapshot" }
+  | { type: "consumeRecoveredDraft"; conversationId: string; clientRequestId: string }
   | { type: "copyCode"; code: string }
   | { type: "insertCode"; code: string }
   | { type: "selectModel"; modelId: string }
@@ -129,8 +163,8 @@ export type WebviewToHandlerMessage =
   | { type: "loadConversation"; id: string }
   | { type: "deleteConversation"; id: string }
   | { type: "deleteConversations"; ids: string[] }
-  | { type: "executeToolCall"; toolCallId: string; action: "execute" | "reject"; trustForSession?: boolean }
-  | { type: "toolCallLimitDecision"; action: "continue" | "stop" }
+  | { type: "executeToolCall"; generationId: string; toolCallId: string; action: "execute" | "reject"; trustForSession?: boolean }
+  | { type: "toolCallLimitDecision"; generationId: string; action: "continue" | "stop" }
   | { type: "getPathCompletions"; requestId: number; query: string }
   | { type: "getAvailableTools" }
   | { type: "openFile"; path: string; line?: number };
@@ -142,15 +176,20 @@ export type HandlerToWebviewMessage =
   | { type: "connectionTestResult"; success: boolean; error?: string }
   | { type: "apiKeyStatusSettings"; status: "configured" | "missing"; keyPreview?: string }
   | { type: "apiKeyStatus"; status: "configured" | "missing"; keyPreview?: string }
-  | { type: "showTyping" }
-  | { type: "streamTimelineDelta"; eventId: string; eventType: "reasoning" | "content"; content: string }
-  | { type: "streamTimelineToolGroup"; event: Extract<AssistantTimelineEvent, { type: "tool-group" }> }
+  | { type: "generationAccepted"; generationId: string; conversationId: string; clientRequestId: string }
+  | { type: "messageQueued"; conversationId: string; clientRequestId: string; position: number }
+  | { type: "generationSnapshot"; generations: GenerationSnapshot[]; recoveredDrafts: Array<{ conversationId: string; messages: QueuedGenerationMessage[] }> }
+  | { type: "showTyping"; generationId?: string; conversationId?: string }
+  | { type: "streamTimelineDelta"; generationId?: string; conversationId?: string; eventId: string; eventType: "reasoning" | "content"; content: string }
+  | { type: "streamTimelineToolGroup"; generationId?: string; conversationId?: string; event: Extract<AssistantTimelineEvent, { type: "tool-group" }> }
   | {
       type: "streamDone";
+      generationId?: string;
+      conversationId?: string;
       cancelled?: boolean;
       finish_reason?: string;
     }
-  | { type: "streamError"; error: string }
+  | { type: "streamError"; generationId?: string; conversationId?: string; error: string }
   | {
       type: "addMessage";
       message: {
@@ -174,12 +213,16 @@ export type HandlerToWebviewMessage =
   | { type: "conversationDeleted"; id: string }
   | {
       type: "toolCallStarted";
+      generationId?: string;
+      conversationId?: string;
       toolCalls: ToolCall[];
       round: number;
       totalRounds?: number;
     }
   | {
       type: "toolCallResult";
+      generationId?: string;
+      conversationId?: string;
       toolCallId: string;
       toolName: string;
       result: string;
@@ -187,10 +230,12 @@ export type HandlerToWebviewMessage =
       rejected?: boolean;
       status: "completed" | "rejected" | "cancelled" | "error";
     }
-  | { type: "toolCallActionAccepted"; toolCallId: string; status: "running" | "rejected" }
-  | { type: "toolCallLimitReached"; completedRounds: number; batchSize: number }
+  | { type: "toolCallActionAccepted"; generationId?: string; conversationId?: string; toolCallId: string; status: "running" | "rejected" }
+  | { type: "toolCallLimitReached"; generationId?: string; conversationId?: string; completedRounds: number; batchSize: number }
   | {
       type: "toolCallConfirmationRequired";
+      generationId?: string;
+      conversationId?: string;
       toolCalls: ToolCall[];
       round: number;
       autoExecute: boolean;

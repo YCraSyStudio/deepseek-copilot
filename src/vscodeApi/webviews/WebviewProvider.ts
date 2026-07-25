@@ -20,6 +20,7 @@ export class WebviewProvider implements vscode.WebviewViewProvider, vscode.Dispo
   private readonly chatHandler: ChatHandler;
   private readonly settingsHandler: SettingsHandler;
   private readonly historyHandler: HistoryHandler;
+  private readonly historyManager: HistoryManager;
   private readonly disposables: vscode.Disposable[] = [];
   private readonly pendingMessages: ChatCommandMessage[] = [];
   private webviewView?: vscode.WebviewView;
@@ -28,23 +29,25 @@ export class WebviewProvider implements vscode.WebviewViewProvider, vscode.Dispo
     private readonly _extensionUri: vscode.Uri,
     private readonly _context: vscode.ExtensionContext,
   ) {
-    const historyManager = new HistoryManager(this._context);
-    this.chatHandler = new ChatHandler(this._context, historyManager);
+    this.historyManager = new HistoryManager(this._context);
+    this.chatHandler = new ChatHandler(this._context, this.historyManager);
     this.settingsHandler = new SettingsHandler(this._context);
     this.historyHandler = new HistoryHandler(
-      historyManager,
+      this.historyManager,
       (conversation) => this.chatHandler.loadConversation(conversation),
       (id) => {
         if (this.chatHandler.forgetConversation(id)) {
           void this.webviewView?.webview.postMessage({ type: "clearChat" });
         }
       },
+      (id) => this.chatHandler.prepareConversationDeletion(id),
     );
 
   }
 
   public async resolveWebviewView(webviewView: vscode.WebviewView): Promise<void> {
     this.webviewView = webviewView;
+    this.chatHandler.attachWebview(webviewView);
     const webviewDistUri = vscode.Uri.joinPath(this._extensionUri, "dist", "webview");
     const codiconsDistUri = vscode.Uri.joinPath(this._extensionUri, "node_modules", "@vscode", "codicons", "dist");
     const devServerUrl = process.env.DEEPSEEK_COPILOT_WEBVIEW_DEV_SERVER;
@@ -83,6 +86,16 @@ export class WebviewProvider implements vscode.WebviewViewProvider, vscode.Dispo
       this.disposables.pop()?.dispose();
     }
     this.webviewView = undefined;
+  }
+
+  public async initialize(): Promise<void> {
+    await this.historyManager.initialize();
+    await this.chatHandler.initialize();
+  }
+
+  public async shutdown(): Promise<void> {
+    await this.chatHandler.shutdown();
+    this.dispose();
   }
 
   public async addReferencedFiles(files: ReferencedFilePayload[]): Promise<void> {
@@ -150,7 +163,10 @@ export class WebviewProvider implements vscode.WebviewViewProvider, vscode.Dispo
   private _routeMessage(message: WebviewToHandlerMessage, webviewView: vscode.WebviewView): void {
     switch (message.type) {
       case "sendMessage":
+      case "steerGeneration":
       case "cancelGeneration":
+      case "getGenerationSnapshot":
+      case "consumeRecoveredDraft":
       case "getAvailableTools":
       case "executeToolCall":
       case "toolCallLimitDecision":

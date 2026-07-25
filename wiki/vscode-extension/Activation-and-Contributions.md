@@ -1,4 +1,4 @@
-[Previous page: Overview](INDEX.md)
+[Back](INDEX.md)
 
 # Activation and Contributions
 
@@ -13,21 +13,20 @@
 
 VS Code automatically generates activation events from those contributions. Do not keep a manual `activationEvents` list unless there is a specific reason.
 
-## `activate(context.md)`
+## `activate(context)`
 
 `src/Extension.ts` should:
 
 - create `VsCodeToolWorkspace`.
 - inject it into `core/tools`.
 - create `WebviewProvider`.
+- register it in `ExtensionRuntime` and await history/checkpoint initialization.
 - register `WebviewProvider.viewType`.
 - register commands.
 - add disposables to `context.subscriptions`.
 
 ## `deactivate()`
 
-It should clear the tool workspace host to avoid references to VS Code APIs after the extension closes.
+It awaits `shutdownActiveProvider()`. Shutdown checkpoints active work, cancels tool sessions and generation controllers, flushes checkpoint writes, and disposes the provider before clearing runtime references.
 
----
-
-[Next page: Commands and Views](Commands-and-Views.md)
+[Back](INDEX.md)

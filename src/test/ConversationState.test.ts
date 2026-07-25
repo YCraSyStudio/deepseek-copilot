@@ -72,4 +72,33 @@ suite("ConversationState", () => {
     assert.strictEqual(state.forget(saved!.id), true);
     assert.deepStrictEqual(state.getApiMessages(), []);
   });
+
+  test("keeps interrupted visible content but omits incomplete reasoning and tools from API context", async () => {
+    const state = new ConversationState({ save: async () => undefined });
+    state.load({
+      schemaVersion: 2,
+      id: "conversation",
+      title: "Interrupted",
+      createdAt: 1,
+      updatedAt: 1,
+      model: "model",
+      workspaceUri: "file:///workspace",
+      messages: [{
+        id: "assistant",
+        role: "assistant",
+        content: "partial answer",
+        generationStatus: "interrupted",
+        timeline: [{ id: "reasoning", type: "reasoning", content: "private partial reasoning" }],
+        toolCalls: [{
+          toolCallId: "call",
+          toolName: "read_file",
+          arguments: "{}",
+          status: "cancelled",
+          result: "cancelled",
+        }],
+      }],
+    });
+
+    assert.deepStrictEqual(state.getApiMessages(), [{ role: "assistant", content: "partial answer" }]);
+  });
 });

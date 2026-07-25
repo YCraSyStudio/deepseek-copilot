@@ -29,6 +29,10 @@ export const chat = {
     jumpToLatest: "跳到最新响应块",
     latest: "最新",
     streaming: "DeepSeek 响应正在传输。",
-    finished: "响应生成已完成。"
+    finished: "响应生成已完成。",
+    queueMessage: "消息入队",
+    interruptAndGuide: "中断并引导",
+    recoveredDrafts: "VS Code 关闭后恢复的草稿：",
+    restoreDraft: "恢复"
   }
 } satisfies TranslationCatalog;

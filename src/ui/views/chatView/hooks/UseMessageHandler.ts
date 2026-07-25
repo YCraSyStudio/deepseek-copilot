@@ -25,20 +25,20 @@ export type MessageDispatcher = {
     toolCallId?: string;
     toolName?: string;
   }) => void;
-  onShowTyping?: () => void;
-  onStreamTimelineDelta?: (data: { eventId: string; eventType: "reasoning" | "content"; content: string }) => void;
-  onStreamTimelineToolGroup?: (event: Extract<AssistantTimelineEvent, { type: "tool-group" }>) => void;
-  onStreamDone?: (info: StreamDoneInfo) => void;
-  onStreamError?: (error: string) => void;
+  onShowTyping?: (generationId?: string) => void;
+  onStreamTimelineDelta?: (data: { generationId?: string; eventId: string; eventType: "reasoning" | "content"; content: string }) => void;
+  onStreamTimelineToolGroup?: (event: Extract<AssistantTimelineEvent, { type: "tool-group" }>, generationId?: string) => void;
+  onStreamDone?: (info: StreamDoneInfo & { generationId?: string }) => void;
+  onStreamError?: (error: string, generationId?: string) => void;
   onClearChat?: () => void;
   onModelChanged?: (modelId: string) => void;
   onApiKeyStatus?: (status: ApiKeyStatus) => void;
   onConfigLoaded?: (config: Partial<AppConfig>) => void;
-  onToolCallStarted?: (data: { toolCalls: ToolCall[]; round: number }) => void;
-  onToolCallResult?: (data: { toolCallId: string; toolName: string; result: string; isError?: boolean; rejected?: boolean; status: ToolCallStatus }) => void;
-  onToolCallActionAccepted?: (data: { toolCallId: string; status: "running" | "rejected" }) => void;
-  onToolCallConfirmationRequired?: (data: { toolCalls: ToolCall[]; round: number; autoExecute: boolean; dangerConfirmation?: DangerConfirmationData }) => void;
-  onToolCallLimitReached?: (data: { completedRounds: number; batchSize: number }) => void;
+  onToolCallStarted?: (data: { generationId?: string; toolCalls: ToolCall[]; round: number }) => void;
+  onToolCallResult?: (data: { generationId?: string; toolCallId: string; toolName: string; result: string; isError?: boolean; rejected?: boolean; status: ToolCallStatus }) => void;
+  onToolCallActionAccepted?: (data: { generationId?: string; toolCallId: string; status: "running" | "rejected" }) => void;
+  onToolCallConfirmationRequired?: (data: { generationId?: string; toolCalls: ToolCall[]; round: number; autoExecute: boolean; dangerConfirmation?: DangerConfirmationData }) => void;
+  onToolCallLimitReached?: (data: { generationId?: string; completedRounds: number; batchSize: number }) => void;
 };
 
 /**
@@ -77,26 +77,27 @@ export function useMessageHandler(vscode: VsCodeApi | null, dispatcher: MessageD
           break;
 
         case "showTyping":
-          onShowTyping?.();
+          onShowTyping?.(message.generationId);
           break;
 
         case "streamTimelineDelta":
-          onStreamTimelineDelta?.({ eventId: message.eventId, eventType: message.eventType, content: message.content });
+          onStreamTimelineDelta?.({ generationId: message.generationId, eventId: message.eventId, eventType: message.eventType, content: message.content });
           break;
 
         case "streamTimelineToolGroup":
-          onStreamTimelineToolGroup?.(message.event);
+          onStreamTimelineToolGroup?.(message.event, message.generationId);
           break;
 
         case "streamDone":
           onStreamDone?.({
             cancelled: message.cancelled,
             finish_reason: message.finish_reason,
+            generationId: message.generationId,
           });
           break;
 
         case "streamError":
-          onStreamError?.(message.error);
+          onStreamError?.(message.error, message.generationId);
           break;
 
         case "clearChat":
@@ -118,6 +119,7 @@ export function useMessageHandler(vscode: VsCodeApi | null, dispatcher: MessageD
 
         case "toolCallStarted":
           onToolCallStarted?.({
+            generationId: message.generationId,
             toolCalls: message.toolCalls,
             round: message.round,
           });
@@ -125,6 +127,7 @@ export function useMessageHandler(vscode: VsCodeApi | null, dispatcher: MessageD
 
         case "toolCallResult":
           onToolCallResult?.({
+            generationId: message.generationId,
             toolCallId: message.toolCallId,
             toolName: message.toolName,
             result: message.result,
@@ -135,11 +138,12 @@ export function useMessageHandler(vscode: VsCodeApi | null, dispatcher: MessageD
           break;
 
         case "toolCallActionAccepted":
-          onToolCallActionAccepted?.({ toolCallId: message.toolCallId, status: message.status });
+          onToolCallActionAccepted?.({ generationId: message.generationId, toolCallId: message.toolCallId, status: message.status });
           break;
 
         case "toolCallConfirmationRequired":
           onToolCallConfirmationRequired?.({
+            generationId: message.generationId,
             toolCalls: message.toolCalls,
             round: message.round,
             autoExecute: message.autoExecute,
@@ -148,13 +152,14 @@ export function useMessageHandler(vscode: VsCodeApi | null, dispatcher: MessageD
           break;
 
         case "toolCallLimitReached":
-          onToolCallLimitReached?.({ completedRounds: message.completedRounds, batchSize: message.batchSize });
+          onToolCallLimitReached?.({ generationId: message.generationId, completedRounds: message.completedRounds, batchSize: message.batchSize });
           break;
       }
     };
 
     window.addEventListener("message", handleMessage);
     vscode.postMessage({ type: "getConfig" });
+    vscode.postMessage({ type: "getGenerationSnapshot" });
 
     return () => window.removeEventListener("message", handleMessage);
   }, [

@@ -22,6 +22,7 @@ type Props = {
   rows?: number;
   referencedFiles?: ReferencedFile[];
   conversationId?: string;
+  activeGenerationId?: string;
   onSend?: (text: string) => void;
 };
 
@@ -38,6 +39,7 @@ const InputCtrl = forwardRef<HTMLTextAreaElement, Props>(
       rows = 1,
       referencedFiles,
       conversationId,
+      activeGenerationId,
       onSend,
     },
     ref,
@@ -134,6 +136,7 @@ const InputCtrl = forwardRef<HTMLTextAreaElement, Props>(
       onSend?.(text);
       vscode.postMessage({
         type: "sendMessage",
+        clientRequestId: crypto.randomUUID(),
         text,
         modelId: selectedModelRef.current,
         reasoning: reasoningRef.current,
@@ -147,8 +150,29 @@ const InputCtrl = forwardRef<HTMLTextAreaElement, Props>(
     }, [input, vscode, canSend, setInput, selectedModelRef, reasoningRef, referencedFiles, conversationId, onSend]);
 
     const handleCancel = useCallback(() => {
-      vscode?.postMessage({ type: "cancelGeneration" });
-    }, [vscode]);
+      if (activeGenerationId) {
+        vscode?.postMessage({ type: "cancelGeneration", generationId: activeGenerationId });
+      }
+    }, [vscode, activeGenerationId]);
+
+    const handleSteer = useCallback(() => {
+      const text = input.trim();
+      if (!text || !vscode || !conversationId || !activeGenerationId) {
+        return;
+      }
+      setInput("");
+      onSend?.(text);
+      vscode.postMessage({
+        type: "steerGeneration",
+        generationId: activeGenerationId,
+        clientRequestId: crypto.randomUUID(),
+        text,
+        modelId: selectedModelRef.current,
+        reasoning: reasoningRef.current,
+        conversationId,
+        referencedFiles: referencedFiles?.map((file) => ({ path: file.path, content: file.content, type: file.type })),
+      });
+    }, [activeGenerationId, conversationId, input, onSend, reasoningRef, referencedFiles, selectedModelRef, setInput, vscode]);
 
     const insertCompletion = useCallback(
       (completion: PathCompletionItem) => {
@@ -264,9 +288,17 @@ const InputCtrl = forwardRef<HTMLTextAreaElement, Props>(
           aria-busy={isProcessing}
         />
         {isProcessing ? (
-          <button className="stopBtn inside" type="button" onClick={handleCancel} aria-label={t("chat.stopGeneration")} data-tooltip={t("chat.stopGeneration")}>
-            <span className="codicon codicon-debug-stop" aria-hidden="true" />
-          </button>
+          <>
+            <button className="stopBtn inside" type="button" onClick={handleCancel} aria-label={t("chat.stopGeneration")} data-tooltip={t("chat.stopGeneration")}>
+              <span className="codicon codicon-debug-stop" aria-hidden="true" />
+            </button>
+            <button className="sendBtn inside" type="button" onClick={handleSteer} disabled={!canSend} aria-label={t("chat.interruptAndGuide")} data-tooltip={t("chat.interruptAndGuide")}>
+              <span className="codicon codicon-debug-restart" aria-hidden="true" />
+            </button>
+            <button className="sendBtn inside" type="button" onClick={handleSend} disabled={!canSend} aria-label={t("chat.queueMessage")} data-tooltip={t("chat.queueMessage")}>
+              <span className="codicon codicon-list-ordered" aria-hidden="true" />
+            </button>
+          </>
         ) : (
           <button className="sendBtn inside" type="button" onClick={handleSend} disabled={!canSend} aria-label={t("chat.sendMessage")}>
             <span className="codicon codicon-send" aria-hidden="true" />

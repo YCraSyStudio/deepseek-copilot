@@ -25,10 +25,19 @@ export const technicalDecisions: PageContent = {
       ],
     },
     {
+      title: "生成任务归属与恢复",
+      items: [
+        "协调器保证每个会话最多运行一个生成任务，同时允许不同会话进行有界并发。并发上限默认为 8，并限制在 1 到 16 之间。",
+        "客户端请求 ID、生成 ID 和会话 ID 将队列、流、工具批准、取消和快照绑定到正确的任务。",
+        "Interrupt and guide 会先将新指导加入队首，再中止当前任务；普通发送会追加到会话队列末尾。",
+        "带修订号的原子 checkpoint 会保留部分 timeline、工具状态、不含密钥的配置和排队提示。激活时会恢复中断输出，并将排队提示作为草稿提供。",
+      ],
+    },
+    {
       title: "工具和终端",
       items: [
         "工具状态使用单一原生生命周期，最终进入 completed、rejected、cancelled 或 error；拒绝不会被编码为执行错误。",
-        "调用按顺序执行，以保持写入顺序和独立批准；编排器会阻止名称和参数完全相同的重复调用。",
+        "同一工具轮次中的调用按顺序执行，编排器会阻止名称和参数完全相同的重复调用。在并发生成任务之间，只读工具可以重叠运行，而工作区变更按工作区串行执行。",
         "终端使用 spawn、进程树取消、结构化结果、保留首尾的有界输出，以及非零退出码检测。",
         "路径授权会解析真实路径和现有祖先，防止通过 symlink 或 junction 越界。会话会保留所选多根工作区的 URI。",
         "已确认的文件写入带有 SHA-256 守卫；如果预览后磁盘内容发生变化，编辑或覆盖会失败。",
@@ -39,7 +48,7 @@ export const technicalDecisions: PageContent = {
       items: [
         "SSE 支持注释、CRLF、带或不带空格的 data 字段、多行事件、解码器收尾、异常 JSON 诊断和 reader 取消。",
         "DeepSeek 请求使用规范化 URL，每次尝试超时 60 秒；对临时故障最多尝试三次，并遵守 Retry-After。",
-        "设置和会话历史保存在 ~/.yrs-dpsk-copilot/ 下。历史记录每个会话使用一个经过验证的 JSON 文件，并直接从这些文件生成列表。",
+        "设置、schema-v2 会话历史和生成 checkpoint 都保存在 ~/.yrs-dpsk-copilot/ 下。checkpoint 绝不包含 API key，异常的历史或 checkpoint 文件会被隔离。",
         "上下文具有总预算、二进制检测、Git staged 和 unstaged 数据、受限的 AGENTS.md 来源，以及明确的不受信任数据分隔符。",
       ],
     },

@@ -2,14 +2,6 @@
   "repository": "YarCrasy/deepseek-copilot",
   "issues": [
     {
-      "id": "002",
-      "priority": "P0",
-      "title": "[P0] Serialize generations and isolate conversation transitions",
-      "bodyFile": ".github/issue-bodies/002-p0-serialize-generations.md",
-      "labels": ["BUG", "INTEGRATION", "FRONTEND"],
-      "dependsOn": []
-    },
-    {
       "id": "003",
       "priority": "P0",
       "title": "[P0] Pin an immutable workspace context for every run",
@@ -39,7 +31,7 @@
       "title": "[P0] Preserve protocol-valid DeepSeek tool transcripts",
       "bodyFile": ".github/issue-bodies/006-p0-preserve-deepseek-tool-transcripts.md",
       "labels": ["BUG", "INTEGRATION"],
-      "dependsOn": ["002"]
+      "dependsOn": []
     },
     {
       "id": "007",
@@ -55,7 +47,7 @@
       "title": "[P0] Make disabled history truly ephemeral",
       "bodyFile": ".github/issue-bodies/008-p0-make-disabled-history-ephemeral.md",
       "labels": ["BUG", "INTEGRATION", "FRONTEND"],
-      "dependsOn": ["002"]
+      "dependsOn": []
     },
     {
       "id": "009",
@@ -63,7 +55,7 @@
       "title": "[P1] Guarantee tool-call identity, terminal states, and auditability",
       "bodyFile": ".github/issue-bodies/009-p1-tool-call-integrity-and-audit.md",
       "labels": ["BUG", "INTEGRATION", "FRONTEND"],
-      "dependsOn": ["002", "006"]
+      "dependsOn": ["006"]
     },
     {
       "id": "010",
@@ -87,7 +79,7 @@
       "title": "[P1] Harden streaming timeouts, bounds, and partial-response recovery",
       "bodyFile": ".github/issue-bodies/012-p1-harden-streaming-resilience.md",
       "labels": ["BUG", "INTEGRATION", "FRONTEND"],
-      "dependsOn": ["002", "006"]
+      "dependsOn": ["006"]
     },
     {
       "id": "013",
@@ -95,7 +87,7 @@
       "title": "[P1] Guarantee child-process shutdown on timeout and cancellation",
       "bodyFile": ".github/issue-bodies/013-p1-guarantee-process-shutdown.md",
       "labels": ["BUG", "INTEGRATION"],
-      "dependsOn": ["002"]
+      "dependsOn": []
     },
     {
       "id": "014",
@@ -103,7 +95,7 @@
       "title": "[P1] Version and synchronize the webview-host protocol",
       "bodyFile": ".github/issue-bodies/014-p1-version-webview-host-protocol.md",
       "labels": ["BUG", "INTEGRATION", "FRONTEND"],
-      "dependsOn": ["002", "005", "008"]
+      "dependsOn": ["005", "008"]
     },
     {
       "id": "015",
@@ -134,6 +126,14 @@
       "priority": "P2",
       "title": "[P2] Add managed, redacted production diagnostics",
       "bodyFile": ".github/issue-bodies/018-p2-add-managed-redacted-diagnostics.md",
+      "labels": ["IMPROVEMENT", "INTEGRATION"],
+      "dependsOn": []
+    },
+    {
+      "id": "019",
+      "priority": "P1",
+      "title": "[P1] Remove temporary legacy conversation migration",
+      "bodyFile": ".github/issue-bodies/019-p1-remove-legacy-conversation-migration.md",
       "labels": ["IMPROVEMENT", "INTEGRATION"],
       "dependsOn": []
     }

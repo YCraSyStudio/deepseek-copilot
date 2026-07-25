@@ -1,4 +1,4 @@
-[Previous page: Activation and Contributions](Activation-and-Contributions.md)
+[Back](INDEX.md)
 
 # Commands and Views
 
@@ -27,6 +27,4 @@
 
 The public contribution icon lives at `src/assets/DeepSeekIcon.svg`.
 
----
-
-[Next page: Message Contract](Message-Contract.md)
+[Back](INDEX.md)

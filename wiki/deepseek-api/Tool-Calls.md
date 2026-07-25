@@ -1,4 +1,4 @@
-[Previous page: Official References](Official-References.md)
+[Back](INDEX.md)
 
 # Tool Calls
 
@@ -29,6 +29,7 @@ Official reference:
 
 - Tool definitions live in `core`.
 - Concrete execution uses `ToolWorkspace`.
+- Each generation owns its own `ToolCallSession`; approvals and round-limit decisions include `generationId`.
 - Destructive or ambiguous operations must require confirmation.
 - The UI should show structured results when available.
 
@@ -43,6 +44,4 @@ Official reference:
 - In thinking mode with tool calls, `reasoning_content` must be preserved for later turns.
 - `strict` mode is beta and requires the beta base URL and compatible schemas.
 
----
-
-[Next page: Overview](../react-webview/INDEX.md)
+[Back](INDEX.md)

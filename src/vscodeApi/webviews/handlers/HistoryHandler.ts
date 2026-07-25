@@ -8,6 +8,7 @@ export class HistoryHandler {
     private readonly historyManager: HistoryManager,
     private readonly onConversationLoaded?: (conversation: Conversation) => void,
     private readonly onConversationDeleted?: (id: string) => void,
+    private readonly onBeforeConversationDelete?: (id: string) => Promise<void>,
   ) {}
 
   handle(message: WebviewToHandlerMessage, webviewView: vscode.WebviewView): void {
@@ -48,6 +49,7 @@ export class HistoryHandler {
     if (confirmation !== "Delete") {
       return;
     }
+    await this.onBeforeConversationDelete?.(id);
     await this.historyManager.delete(id);
     this.onConversationDeleted?.(id);
     await webviewView.webview.postMessage({ type: "conversationDeleted", id });
@@ -84,6 +86,7 @@ export class HistoryHandler {
     if (confirmation !== "Delete all") {
       return;
     }
+    await Promise.all(ids.map((id) => this.onBeforeConversationDelete?.(id)));
     await this.historyManager.deleteMany(ids);
     await Promise.all(ids.map(async (id) => {
       this.onConversationDeleted?.(id);

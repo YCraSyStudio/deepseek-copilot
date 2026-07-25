@@ -14,11 +14,17 @@ export function isWebviewToHandlerMessage(value: unknown): value is WebviewToHan
   switch (value.type) {
     case "getConfig":
     case "resetConfig":
-    case "cancelGeneration":
     case "newConversation":
     case "getHistory":
     case "getAvailableTools":
+    case "getGenerationSnapshot":
       return hasOnlyKeys(value, ["type"]);
+    case "cancelGeneration":
+      return hasOnlyKeys(value, ["type", "generationId"]) && isNonEmptyBoundedString(value.generationId, 512);
+    case "consumeRecoveredDraft":
+      return hasOnlyKeys(value, ["type", "conversationId", "clientRequestId"]) &&
+        isNonEmptyBoundedString(value.conversationId, 512) &&
+        isNonEmptyBoundedString(value.clientRequestId, 512);
     case "saveConfig":
       return hasOnlyKeys(value, ["type", "config"]) && isAppConfigPatch(value.config);
     case "testConnection":
@@ -30,6 +36,10 @@ export function isWebviewToHandlerMessage(value: unknown): value is WebviewToHan
       );
     case "sendMessage":
       return validateSendMessage(value);
+    case "steerGeneration":
+      return validateSendMessageFields(value, ["type", "generationId", "clientRequestId", "text", "modelId", "reasoning", "conversationId", "referencedFiles"]) &&
+        isNonEmptyBoundedString(value.generationId, 512) &&
+        isNonEmptyBoundedString(value.conversationId, 512);
     case "copyCode":
     case "insertCode":
       return hasOnlyKeys(value, ["type", "code"]) && isBoundedString(value.code, MAX_CODE_TEXT);
@@ -42,13 +52,16 @@ export function isWebviewToHandlerMessage(value: unknown): value is WebviewToHan
       return hasOnlyKeys(value, ["type", "ids"]) && Array.isArray(value.ids) && value.ids.length <= 100 && value.ids.every((id) => isNonEmptyBoundedString(id, 512));
     case "executeToolCall":
       return (
-        hasOnlyKeys(value, ["type", "toolCallId", "action", "trustForSession"]) &&
+        hasOnlyKeys(value, ["type", "generationId", "toolCallId", "action", "trustForSession"]) &&
+        isNonEmptyBoundedString(value.generationId, 512) &&
         isNonEmptyBoundedString(value.toolCallId, 512) &&
         (value.action === "execute" || value.action === "reject") &&
         isOptionalBoolean(value.trustForSession)
       );
     case "toolCallLimitDecision":
-      return hasOnlyKeys(value, ["type", "action"]) && (value.action === "continue" || value.action === "stop");
+      return hasOnlyKeys(value, ["type", "generationId", "action"]) &&
+        isNonEmptyBoundedString(value.generationId, 512) &&
+        (value.action === "continue" || value.action === "stop");
     case "getPathCompletions":
       return (
         hasOnlyKeys(value, ["type", "requestId", "query"]) &&
@@ -68,8 +81,13 @@ export function isWebviewToHandlerMessage(value: unknown): value is WebviewToHan
 }
 
 function validateSendMessage(value: Record<string, unknown>): boolean {
+  return validateSendMessageFields(value, ["type", "clientRequestId", "text", "modelId", "reasoning", "conversationId", "referencedFiles"]);
+}
+
+function validateSendMessageFields(value: Record<string, unknown>, keys: readonly string[]): boolean {
   if (
-    !hasOnlyKeys(value, ["type", "text", "modelId", "reasoning", "conversationId", "referencedFiles"]) ||
+    !hasOnlyKeys(value, keys) ||
+    !isNonEmptyBoundedString(value.clientRequestId, 512) ||
     !isNonEmptyBoundedString(value.text, MAX_CHAT_TEXT) ||
     !isNonEmptyBoundedString(value.modelId, 256) ||
     (value.reasoning !== "off" && value.reasoning !== "high" && value.reasoning !== "max") ||
@@ -121,6 +139,7 @@ const APP_CONFIG_KEYS = [
   "topP",
   "maxTokens",
   "maxToolRounds",
+  "maxConcurrentGenerations",
   "permissionMode",
   "toolExecutionModes",
   "autoContext",
@@ -147,6 +166,7 @@ function isAppConfigPatch(value: unknown): value is Partial<AppConfig> {
     isOptionalNumberInRange(value.topP, 0, 1) &&
     (value.maxTokens === undefined || (Number.isSafeInteger(value.maxTokens) && (value.maxTokens as number) >= 1 && (value.maxTokens as number) <= MAX_OUTPUT_TOKENS)) &&
     (value.maxToolRounds === undefined || (Number.isSafeInteger(value.maxToolRounds) && (value.maxToolRounds as number) >= 1 && (value.maxToolRounds as number) <= 20)) &&
+    (value.maxConcurrentGenerations === undefined || (Number.isSafeInteger(value.maxConcurrentGenerations) && (value.maxConcurrentGenerations as number) >= 1 && (value.maxConcurrentGenerations as number) <= 16)) &&
     (value.permissionMode === undefined || ["chat", "read-only", "workspace", "full-access", "auto-approve"].includes(value.permissionMode as string)) &&
     (value.toolExecutionModes === undefined || isToolExecutionModes(value.toolExecutionModes)) &&
     isOptionalBoolean(value.autoContext) &&

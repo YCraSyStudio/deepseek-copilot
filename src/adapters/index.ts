@@ -11,6 +11,8 @@ export type {
   AvailableToolInfo,
   AvailableToolParameter,
   PathCompletionItem,
+  GenerationSnapshot,
+  QueuedGenerationMessage,
 } from "./messages/Webview";
 export type {
   ChatMessage,

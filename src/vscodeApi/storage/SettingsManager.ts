@@ -18,6 +18,7 @@ const STORED_SETTING_KEYS = new Set<StoredSettingKey>([
   "topP",
   "maxTokens",
   "maxToolRounds",
+  "maxConcurrentGenerations",
   "permissionMode",
   "toolExecutionModes",
   "autoContext",
@@ -91,6 +92,7 @@ function normalizeConfig(value: unknown): AppConfig {
     topP: clampNumber(config.topP, 0, 1, DEEPSEEK_DEFAULTS.topP),
     maxTokens: clampInteger(config.maxTokens, 1, MAX_OUTPUT_TOKENS, DEEPSEEK_DEFAULTS.maxTokens),
     maxToolRounds: clampInteger(config.maxToolRounds, 1, 20, DEEPSEEK_DEFAULTS.maxToolRounds),
+    maxConcurrentGenerations: clampInteger(config.maxConcurrentGenerations, 1, 16, DEEPSEEK_DEFAULTS.maxConcurrentGenerations),
     permissionMode: normalizePermissionMode(config.permissionMode),
     toolExecutionModes: normalizeToolExecutionModes(config.toolExecutionModes),
     autoContext: normalizeBoolean(config.autoContext, DEEPSEEK_DEFAULTS.autoContext),
@@ -112,6 +114,7 @@ function toStoredSettings(config: AppConfig): StoredSettings {
     topP: config.topP,
     maxTokens: config.maxTokens,
     maxToolRounds: config.maxToolRounds,
+    maxConcurrentGenerations: config.maxConcurrentGenerations,
     permissionMode: config.permissionMode,
     toolExecutionModes: config.toolExecutionModes,
     autoContext: config.autoContext,
@@ -140,6 +143,7 @@ function normalizeSettingValue(key: StoredSettingKey, value: unknown): unknown {
   if (key === "topP") {return clampNumber(value, 0, 1, DEEPSEEK_DEFAULTS.topP);}
   if (key === "maxTokens") {return clampInteger(value, 1, MAX_OUTPUT_TOKENS, DEEPSEEK_DEFAULTS.maxTokens);}
   if (key === "maxToolRounds") {return clampInteger(value, 1, 20, DEEPSEEK_DEFAULTS.maxToolRounds);}
+  if (key === "maxConcurrentGenerations") {return clampInteger(value, 1, 16, DEEPSEEK_DEFAULTS.maxConcurrentGenerations);}
   if (key === "historyRetentionDays") {return clampInteger(value, 0, 3650, DEEPSEEK_DEFAULTS.historyRetentionDays);}
   return value;
 }

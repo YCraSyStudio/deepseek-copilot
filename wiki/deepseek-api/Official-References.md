@@ -1,4 +1,4 @@
-[Previous page: Models and Configuration](Models-and-Configuration.md)
+[Back](INDEX.md)
 
 # Official References
 
@@ -39,6 +39,4 @@ Primary source: [DeepSeek API Docs](https://api-docs.deepseek.com/).
 - JSON output requires `response_format` and prompt instructions asking for JSON.
 - FIM beta uses `https://api.deepseek.com/beta` and a 4K token maximum.
 
----
-
-[Next page: Tool Calls](Tool-Calls.md)
+[Back](INDEX.md)

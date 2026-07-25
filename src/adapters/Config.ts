@@ -27,6 +27,7 @@ export interface AppConfig {
 
   maxTokens: number;
   maxToolRounds: number;
+  maxConcurrentGenerations: number;
   permissionMode: PermissionMode;
   toolExecutionModes: ToolExecutionModes;
 
@@ -50,6 +51,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   topP: 1.0,
   maxTokens: 8192,
   maxToolRounds: 6,
+  maxConcurrentGenerations: 8,
   permissionMode: "read-only",
   toolExecutionModes: {},
   autoContext: false,

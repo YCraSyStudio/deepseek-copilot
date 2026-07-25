@@ -1,4 +1,4 @@
-[Previous page: Overview](INDEX.md)
+[Back](INDEX.md)
 
 # Chat Streaming
 
@@ -16,12 +16,13 @@ Official reference:
 
 ## Flow
 
-1. `ChatHandler` prepares messages and configuration.
-2. `createDeepSeekProvider(config.md)` creates the provider.
-3. The provider always opens an SSE request for chat responses.
-4. Each chunk is normalized as content or reasoning.
-5. `streaming.ts` publishes events to the webview, where the UI renders accumulated deltas progressively rather than jumping per transport chunk.
-6. When finished, the accumulated content is returned for history.
+1. `GenerationCoordinator` starts a queued task with a unique `generationId` and `AbortController`.
+2. `ChatHandler` prepares an isolated conversation state, messages, and configuration.
+3. `createDeepSeekProvider(config)` creates the provider.
+4. The provider opens an SSE request for chat responses.
+5. Each chunk is normalized as content or reasoning and tagged with its generation and conversation.
+6. `Streaming.ts` publishes events to the webview, where the UI renders accumulated deltas progressively rather than jumping per transport chunk.
+7. Progress is checkpointed and the accumulated result is persisted with `completed`, `interrupted`, or `error` generation status.
 
 ## DeepSeek contract
 
@@ -34,7 +35,7 @@ Official reference:
 
 ## Cancellation
 
-`cancelGeneration` must trigger an `AbortController` shared by the active request. The handler should publish a controlled error or close event depending on the exact cancellation point.
+`cancelGeneration` names the target `generationId` and aborts only that run. Cancellation preserves the user message and any partial assistant output as an interrupted turn. `steerGeneration` queues guidance at the front before cancelling the current run.
 
 ## Errors
 
@@ -42,6 +43,4 @@ Errors should arrive as `streamError` with a useful message. Do not leak the API
 
 Review [Error Codes](https://api-docs.deepseek.com/quick_start/error_codes) before changing HTTP error mapping.
 
----
-
-[Next page: Models and Configuration](Models-and-Configuration.md)
+[Back](INDEX.md)

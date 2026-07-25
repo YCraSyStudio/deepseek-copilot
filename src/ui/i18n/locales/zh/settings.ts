@@ -78,7 +78,8 @@ export const settings = {
     },
     limits: {
       maxTokens: "最大 Token 数",
-      maxToolRounds: "最大工具轮数"
+      maxToolRounds: "最大工具轮数",
+      maxConcurrentGenerations: "并发生成数"
     }
   }
 } satisfies TranslationCatalog;

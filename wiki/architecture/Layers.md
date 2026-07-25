@@ -1,4 +1,4 @@
-[Previous page: Dependency Rules](Dependency-Rules.md)
+[Back](INDEX.md)
 
 # Layers
 
@@ -15,12 +15,13 @@ This layer must not depend on React, VS Code, or HTTP.
 
 ## `src/core`
 
-Contains pure tool logic:
+Contains framework-independent chat and tool logic:
 
+- `GenerationCoordinator` for per-conversation queues and bounded cross-conversation concurrency.
 - tool registry.
 - execution and validation.
 - danger analysis.
-- `ToolWorkspace` interface for workspace access without importing `vscode`.
+- `ToolWorkspace` interface and async-scoped host selection for workspace access without importing `vscode`.
 
 Main rule: `core` must not import `vscode`.
 
@@ -43,7 +44,7 @@ Contains concrete VS Code adapters:
 - activation and commands.
 - `WebviewProvider`.
 - message handlers.
-- settings and JSON-file conversation history.
+- settings, JSON-file conversation history, and generation checkpoints.
 - API key access through `SecretStorage`.
 - filesystem/workspace/terminal implementation for tools.
 
@@ -56,6 +57,4 @@ Contains the React webview:
 - rendering for streaming, tool results, and confirmations.
 - Vite build to `dist/webview`.
 
----
-
-[Next page: Runtime Flow](Runtime-Flow.md)
+[Back](INDEX.md)

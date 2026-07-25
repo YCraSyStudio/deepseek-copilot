@@ -1,4 +1,5 @@
 import * as path from "path";
+import { AsyncLocalStorage } from "node:async_hooks";
 
 export type ToolWorkspaceEntryType = "file" | "directory" | "unknown";
 
@@ -39,16 +40,25 @@ export interface ResolveWorkspacePathOptions {
 export type RealPathResolver = (absolutePath: string) => Promise<string>;
 
 let workspaceHost: ToolWorkspaceHost | undefined;
+const scopedWorkspaceHost = new AsyncLocalStorage<ToolWorkspaceHost>();
 
 export function setToolWorkspaceHost(host: ToolWorkspaceHost): void {
   workspaceHost = createValidatingWorkspaceHost(host);
 }
 
 export function getToolWorkspaceHost(): ToolWorkspaceHost {
+  const scoped = scopedWorkspaceHost.getStore();
+  if (scoped) {
+    return scoped;
+  }
   if (!workspaceHost) {
     throw new Error("Tool workspace host has not been configured");
   }
   return workspaceHost;
+}
+
+export function runWithToolWorkspaceHost<T>(host: ToolWorkspaceHost, operation: () => Promise<T>): Promise<T> {
+  return scopedWorkspaceHost.run(createValidatingWorkspaceHost(host), operation);
 }
 
 export function resolveWorkspacePath(rawPath: string, workspaceRoot: string, options: ResolveWorkspacePathOptions = {}): ResolvedWorkspacePath {

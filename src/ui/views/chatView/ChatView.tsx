@@ -6,6 +6,7 @@ import { useChatConfig } from "./hooks";
 import type { ApiKeyStatus, ChatMessage } from "./ChatViewTypes";
 import { getVsCodeApi } from "@webview/VsCodeApi";
 import type { Conversation, PermissionMode } from "@/adapters";
+import type { GenerationSnapshot } from "@/adapters";
 import { t } from "@webview/i18n";
 
 interface ReferencedFile {
@@ -20,7 +21,11 @@ interface ReferencedFile {
 type ChatCommandMessage =
   | { type: "addReferencedFiles"; files: ReferencedFile[] }
   | { type: "setDraft"; text: string }
-  | { type: "activeConversationChanged"; id: string };
+  | { type: "activeConversationChanged"; id: string }
+  | { type: "generationAccepted"; generationId: string; conversationId: string }
+  | { type: "streamDone"; generationId?: string; conversationId?: string }
+  | { type: "streamError"; generationId?: string; conversationId?: string }
+  | { type: "generationSnapshot"; generations: GenerationSnapshot[]; recoveredDrafts: Array<{ conversationId: string; messages: Array<{ clientRequestId: string; text: string }> }> };
 
 interface ChatViewState {
   schemaVersion: 2;
@@ -42,6 +47,8 @@ function ChatView({ loadedConversation }: ChatViewProps) {
   const [referencedFiles, setReferencedFiles] = useState<ReferencedFile[]>(loadedConversation ? [] : (savedState?.referencedFiles ?? []));
   const [messages, setMessages] = useState<ChatMessage[]>(loadedConversation?.messages ?? savedState?.messages ?? []);
   const [conversationId, setConversationId] = useState<string | undefined>(loadedConversation?.id ?? savedState?.conversationId);
+  const [activeGenerationId, setActiveGenerationId] = useState<string | undefined>();
+  const [recoveredDrafts, setRecoveredDrafts] = useState<Array<{ clientRequestId: string; text: string }>>([]);
   const lastSubmittedPromptRef = useRef("");
 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -98,8 +105,8 @@ function ChatView({ loadedConversation }: ChatViewProps) {
 
   const canSend = useMemo(() => {
     const trimmedDraft = draft.trim();
-    return trimmedDraft.length > 0 && !isProcessing && (apiKeyStatus === "configured" || trimmedDraft.startsWith("/"));
-  }, [draft, isProcessing, apiKeyStatus]);
+    return trimmedDraft.length > 0 && (apiKeyStatus === "configured" || trimmedDraft.startsWith("/"));
+  }, [draft, apiKeyStatus]);
 
   useEffect(() => {
     focusInput();
@@ -126,13 +133,44 @@ function ChatView({ loadedConversation }: ChatViewProps) {
       if (message.type === "activeConversationChanged") {
         setConversationId(message.id);
       }
+      if (message.type === "generationAccepted" && message.conversationId === conversationId) {
+        setActiveGenerationId(message.generationId);
+      }
+      if ((message.type === "streamDone" || message.type === "streamError") && message.generationId === activeGenerationId) {
+        setActiveGenerationId(undefined);
+      }
+      if (message.type === "generationSnapshot") {
+        const active = conversationId ? message.generations.find((generation) => generation.conversationId === conversationId) : undefined;
+        if (active) {
+          setActiveGenerationId(active.generationId);
+          setIsProcessing(true);
+          setMessages((current) => {
+            const withoutPriorSnapshot = current.filter((item) => item.generationId !== active.generationId || item.role === "user");
+            if (!active.content && active.timeline.length === 0 && active.toolCalls.length === 0) {
+              return withoutPriorSnapshot;
+            }
+            return [...withoutPriorSnapshot, {
+              id: `active-${active.generationId}`,
+              role: "assistant",
+              content: active.content,
+              timeline: active.timeline,
+              toolCalls: active.toolCalls,
+              generationId: active.generationId,
+            }];
+          });
+        }
+        const recovered = conversationId ? message.recoveredDrafts.find((entry) => entry.conversationId === conversationId) : undefined;
+        if (recovered?.messages.length) {
+          setRecoveredDrafts(recovered.messages);
+        }
+      }
     };
 
     window.addEventListener("message", handleMessage);
     return () => {
       window.removeEventListener("message", handleMessage);
     };
-  }, [appendReferencedFiles]);
+  }, [appendReferencedFiles, conversationId, activeGenerationId]);
 
   return (
     <div className="chatView">
@@ -149,6 +187,30 @@ function ChatView({ loadedConversation }: ChatViewProps) {
       {apiKeyStatus === "missing" ? <div className="statusMessage warning">{t("chat.apiKeyMissing")}</div> : null}
 
       <div className="inputArea">
+        {recoveredDrafts.length > 0 ? (
+          <div className="statusMessage">
+            {t("chat.recoveredDrafts")}
+            {recoveredDrafts.map((item, index) => (
+              <button
+                key={`${index}-${item.text.slice(0, 24)}`}
+                type="button"
+                onClick={() => {
+                  setDraft(item.text);
+                  setRecoveredDrafts((current) => current.filter((_, itemIndex) => itemIndex !== index));
+                  if (conversationId) {
+                    getVsCodeApi()?.postMessage({
+                      type: "consumeRecoveredDraft",
+                      conversationId,
+                      clientRequestId: item.clientRequestId,
+                    });
+                  }
+                }}
+              >
+                {t("chat.restoreDraft")}: {item.text.slice(0, 48)}
+              </button>
+            ))}
+          </div>
+        ) : null}
         <InputCtrls
           ref={textareaRef}
           input={draft}
@@ -161,6 +223,7 @@ function ChatView({ loadedConversation }: ChatViewProps) {
           rows={1}
           referencedFiles={referencedFiles}
           conversationId={conversationId}
+          activeGenerationId={activeGenerationId}
           onSend={handleSend}
         />
         <InputFooter

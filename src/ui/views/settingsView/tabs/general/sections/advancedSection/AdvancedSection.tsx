@@ -97,6 +97,18 @@ function AdvancedSection({ config, updateConfig, saveOnBlur }: AdvancedSectionPr
               onBlur={(event) => updateBoundedInteger(event.currentTarget, 1, 20, (value) => saveOnBlur("maxToolRounds", value))}
             />
           </div>
+          <div className="settingRow">
+            <label htmlFor="maxConcurrentGenerationsInput">{t("settings.limits.maxConcurrentGenerations")}</label>
+            <input
+              id="maxConcurrentGenerationsInput"
+              type="number"
+              min={1}
+              max={16}
+              value={config.maxConcurrentGenerations}
+              onChange={(event) => updateBoundedInteger(event.currentTarget, 1, 16, (value) => updateConfig("maxConcurrentGenerations", value))}
+              onBlur={(event) => updateBoundedInteger(event.currentTarget, 1, 16, (value) => saveOnBlur("maxConcurrentGenerations", value))}
+            />
+          </div>
         </div>
 
         <Toggle

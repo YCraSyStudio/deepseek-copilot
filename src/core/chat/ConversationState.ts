@@ -43,11 +43,19 @@ export class ConversationState {
     return this.activeConversation?.id;
   }
 
+  getConversation(): Conversation | undefined {
+    return this.activeConversation ? structuredClone(this.activeConversation) : undefined;
+  }
+
   getApiMessages(): ChatMessage[] {
     return toApiMessages(selectContextMessages(this.activeConversation?.messages ?? []));
   }
 
-  createMessage(role: ConversationMessage["role"], content: string, extra: Pick<ConversationMessage, "timeline" | "toolCalls"> = {}): ConversationMessage {
+  createMessage(
+    role: ConversationMessage["role"],
+    content: string,
+    extra: Pick<ConversationMessage, "timeline" | "toolCalls" | "generationId" | "generationStatus"> = {},
+  ): ConversationMessage {
     return {
       id: randomUUID(),
       role,
@@ -73,6 +81,7 @@ export class ConversationState {
     const existing = this.activeConversation;
     const nextMessages = [...(existing?.messages ?? []), ...options.messages];
     const conversation: Conversation = {
+      schemaVersion: 2,
       id: existing?.id ?? randomUUID(),
       title: createConversationTitle(nextMessages, existing?.title),
       createdAt: existing?.createdAt ?? now,
@@ -110,6 +119,9 @@ function toApiMessages(messages: ConversationMessage[]): ChatMessage[] {
     };
 
     if (message.role === "assistant") {
+      if (message.generationStatus === "interrupted") {
+        return message.content.trim() ? [apiMessage] : [];
+      }
       apiMessage.reasoning_content = collectTimelineText(message.timeline, "reasoning") || null;
       apiMessage.tool_calls = toApiToolCalls(message.toolCalls);
     }

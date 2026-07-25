@@ -26,6 +26,8 @@ suite("history validation", () => {
     };
 
     assert.strictEqual(isConversation(conversation), true);
+    assert.strictEqual(isConversation({ ...conversation, schemaVersion: 2 }), true);
+    assert.strictEqual(isConversation({ ...conversation, schemaVersion: 3 }), false);
     assert.strictEqual(isConversation({ ...conversation, messages: [{ id: "x", role: "root", content: "bad" }] }), false);
     assert.strictEqual(isConversation({ ...conversation, messages: [{ id: "x", role: "assistant", content: "", timeline: [{ id: "x", type: "tool-group", round: 0, toolCallIds: [] }] }] }), false);
   });

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import type { ToolCall } from "@/adapters";
 import type { VsCodeApi } from "@webview/VsCodeApi";
 import type { ChatMessage, ToolCallAction, ToolCallActionOptions, ToolCallGroup, ToolCallState } from "../../views/chatView/ChatViewTypes";
@@ -13,9 +13,11 @@ interface ToolCallControllerOptions {
 export function useToolCallController({ messages, isProcessing, vscode }: ToolCallControllerOptions) {
   const [toolCallGroups, setToolCallGroups] = useState<ToolCallGroup[]>([]);
   const [toolCallLimit, setToolCallLimit] = useState<{ completedRounds: number; batchSize: number } | null>(null);
+  const generationIdRef = useRef<string | undefined>(undefined);
 
   const dispatcher: MessageDispatcher = {
     onToolCallStarted: useCallback((data) => {
+      generationIdRef.current = data.generationId;
       const newGroup = createToolCallGroup({
         toolCalls: data.toolCalls,
         round: data.round,
@@ -25,6 +27,7 @@ export function useToolCallController({ messages, isProcessing, vscode }: ToolCa
     }, []),
 
     onToolCallConfirmationRequired: useCallback((data) => {
+      generationIdRef.current = data.generationId;
       const newGroup = createToolCallGroup({
         toolCalls: data.toolCalls,
         round: data.round,
@@ -36,6 +39,7 @@ export function useToolCallController({ messages, isProcessing, vscode }: ToolCa
     }, []),
 
     onToolCallResult: useCallback((data) => {
+      generationIdRef.current = data.generationId ?? generationIdRef.current;
       setToolCallGroups((previous) =>
         previous.map((group) => ({
           ...group,
@@ -87,7 +91,10 @@ export function useToolCallController({ messages, isProcessing, vscode }: ToolCa
 
   const postToolCallAction = useCallback(
     (toolCallId: string, action: ToolCallAction, options: ToolCallActionOptions = {}) => {
-      vscode?.postMessage({ type: "executeToolCall", toolCallId, action, trustForSession: options.trustForSession });
+      const generationId = generationIdRef.current;
+      if (generationId) {
+        vscode?.postMessage({ type: "executeToolCall", generationId, toolCallId, action, trustForSession: options.trustForSession });
+      }
     },
     [vscode],
   );
@@ -105,7 +112,10 @@ export function useToolCallController({ messages, isProcessing, vscode }: ToolCa
   }, [postToolCallAction, toolCallGroups]);
   const handleLimitDecision = useCallback((action: "continue" | "stop") => {
     setToolCallLimit(null);
-    vscode?.postMessage({ type: "toolCallLimitDecision", action });
+    const generationId = generationIdRef.current;
+    if (generationId) {
+      vscode?.postMessage({ type: "toolCallLimitDecision", generationId, action });
+    }
   }, [vscode]);
 
   return {

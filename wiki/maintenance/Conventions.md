@@ -1,4 +1,4 @@
-[Previous page: Overview](INDEX.md)
+[Back](INDEX.md)
 
 # Conventions
 
@@ -6,7 +6,9 @@
 
 - Concise technical content.
 - No unnecessary visual styling.
-- `wiki/INDEX.md` is the entry point and full documentation index.
+- `wiki/README.md` is the introduction; `wiki/INDEX.md` is the full documentation index.
+- Every documentation folder keeps its introduction in `README.md` and its page list in `INDEX.md`.
+- Every documentation page starts and ends with `[Back]` to its local `INDEX.md`; each section index does the same for the parent `INDEX.md`.
 - Prefer short lists and concrete paths.
 - Update technical Markdown in the same commit as the affected code.
 
@@ -31,6 +33,4 @@ Before implementing:
 4. add manual verification if it affects UX.
 5. run compile, lint, and build.
 
----
-
-[Next page: Migration Status](Migration-Status.md)
+[Back](INDEX.md)

@@ -1,24 +1,9 @@
-[Previous page: Settings, Secrets, and History](../storage/Settings-Secrets-and-History.md)
+[Back](../INDEX.md)
 
-# Build and Test
+# Build and Test Index
 
-The project has two builds:
-
-- Node/VS Code extension with esbuild.
-- React webview with Vite.
-
-The complete build should generate:
-
-- `dist/extension.js`
-- `dist/webview/*`
-
-The human documentation in `web-doc` uses Astro and is validated separately.
-
----
-
-[Next page: Scripts](Scripts.md)
-
-## Pages
-
+- [Overview](README.md)
 - [Scripts](Scripts.md)
 - [Verification](Verification.md)
+
+[Back](../INDEX.md)
