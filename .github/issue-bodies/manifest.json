@@ -135,6 +135,7 @@
       "title": "[P1] Remove temporary legacy conversation migration",
       "bodyFile": ".github/issue-bodies/019-p1-remove-legacy-conversation-migration.md",
       "labels": ["IMPROVEMENT", "INTEGRATION"],
+      "githubIssue": 61,
       "dependsOn": []
     }
   ]

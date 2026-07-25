@@ -34,6 +34,8 @@ Each Markdown file contains only the issue body. Titles, suggested existing labe
 
 Dependencies refer to draft IDs. Replace them with GitHub issue references after creation if desired.
 
+Issue 019 is published as [GitHub issue #61](https://github.com/YarCrasy/deepseek-copilot/issues/61). Its `githubIssue` manifest field prevents the bulk example below from creating it again.
+
 ## Review
 
 From PowerShell:
@@ -78,7 +80,7 @@ The following intentionally creates every issue in `manifest.json`. Run it only 
 ```powershell
 $issueManifest = Get-Content -LiteralPath ".github/issue-bodies/manifest.json" -Raw | ConvertFrom-Json
 
-foreach ($issue in $issueManifest.issues) {
+foreach ($issue in $issueManifest.issues | Where-Object { -not $_.githubIssue }) {
   $ghArguments = @(
     "issue", "create",
     "--repo", $issueManifest.repository,
