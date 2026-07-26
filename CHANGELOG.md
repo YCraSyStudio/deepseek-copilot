@@ -1,7 +1,7 @@
 # Change Log
 
 ## [0.1.3] - 2026-07-27
-- > **Inproved history storage format, legacy-history migration period: activation atomically upgrades valid unversioned and partially migrated conversations. Compatibility remains available until the scheduled cleanup tracked by [issue #61](https://github.com/YarCrasy/deepseek-copilot/issues/61), currently targeted for 2026-08-25.**
+- Improved history storage with automatic legacy-conversation migration during the compatibility period tracked by [issue #61](https://github.com/YarCrasy/deepseek-copilot/issues/61).
 - Added concurrent generations across conversations, per-conversation queues, targeted interruption, and atomic checkpoint recovery after restart.
 - Bound conversations and tool execution to immutable logical workspaces, with safe multi-root paths, external read-only attachments, and hardened content search.
 - Redesigned permissions around `default`, `read-only`, `auto-approve`, `full-access`, and editable `custom` profiles, with revisioned host-authoritative updates.
