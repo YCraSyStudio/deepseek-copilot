@@ -1,5 +1,5 @@
 import type * as vscode from "vscode";
-import type { ToolCall, ToolDefinition, ToolExecutionMode } from "@/adapters";
+import type { PermissionSnapshot, ToolCall, ToolDefinition } from "@/adapters";
 import { runToolCallCycle } from "@/deepseekApi/providers/deepseek/features/toolCall";
 import { logWarning } from "@/shared/logging/Logger";
 import type { ToolExecutor } from "@/core/tools/ToolExecutor";
@@ -19,21 +19,31 @@ import type {
   ToolCallRunOptions,
   ToolCallRunResult,
 } from "./Types";
+import { DangerTrustStore, type DangerTrustScope } from "./DangerTrustStore";
+import { getRunnableToolsForPermissionSnapshot, getToolModeForPermissionSnapshot } from "./PermissionPolicy";
+import { createProviderTranscript } from "@/core/chat/ProviderTranscript";
+import { assertRequestFitsContext } from "@/core/context/ContextBudget";
 
 export class ToolCallSession {
   private pendingToolCallCycle: PendingToolCallCycle | null = null;
   private pendingDangerConfirmation: PendingDangerConfirmation | null = null;
-  private readonly trustedDangerKeys = new Set<string>();
+  private activeTrustScope?: DangerTrustScope;
+  private activePermissionSnapshot?: PermissionSnapshot;
   private currentRound = 0;
   private activeWebview?: vscode.WebviewView;
   private pendingLimitDecision: ((decision: ToolCallLimitDecision) => void) | null = null;
-  constructor(private readonly toolExecutor: ToolExecutor) {}
+  constructor(
+    private readonly toolExecutor: ToolExecutor,
+    private readonly dangerTrustStore: DangerTrustStore = new DangerTrustStore(),
+  ) {}
 
   async run(options: ToolCallRunOptions): Promise<ToolCallRunResult | undefined> {
     this.activeWebview = options.webviewView;
+    this.activeTrustScope = options.trustScope;
+    this.activePermissionSnapshot = options.permissionSnapshot;
     let streamedContent = "";
     const executedToolCalls = new Map<string, StoredExecution>();
-    const enabledTools = getRunnableTools(options).map((tool) =>
+    const enabledTools = getRunnableToolsForPermissionSnapshot(options.tools, options.permissionSnapshot).map((tool) =>
       options.providerConfig.enableBetaFeatures ? { ...tool, function: { ...tool.function, strict: true } } : tool,
     );
     const stream = new StreamEventEmitter(options.webviewView);
@@ -47,6 +57,15 @@ export class ToolCallSession {
         baseUrl: options.providerConfig.baseUrl,
         executeToolCall: (toolCall) => executeToolCall(toolCall, this.createExecutionContext(options, executedToolCalls)),
         cycleOptions: {
+          getToolsForRound: async () => {
+            const snapshot = await options.capturePermissionSnapshot();
+            this.activePermissionSnapshot = snapshot;
+            this.activeTrustScope = { ...options.trustScope, configFingerprint: snapshot.fingerprint };
+            options.onPermissionSnapshot?.(snapshot);
+            return getRunnableToolsForPermissionSnapshot(options.tools, snapshot).map((tool) =>
+              options.providerConfig.enableBetaFeatures ? { ...tool, function: { ...tool.function, strict: true } } : tool,
+            );
+          },
           maxRounds: options.providerConfig.maxToolRounds,
           signal: options.signal,
           streamFinalResponse: true,
@@ -68,6 +87,17 @@ export class ToolCallSession {
               stream.reasoning(reasoning);
             }
           },
+          onTranscriptUpdate: (messages, status) => {
+            options.onTranscriptUpdate?.(createProviderTranscript(messages, status));
+          },
+          validateRequestBudget: (messages, toolsForRound) => {
+            assertRequestFitsContext(
+              messages,
+              toolsForRound,
+              options.providerConfig.model,
+              options.providerConfig.maxTokens,
+            );
+          },
           onLimitReached: (completedRounds, batchSize) => this.requestLimitDecision(options.webviewView, completedRounds, batchSize),
         },
       });
@@ -80,6 +110,8 @@ export class ToolCallSession {
       this.pendingDangerConfirmation = null;
       this.pendingLimitDecision = null;
       this.activeWebview = undefined;
+      this.activeTrustScope = undefined;
+      this.activePermissionSnapshot = undefined;
     }
   }
 
@@ -114,11 +146,9 @@ export class ToolCallSession {
     }
     this.pendingToolCallCycle = null;
     this.pendingDangerConfirmation = null;
-    this.trustedDangerKeys.clear();
-  }
-
-  resetSessionTrust(): void {
-    this.trustedDangerKeys.clear();
+    if (this.activeTrustScope) {
+      this.dangerTrustStore.clearScope(this.activeTrustScope);
+    }
   }
 
   handleUserAction(payload: ToolCallActionPayload): void {
@@ -180,14 +210,15 @@ export class ToolCallSession {
       webviewView: options.webviewView,
       executedToolCalls,
       signal: options.signal,
-      autoApproveMode: options.autoApproveMode,
-      getToolMode: (toolName: string) => getToolMode(options, toolName),
+      autoApproveMode: this.activePermissionSnapshot?.permissionMode === "auto-approve",
+      isWorkspaceTrusted: options.isWorkspaceTrusted,
+      getToolMode: (toolName: string) => getToolModeForPermissionSnapshot(this.activePermissionSnapshot ?? options.permissionSnapshot, toolName),
       getCurrentRound: () => this.currentRound,
       getPendingCycle: () => this.pendingToolCallCycle,
       isDangerTrusted: (toolCall: ToolCall, confirmationResult: ConfirmationRequiredResult) => this.isDangerTrusted(toolCall, confirmationResult),
       trustDangerForSession: (toolCall: ToolCall, confirmationResult: ConfirmationRequiredResult) => {
-        if (canTrustDanger(confirmationResult)) {
-          this.trustedDangerKeys.add(createDangerTrustKey(toolCall, confirmationResult));
+        if (this.activeTrustScope) {
+          this.dangerTrustStore.trust(this.activeTrustScope, toolCall, confirmationResult);
         }
       },
       requestDangerConfirmation: (
@@ -208,14 +239,15 @@ export class ToolCallSession {
   }
 
   private isDangerTrusted(toolCall: ToolCall, confirmationResult: ConfirmationRequiredResult): boolean {
-    return canTrustDanger(confirmationResult) && this.trustedDangerKeys.has(createDangerTrustKey(toolCall, confirmationResult));
+    return this.activeTrustScope !== undefined && this.dangerTrustStore.isTrusted(this.activeTrustScope, toolCall, confirmationResult);
   }
 
   private async handleRoundStart(round: number, toolCalls: ToolCall[], options: ToolCallRunOptions): Promise<void> {
     this.currentRound = round;
     options.webviewView.webview.postMessage({ type: "toolCallStarted", toolCalls, round });
 
-    const manualToolCalls = options.autoApproveMode ? [] : toolCalls.filter((toolCall) => getToolMode(options, toolCall.function.name) === "enabled");
+    const snapshot = this.activePermissionSnapshot ?? options.permissionSnapshot;
+    const manualToolCalls = snapshot.permissionMode === "auto-approve" ? [] : toolCalls.filter((toolCall) => getToolModeForPermissionSnapshot(snapshot, toolCall.function.name) === "enabled");
     if (manualToolCalls.length === 0) {
       return;
     }
@@ -257,6 +289,7 @@ export class ToolCallSession {
       content: hasStreamedContent ? streamedContent : (result.finalMessage.content ?? ""),
       timeline,
       toolCalls: toolCallResults.length > 0 ? toolCallResults : undefined,
+      providerTranscript: createProviderTranscript(result.transcript, "complete"),
     };
   }
 
@@ -313,14 +346,6 @@ export class ToolCallSession {
   }
 }
 
-function canTrustDanger(confirmationResult: ConfirmationRequiredResult): boolean {
-  return confirmationResult.dangerLevel !== "destructive";
-}
-
-function createDangerTrustKey(toolCall: ToolCall, confirmationResult: ConfirmationRequiredResult): string {
-  return `${toolCall.function.name}:${confirmationResult.dangerLevel}:${toolCall.function.arguments}`;
-}
-
 function isCancellationError(err: unknown): boolean {
   return err instanceof Error && (err.name === "AbortError" || err.name === "Canceled");
 }
@@ -330,13 +355,6 @@ function getErrorMessage(err: unknown): string {
 }
 
 function hasAutoApprovedTools(options: ToolCallRunOptions, tools: ToolDefinition[]): boolean {
-  return options.autoApproveMode || tools.some((tool) => getToolMode(options, tool.function.name) === "auto_approve");
-}
-
-function getRunnableTools(options: ToolCallRunOptions): ToolDefinition[] {
-  return options.tools.filter((tool) => getToolMode(options, tool.function.name) !== "disabled");
-}
-
-function getToolMode(options: ToolCallRunOptions, toolName: string): ToolExecutionMode {
-  return options.toolExecutionModes[toolName] ?? "enabled";
+  return options.permissionSnapshot.permissionMode === "auto-approve" ||
+    tools.some((tool) => getToolModeForPermissionSnapshot(options.permissionSnapshot, tool.function.name) === "auto_approve");
 }

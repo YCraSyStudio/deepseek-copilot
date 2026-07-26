@@ -10,8 +10,8 @@ export async function runToolCallCycle(options: RunToolCallCycleOptions): Promis
   const { initialMessages, tools, model, apiKey, baseUrl, executeToolCall, cycleOptions = {} } = options;
 
   const maxRounds = cycleOptions.maxRounds ?? 10;
-  const availableTools = new Map(tools.map((tool) => [tool.function.name, tool]));
   const messages = ensureSingleSystemPrompt(initialMessages, createSystemMessage);
+  const transcript: ChatMessage[] = [];
   let toolCallsExecuted = 0;
   const executedSignatures = new Set<string>();
 
@@ -20,14 +20,16 @@ export async function runToolCallCycle(options: RunToolCallCycleOptions): Promis
       throw createAbortError();
     }
 
+    const reasoningTools = await cycleOptions.getToolsForRound?.("reasoning", round + 1) ?? tools;
+    cycleOptions.validateRequestBudget?.(messages, reasoningTools);
     const shouldStream = cycleOptions.streamFinalResponse === true;
     const response = shouldStream
-      ? await streamToolCallRound({ messages, tools, model, apiKey, baseUrl, cycleOptions, emitStreamEvents: true })
+      ? await streamToolCallRound({ messages, tools: reasoningTools, model, apiKey, baseUrl, cycleOptions, emitStreamEvents: true })
       : await chatCompletion(
           buildToolCallRequest({
             model,
             messages,
-            tools,
+            tools: reasoningTools,
             stream: false,
             cycleOptions,
           }),
@@ -37,14 +39,20 @@ export async function runToolCallCycle(options: RunToolCallCycleOptions): Promis
 
     const message = response.choices[0].message;
     if (!message.tool_calls || message.tool_calls.length === 0) {
+      transcript.push(structuredClone(message));
+      cycleOptions.onTranscriptUpdate?.(structuredClone(transcript), "complete");
       return {
         finalMessage: message,
         rounds: round + 1,
         toolCallsExecuted,
         response,
+        transcript,
       };
     }
 
+    assertValidToolArguments(message);
+    const toolRoundTools = await cycleOptions.getToolsForRound?.("tools", round + 1) ?? reasoningTools;
+    const availableTools = new Map(toolRoundTools.map((tool) => [tool.function.name, tool]));
     const executableToolCalls = message.tool_calls.filter(
       (toolCall) => validateToolCall(toolCall, availableTools).valid && !executedSignatures.has(createToolSignature(toolCall)),
     );
@@ -52,6 +60,8 @@ export async function runToolCallCycle(options: RunToolCallCycleOptions): Promis
       await cycleOptions.onRoundStart?.(round + 1, executableToolCalls);
     }
     messages.push(message);
+    transcript.push(structuredClone(message));
+    cycleOptions.onTranscriptUpdate?.(structuredClone(transcript), "incomplete");
 
     for (const toolCall of message.tool_calls) {
       if (cycleOptions.signal?.aborted) {
@@ -60,13 +70,19 @@ export async function runToolCallCycle(options: RunToolCallCycleOptions): Promis
 
       const validation = validateToolCall(toolCall, availableTools);
       if (!validation.valid) {
-        messages.push(createToolResultMessage(toolCall.id, toolCall.function.name, `Error: ${validation.error}`));
+        const invalidResult = createToolResultMessage(toolCall.id, toolCall.function.name, `Error: ${validation.error}`);
+        messages.push(invalidResult);
+        transcript.push(structuredClone(invalidResult));
+        cycleOptions.onTranscriptUpdate?.(structuredClone(transcript), "incomplete");
         continue;
       }
 
       const signature = createToolSignature(toolCall);
       if (executedSignatures.has(signature)) {
-        messages.push(createToolResultMessage(toolCall.id, toolCall.function.name, "Skipped: identical tool call already executed in this cycle."));
+        const duplicateResult = createToolResultMessage(toolCall.id, toolCall.function.name, "Skipped: identical tool call already executed in this cycle.");
+        messages.push(duplicateResult);
+        transcript.push(structuredClone(duplicateResult));
+        cycleOptions.onTranscriptUpdate?.(structuredClone(transcript), "incomplete");
         continue;
       }
       executedSignatures.add(signature);
@@ -75,15 +91,20 @@ export async function runToolCallCycle(options: RunToolCallCycleOptions): Promis
       const result = await executeToolCall(toolCall);
       toolCallsExecuted++;
       cycleOptions.onToolResult?.(toolCall.id, result);
-      messages.push(createToolResultMessage(toolCall.id, toolCall.function.name, result));
+      const toolResult = createToolResultMessage(toolCall.id, toolCall.function.name, result);
+      messages.push(toolResult);
+      transcript.push(structuredClone(toolResult));
+      cycleOptions.onTranscriptUpdate?.(structuredClone(transcript), "incomplete");
     }
 
     const completedRounds = round + 1;
     if (completedRounds % maxRounds === 0) {
       const decision = await requestToolRoundLimitDecision(cycleOptions.onLimitReached, completedRounds, maxRounds);
       if (decision === "stop") {
+        const finalMessages = withToolFreeFinalInstruction(messages);
+        cycleOptions.validateRequestBudget?.(finalMessages, []);
         const finalResponse = await streamToolCallRound({
-          messages: withToolFreeFinalInstruction(messages),
+          messages: finalMessages,
           tools: [],
           model,
           apiKey,
@@ -91,13 +112,27 @@ export async function runToolCallCycle(options: RunToolCallCycleOptions): Promis
           cycleOptions,
           emitStreamEvents: true,
         });
+        const finalMessage = finalResponse.choices[0].message;
+        transcript.push(structuredClone(finalMessage));
+        cycleOptions.onTranscriptUpdate?.(structuredClone(transcript), "complete");
         return {
-          finalMessage: finalResponse.choices[0].message,
+          finalMessage,
           rounds: completedRounds,
           toolCallsExecuted,
           response: finalResponse,
+          transcript,
         };
       }
+    }
+  }
+}
+
+function assertValidToolArguments(message: ChatMessage): void {
+  for (const toolCall of message.tool_calls ?? []) {
+    try {
+      JSON.parse(toolCall.function.arguments);
+    } catch {
+      throw new Error(`DeepSeek returned invalid JSON arguments for tool "${toolCall.function.name}".`);
     }
   }
 }

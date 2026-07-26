@@ -1,16 +1,52 @@
-import type { AssistantTimelineEvent, Conversation, ConversationMessage, StoredToolCall } from "@/adapters";
+import type { AssistantTimelineEvent, ConversationMessage, StoredToolCall, WorkspaceBinding } from "@/adapters";
+import type { StoredConversation } from "./ProviderTranscript";
 
-export function isConversation(value: unknown): value is Conversation {
+export function isConversation(value: unknown): value is StoredConversation {
   if (!isRecord(value) || !isBoundedString(value.id, 512) || !isBoundedString(value.title, 4096) || !isBoundedString(value.model, 256) || !isBoundedString(value.workspaceUri, 32_768)) {
     return false;
   }
   if (value.schemaVersion !== 2 && value.schemaVersion !== undefined) {
     return false;
   }
+  if (value.workspaceBinding !== undefined && !isWorkspaceBinding(value.workspaceBinding)) {
+    return false;
+  }
+  if (value.workspaceRebindings !== undefined && (
+    !Array.isArray(value.workspaceRebindings) ||
+    value.workspaceRebindings.length > 100 ||
+    !value.workspaceRebindings.every((entry) =>
+      isRecord(entry) &&
+      isBoundedString(entry.fromWorkspaceUri, 32_768) &&
+      isBoundedString(entry.toWorkspaceUri, 32_768) &&
+      isTimestamp(entry.at)
+    )
+  )) {
+    return false;
+  }
   if (!isTimestamp(value.createdAt) || !isTimestamp(value.updatedAt) || !Array.isArray(value.messages) || value.messages.length > 10_000) {
     return false;
   }
   return value.messages.every(isConversationMessage);
+}
+
+export function isWorkspaceBinding(value: unknown): value is WorkspaceBinding {
+  if (!isRecord(value) || value.schemaVersion !== 1 || !isBoundedString(value.uri, 32_768) || !isBoundedString(value.name, 4096) || !isBoundedString(value.revision, 128)) {
+    return false;
+  }
+  if (!Array.isArray(value.folders) || value.folders.length > 128 || !value.folders.every((folder) =>
+    isRecord(folder) &&
+    isBoundedString(folder.uri, 32_768) &&
+    isBoundedString(folder.name, 4096) &&
+    isBoundedString(folder.alias, 4096) &&
+    isBoundedString(folder.scheme, 128)
+  )) {
+    return false;
+  }
+  return isRecord(value.capabilities) &&
+    typeof value.capabilities.files === "boolean" &&
+    typeof value.capabilities.search === "boolean" &&
+    typeof value.capabilities.git === "boolean" &&
+    typeof value.capabilities.terminal === "boolean";
 }
 
 function isConversationMessage(value: unknown): value is ConversationMessage {

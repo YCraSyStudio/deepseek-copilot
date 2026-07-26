@@ -36,7 +36,7 @@ In Extension Development Host:
 - reload or recreate the webview during a run and verify the generation snapshot restores visible state.
 - close VS Code with active and queued work, then verify partial output and queued prompts recover on activation.
 - use history.
-- type `./` or `../` in the chat input and select a suggested path.
+- type `./` in the chat input and select a suggested path; verify `../` never opens autocomplete and is rejected if sent manually.
 - execute a safe tool.
 - confirm or cancel a dangerous tool.
 - open a file from preview.

@@ -7,9 +7,10 @@ interface DangerConfirmationProps {
   dangerConfirmation: DangerConfirmationData;
   onConfirm: (toolCallId: string, options?: { trustForSession?: boolean }) => void;
   onCancel: (toolCallId: string) => void;
+  disabled?: boolean;
 }
 
-function DangerConfirmation({ toolCallId, dangerConfirmation, onConfirm, onCancel }: DangerConfirmationProps) {
+function DangerConfirmation({ toolCallId, dangerConfirmation, onConfirm, onCancel, disabled = false }: DangerConfirmationProps) {
   const dangerLevel = dangerConfirmation.dangerLevel;
   const severityClass = dangerLevel === "destructive" ? "severityDestructive" : dangerLevel === "dangerous" ? "severityDangerous" : "severityCaution";
   const isDestructive = dangerLevel === "destructive";
@@ -35,6 +36,7 @@ function DangerConfirmation({ toolCallId, dangerConfirmation, onConfirm, onCance
         <button
           type="button"
           className="toolCallDecisionOption primary dangerPrimaryAction dangerConfirmBtn"
+          disabled={disabled}
           onClick={(event) => {
             event.stopPropagation();
             onConfirm(toolCallId, { trustForSession: false });
@@ -46,6 +48,7 @@ function DangerConfirmation({ toolCallId, dangerConfirmation, onConfirm, onCance
           <button
             type="button"
             className="toolCallDecisionOption dangerPrimaryAction dangerRememberBtn"
+            disabled={disabled}
             onClick={(event) => {
               event.stopPropagation();
               onConfirm(toolCallId, { trustForSession: true });
@@ -57,6 +60,7 @@ function DangerConfirmation({ toolCallId, dangerConfirmation, onConfirm, onCance
         <button
           type="button"
           className="toolCallDecisionOption dangerCancelBtn"
+          disabled={disabled}
           data-dialog-initial-focus
           onClick={(event) => {
             event.stopPropagation();

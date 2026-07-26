@@ -119,6 +119,27 @@ suite("workspace path validation", () => {
       await rm(sandbox, { recursive: true, force: true });
     }
   });
+
+  test("preserves multi-root aliases when validating search results", async () => {
+    const validated: string[] = [];
+    setToolWorkspaceHost({
+      ...createNoopWorkspaceHost(""),
+      getRootPath: () => undefined,
+      getWorkspaceId: () => "workspace:multi-root",
+      resolvePath: async (rawPath) => {
+        if (!/^(frontend|backend)\//.test(rawPath) || rawPath.split("/").includes("..")) {
+          throw new Error("Path must use a workspace alias");
+        }
+        validated.push(rawPath);
+        return rawPath;
+      },
+      findFiles: async () => ["frontend/src/App.tsx", "backend/src/server.ts", "../outside.ts"],
+    });
+
+    const files = await getToolWorkspaceHost().findFiles!({ includePattern: "**/*", maxResults: 10 });
+    assert.deepStrictEqual(files, ["frontend/src/App.tsx", "backend/src/server.ts"]);
+    assert.deepStrictEqual(validated, ["frontend/src/App.tsx", "backend/src/server.ts"]);
+  });
 });
 
 function createNoopWorkspaceHost(rootPath: string): ToolWorkspaceHost {

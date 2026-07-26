@@ -1,4 +1,6 @@
 import * as vscode from "vscode";
+import { randomUUID } from "node:crypto";
+import * as path from "node:path";
 import { ChatHandler } from "./handlers/ChatHandler";
 import { SettingsHandler } from "./handlers/SettingsHandler";
 import { HistoryHandler } from "./handlers/HistoryHandler";
@@ -8,9 +10,10 @@ import { HistoryManager } from "@/vscodeApi/storage";
 import { getPathCompletionItems, insertCodeIntoActiveEditor, openWorkspaceFile } from "@/vscodeApi/editor/EditorActions";
 import { CHAT_VIEW_TYPE, SIDEBAR_VIEW_ID } from "@/shared/constants";
 import { logWarning } from "@/shared/logging/Logger";
-import type { WebviewToHandlerMessage } from "@/adapters";
+import type { ReferencedFile, WebviewToHandlerMessage } from "@/adapters";
 import type { ReferencedFilePayload } from "@/vscodeApi/commands/ChatCommands";
 import { isWebviewToHandlerMessage } from "./WebviewMessageValidation";
+import { isUriInsideRoot } from "@/vscodeApi/workspace";
 
 type ChatCommandMessage = { type: "addReferencedFiles"; files: ReferencedFilePayload[] } | { type: "setDraft"; text: string };
 
@@ -42,6 +45,9 @@ export class WebviewProvider implements vscode.WebviewViewProvider, vscode.Dispo
       },
       (id) => this.chatHandler.prepareConversationDeletion(id),
     );
+    this.disposables.push(vscode.workspace.onDidChangeWorkspaceFolders(() => {
+      void this.chatHandler.handleWorkspaceFoldersChanged();
+    }));
 
   }
 
@@ -103,6 +109,7 @@ export class WebviewProvider implements vscode.WebviewViewProvider, vscode.Dispo
       return;
     }
 
+    this.chatHandler.registerExternalContextFiles(files as ReferencedFile[]);
     await this.postToChat({ type: "addReferencedFiles", files });
   }
 
@@ -171,11 +178,18 @@ export class WebviewProvider implements vscode.WebviewViewProvider, vscode.Dispo
       case "executeToolCall":
       case "toolCallLimitDecision":
       case "newConversation":
+      case "getWorkspaceContext":
+      case "rebindConversationWorkspace":
+      case "openConversationWorkspace":
         this.chatHandler.handle(message, webviewView);
         break;
 
+      case "selectContextFiles":
+        void this.handleSelectContextFiles(message.conversationId, webviewView);
+        break;
+
       case "getPathCompletions":
-        void this.handlePathCompletions(message.requestId, message.query, webviewView);
+        void this.handlePathCompletions(message, webviewView);
         break;
 
       case "copyCode":
@@ -183,7 +197,8 @@ export class WebviewProvider implements vscode.WebviewViewProvider, vscode.Dispo
         break;
 
       case "insertCode":
-        void insertCodeIntoActiveEditor(message.code);
+        void this.withWorkspaceBinding(message.conversationId, message.workspaceRevision, (binding) =>
+          insertCodeIntoActiveEditor(message.code, binding));
         break;
 
       case "selectModel":
@@ -205,7 +220,8 @@ export class WebviewProvider implements vscode.WebviewViewProvider, vscode.Dispo
         break;
 
       case "openFile":
-        void openWorkspaceFile(message.path, message.line);
+        void this.withWorkspaceBinding(message.conversationId, message.workspaceRevision, (binding) =>
+          openWorkspaceFile(message.path, binding, message.line));
         break;
 
       default:
@@ -213,8 +229,110 @@ export class WebviewProvider implements vscode.WebviewViewProvider, vscode.Dispo
     }
   }
 
-  private async handlePathCompletions(requestId: number, query: string, webviewView: vscode.WebviewView): Promise<void> {
-    const items = await getPathCompletionItems(query);
-    await webviewView.webview.postMessage({ type: "pathCompletions", requestId, query, items });
+  private async handlePathCompletions(
+    message: Extract<WebviewToHandlerMessage, { type: "getPathCompletions" }>,
+    webviewView: vscode.WebviewView,
+  ): Promise<void> {
+    const context = await this.chatHandler.getWorkspaceContext(message.conversationId);
+    const items = context.state === "connected" && (!message.workspaceRevision || message.workspaceRevision === context.binding.revision)
+      ? await getPathCompletionItems(message.query, context.binding)
+      : [];
+    await webviewView.webview.postMessage({
+      type: "pathCompletions",
+      requestId: message.requestId,
+      query: message.query,
+      workspaceRevision: context.binding.revision,
+      items,
+    });
   }
+
+  private async withWorkspaceBinding(
+    conversationId: string | undefined,
+    workspaceRevision: string | undefined,
+    operation: (binding: Awaited<ReturnType<ChatHandler["getWorkspaceContext"]>>["binding"]) => Promise<void>,
+  ): Promise<void> {
+    const context = await this.chatHandler.getWorkspaceContext(conversationId);
+    if (context.state !== "connected" || (workspaceRevision && workspaceRevision !== context.binding.revision)) {
+      await vscode.window.showErrorMessage("The chat workspace is no longer connected or has changed.");
+      return;
+    }
+    await operation(context.binding);
+  }
+
+  private async handleSelectContextFiles(conversationId: string | undefined, webviewView: vscode.WebviewView): Promise<void> {
+    const selected = await vscode.window.showOpenDialog({
+      canSelectFiles: true,
+      canSelectFolders: false,
+      canSelectMany: true,
+      title: "Add context files",
+      openLabel: "Add to chat",
+    });
+    if (!selected?.length) {
+      return;
+    }
+    const context = await this.chatHandler.getWorkspaceContext(conversationId);
+    const files: ReferencedFilePayload[] = [];
+    for (const uri of selected.slice(0, 10)) {
+      try {
+        const stat = await vscode.workspace.fs.stat(uri);
+        if (stat.type !== vscode.FileType.File || stat.size > 1024 * 1024) {
+          continue;
+        }
+        const bytes = vscode.workspace.fs.readFile(uri);
+        const contentBytes = await bytes;
+        if (looksBinary(contentBytes)) {
+          continue;
+        }
+        const internalFolder = context.binding.folders.find((folder) => isUriInsideRoot(uri, vscode.Uri.parse(folder.uri)));
+        const name = uri.path.split("/").pop() || "context-file";
+        const sensitive = isSensitiveUri(uri);
+        if (sensitive) {
+          const choice = await vscode.window.showWarningMessage(
+            `Add potentially sensitive file "${name}" as a read-only context snapshot?`,
+            { modal: true },
+            "Add snapshot",
+          );
+          if (choice !== "Add snapshot") {
+            continue;
+          }
+        }
+        const snapshotOnly = !internalFolder || sensitive;
+        const relative = internalFolder ? relativeUriPath(vscode.Uri.parse(internalFolder.uri), uri) : undefined;
+        files.push({
+          referenceId: randomUUID(),
+          path: snapshotOnly ? name : `./${context.binding.folders.length > 1 ? `${internalFolder!.alias}/` : ""}${relative}`,
+          name,
+          content: Buffer.from(contentBytes).toString("utf8"),
+          language: name.includes(".") ? name.split(".").pop() : undefined,
+          type: "file",
+          size: stat.size,
+          scope: snapshotOnly ? "external-snapshot" : "workspace",
+          rootUri: snapshotOnly ? undefined : internalFolder!.uri,
+          bindingRevision: snapshotOnly ? undefined : context.binding.revision,
+        });
+      } catch {
+        // Ignore entries that disappear or become unreadable while the picker is open.
+      }
+    }
+    this.chatHandler.registerExternalContextFiles(files as ReferencedFile[]);
+    await webviewView.webview.postMessage({ type: "contextFilesSelected", files });
+  }
+}
+
+function looksBinary(bytes: Uint8Array): boolean {
+  return bytes.subarray(0, 8_192).some((value) => value === 0);
+}
+
+function isSensitiveUri(uri: vscode.Uri): boolean {
+  return /(^|[/\\.])(env(?:\.[^/\\]+)?|pem|key|p12|pfx|\.ssh|credentials?|secrets?|tokens?)([/\\.]|$)/i.test(uri.path);
+}
+
+function relativeUriPath(root: vscode.Uri, candidate: vscode.Uri): string | undefined {
+  const relative = root.scheme === "file"
+    ? path.relative(root.fsPath, candidate.fsPath)
+    : path.posix.relative(root.path, candidate.path);
+  if (relative === ".." || relative.startsWith("../") || relative.startsWith("..\\") || path.isAbsolute(relative)) {
+    return undefined;
+  }
+  return relative.replace(/\\/g, "/");
 }

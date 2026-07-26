@@ -1,6 +1,8 @@
 import { mkdir, readdir, readFile, rename, rm } from "node:fs/promises";
 import * as path from "node:path";
-import type { AppConfig, AssistantTimelineEvent, ConversationMessage, QueuedGenerationMessage, StoredToolCall } from "@/adapters";
+import type { AppConfig, AssistantTimelineEvent, ConversationMessage, PermissionSnapshot, QueuedGenerationMessage, StoredToolCall, WorkspaceBinding } from "@/adapters";
+import { isWorkspaceBinding } from "@/core/chat/ConversationValidation";
+import { isProviderTranscript, type ProviderTranscript } from "@/core/chat/ProviderTranscript";
 import { writeJsonFileAtomic } from "./JsonFileStorage";
 import { getCorruptGenerationCheckpointDirectory, getGenerationCheckpointDirectory } from "./UserDataPaths";
 
@@ -9,14 +11,17 @@ export interface GenerationCheckpoint {
   revision: number;
   conversationId: string;
   generationId?: string;
-  status: "queued" | "starting" | "streaming" | "awaiting_confirmation" | "running_tool" | "interrupted" | "completed" | "error";
+  status: "queued" | "starting" | "compacting" | "streaming" | "awaiting_confirmation" | "running_tool" | "interrupted" | "completed" | "error";
   userMessage?: ConversationMessage;
   content: string;
   timeline: AssistantTimelineEvent[];
   toolCalls: StoredToolCall[];
   queue: QueuedGenerationMessage[];
   config?: Omit<AppConfig, "apiKey">;
+  permissionSnapshot?: PermissionSnapshot;
+  providerTranscript?: ProviderTranscript;
   workspaceUri: string;
+  workspaceBinding?: WorkspaceBinding;
   updatedAt: number;
 }
 
@@ -97,7 +102,22 @@ function isGenerationCheckpoint(value: unknown): value is GenerationCheckpoint {
     Array.isArray(record.toolCalls) &&
     Array.isArray(record.queue) &&
     typeof record.workspaceUri === "string" &&
+    (record.workspaceBinding === undefined || isWorkspaceBinding(record.workspaceBinding)) &&
+    (record.permissionSnapshot === undefined || isPermissionSnapshot(record.permissionSnapshot)) &&
+    (record.providerTranscript === undefined || isProviderTranscript(record.providerTranscript)) &&
     typeof record.updatedAt === "number";
+}
+
+function isPermissionSnapshot(value: unknown): value is PermissionSnapshot {
+  if (!value || typeof value !== "object") {return false;}
+  const snapshot = value as Partial<PermissionSnapshot>;
+  return Number.isSafeInteger(snapshot.revision) &&
+    typeof snapshot.workspaceTrusted === "boolean" &&
+    typeof snapshot.fingerprint === "string" &&
+    (snapshot.permissionMode === "chat" || snapshot.permissionMode === "read-only" || snapshot.permissionMode === "workspace" ||
+      snapshot.permissionMode === "full-access" || snapshot.permissionMode === "auto-approve") &&
+    !!snapshot.toolExecutionModes &&
+    typeof snapshot.toolExecutionModes === "object";
 }
 
 function safeFileName(value: string): string {

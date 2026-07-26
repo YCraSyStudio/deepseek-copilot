@@ -2,12 +2,9 @@ import { useEffect, useRef } from "react";
 import type { PathCompletionItem } from "@/adapters";
 import "./FileSelector.css";
 import { t } from "@webview/i18n";
+import { getPathToken, type PathToken } from "./PathToken";
 
-export interface PathToken {
-  query: string;
-  start: number;
-  end: number;
-}
+export { getPathToken, type PathToken } from "./PathToken";
 
 interface CompletionVisual {
   className: string;
@@ -71,21 +68,6 @@ export function FileSelector({ activeIndex, completions, isOpen, onSelect, listb
       )}
     </div>
   );
-}
-
-export function getPathToken(value: string, cursor: number): PathToken | null {
-  const beforeCursor = value.slice(0, cursor);
-  const match = beforeCursor.match(/(?:^|\s)(\.{1,2}\/[^\s]*)$/);
-  if (!match?.[1]) {
-    return null;
-  }
-
-  const query = match[1];
-  return {
-    query,
-    start: beforeCursor.length - query.length,
-    end: cursor,
-  };
 }
 
 export function isFileSelectorNavigationKey(key: string): boolean {

@@ -16,10 +16,10 @@ export class SettingsHandler {
         void this.postCurrentConfig(webviewView);
         break;
       case "saveConfig":
-        void this._saveConfig(message.config, webviewView);
+        void this._saveConfig(message.requestId, message.config, webviewView);
         break;
       case "resetConfig":
-        void this._resetConfig(webviewView);
+        void this._resetConfig(message.requestId, webviewView);
         break;
       case "testConnection":
         void this._testConnection(message, webviewView);
@@ -31,14 +31,28 @@ export class SettingsHandler {
 
   async postCurrentConfig(webviewView: vscode.WebviewView): Promise<void> {
     try {
-      await this._postConfigAndApiKeyStatus(webviewView, "configLoaded");
+      const config = await this._getCurrentConfig();
+      await webviewView.webview.postMessage({
+        type: "configLoaded",
+        revision: SettingsManager.getRevision(),
+        config,
+      });
+      await this._postApiKeyStatus(webviewView, config.apiKey ?? "");
     } catch (error: unknown) {
       logWarning(`[SettingsHandler] Failed to load settings: ${getErrorMessage(error)}`);
-      await webviewView.webview.postMessage({ type: "configSaved", success: false });
     }
   }
 
-  private async _saveConfig(config: Partial<AppConfig>, webviewView: vscode.WebviewView): Promise<void> {
+  private async _saveConfig(requestId: string, config: Partial<AppConfig>, webviewView: vscode.WebviewView): Promise<void> {
+    if (
+      config.permissionMode === "auto-approve" &&
+      SettingsManager.load().permissionMode !== "auto-approve" &&
+      !await confirmGlobalAutoApprove()
+    ) {
+      await this._postUpdateResult(webviewView, requestId, "save", "cancelled");
+      return;
+    }
+
     try {
       // apiKey is stored only in SecretStorage, never in synchronized settings.
       if (Object.prototype.hasOwnProperty.call(config, "apiKey")) {
@@ -49,38 +63,63 @@ export class SettingsHandler {
         }
       }
       await SettingsManager.save(config);
-      await this._postConfigAndApiKeyStatus(webviewView, "configLoaded");
-      await webviewView.webview.postMessage({ type: "configSaved", success: true });
+      await this._postUpdateResult(webviewView, requestId, "save", "success");
     } catch (error: unknown) {
       logWarning(`[SettingsHandler] Failed to save settings: ${getErrorMessage(error)}`);
-      await webviewView.webview.postMessage({ type: "configSaved", success: false });
+      await this._postUpdateResult(webviewView, requestId, "save", "error", getErrorMessage(error));
     }
   }
 
-  private async _resetConfig(webviewView: vscode.WebviewView): Promise<void> {
+  private async _resetConfig(requestId: string, webviewView: vscode.WebviewView): Promise<void> {
     const confirmation = await vscode.window.showWarningMessage(
       "Reset all extension settings to their defaults?",
       { modal: true, detail: "Your API key is stored separately and will be preserved." },
       "Reset settings",
     );
-    if (confirmation !== "Reset settings") {return;}
+    if (confirmation !== "Reset settings") {
+      await this._postUpdateResult(webviewView, requestId, "reset", "cancelled");
+      return;
+    }
 
     try {
       await SettingsManager.reset();
-      await this._postConfigAndApiKeyStatus(webviewView, "configReset");
+      await this._postUpdateResult(webviewView, requestId, "reset", "success");
     } catch (error: unknown) {
       logWarning(`[SettingsHandler] Failed to reset settings: ${getErrorMessage(error)}`);
-      await webviewView.webview.postMessage({ type: "configSaved", success: false });
+      await this._postUpdateResult(webviewView, requestId, "reset", "error", getErrorMessage(error));
     }
   }
 
-  private async _postConfigAndApiKeyStatus(webviewView: vscode.WebviewView, type: "configLoaded" | "configReset"): Promise<void> {
+  private async _getCurrentConfig(): Promise<Partial<AppConfig>> {
     const config = SettingsManager.load();
     const apiKey = (await SecretsManager.getApiKey(this.context)) || "";
+    return { ...config, apiKey };
+  }
+
+  private async _postUpdateResult(
+    webviewView: vscode.WebviewView,
+    requestId: string,
+    operation: "save" | "reset",
+    status: "success" | "error" | "cancelled",
+    error?: string,
+  ): Promise<void> {
+    const config = await this._getCurrentConfig();
+    await webviewView.webview.postMessage({
+      type: "configUpdateResult",
+      requestId,
+      revision: SettingsManager.getRevision(),
+      operation,
+      status,
+      config,
+      error,
+    });
+    await this._postApiKeyStatus(webviewView, config.apiKey ?? "");
+  }
+
+  private async _postApiKeyStatus(webviewView: vscode.WebviewView, apiKey: string): Promise<void> {
     const status = apiKey ? "configured" : "missing";
     const keyPreview = apiKey ? `${apiKey.slice(0, 4)}...${apiKey.slice(-4)}` : undefined;
 
-    await webviewView.webview.postMessage({ type, config: { ...config, apiKey } });
     await webviewView.webview.postMessage({ type: "apiKeyStatusSettings", status, keyPreview });
     await webviewView.webview.postMessage({ type: "apiKeyStatus", status, keyPreview });
   }
@@ -111,6 +150,18 @@ export class SettingsHandler {
     }
   }
 
+}
+
+async function confirmGlobalAutoApprove(): Promise<boolean> {
+  const accepted = await vscode.window.showWarningMessage(
+    "Enable global auto-approve?",
+    {
+      modal: true,
+      detail: "This setting applies to every trusted workspace. Terminal commands are not OS-sandboxed; commands that are not proven read-only and workspace-contained still require confirmation.",
+    },
+    "Enable auto-approve",
+  );
+  return accepted === "Enable auto-approve";
 }
 
 function getErrorMessage(err: unknown): string {

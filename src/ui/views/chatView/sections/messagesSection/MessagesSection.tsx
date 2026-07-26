@@ -9,12 +9,15 @@ import { t } from "@webview/i18n";
 import ToolCallLimitModal from "@webview/components/chatView/toolCallLimitModal/ToolCallLimitModal";
 
 function MessagesSection({
+  conversationId,
   messages: externalMessages,
   onMessagesChange,
   isProcessing: externalIsProcessing,
   listRef: externalListRef,
   onApiKeyStatusChange,
   onConfigLoaded,
+  onConfigUpdateResult,
+  permissionUpdatePending = false,
   onModelChanged,
   onProcessingChange,
   onGenerationCancelled,
@@ -31,6 +34,7 @@ function MessagesSection({
     externalListRef,
     onApiKeyStatusChange,
     onConfigLoaded,
+    onConfigUpdateResult,
     onModelChanged,
     onProcessingChange,
     onGenerationCancelled,
@@ -41,13 +45,31 @@ function MessagesSection({
     messages: chat.messages,
     isProcessing: chat.isProcessing,
     vscode,
+    actionsDisabled: permissionUpdatePending,
   });
   const { dispatcher: chatDispatcher, isProcessing, listRef, messages } = chat;
   const dispatcher = mergeMessageDispatchers(chatDispatcher, tools.dispatcher);
   const followsLatestRef = useRef(true);
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
+  const [isCompacting, setIsCompacting] = useState(false);
 
-  useMessageHandler(vscode, dispatcher);
+  useMessageHandler(vscode, {
+    ...dispatcher,
+    onContextCompactionUpdated: ({ status }) => setIsCompacting(status === "compacting"),
+    onGenerationSnapshot: (message) => {
+      setIsCompacting(message.generations.some(
+        (generation) => generation.conversationId === conversationId && generation.status === "compacting",
+      ));
+    },
+    onStreamDone: (info) => {
+      setIsCompacting(false);
+      dispatcher.onStreamDone?.(info);
+    },
+    onStreamError: (error, generationId) => {
+      setIsCompacting(false);
+      dispatcher.onStreamError?.(error, generationId);
+    },
+  });
 
   useEffect(() => {
     if (!followsLatestRef.current) {
@@ -106,7 +128,7 @@ function MessagesSection({
             <div className="typingDots">
               <span /> <span /> <span />
             </div>
-            <span className="typingLabel">{t("chat.deepseekIsThinking")}</span>
+            <span className="typingLabel">{t(isCompacting ? "chat.compactingContext" : "chat.deepseekIsThinking")}</span>
           </div>
         ) : null}
       </div>
@@ -125,8 +147,9 @@ function MessagesSection({
         onReject={tools.handleReject}
         onExecuteAll={tools.handleExecuteAll}
         onRejectAll={tools.handleRejectAll}
+        disabled={permissionUpdatePending}
       />
-      <ToolCallLimitModal limit={tools.toolCallLimit} onDecision={tools.handleLimitDecision} />
+      <ToolCallLimitModal limit={tools.toolCallLimit} onDecision={tools.handleLimitDecision} disabled={permissionUpdatePending} />
     </>
   );
 }

@@ -6,9 +6,10 @@ import "../toolCallConfirmationModal/ToolCallConfirmationModal.css";
 interface ToolCallLimitModalProps {
   limit: { completedRounds: number; batchSize: number } | null;
   onDecision: (decision: "continue" | "stop") => void;
+  disabled?: boolean;
 }
 
-export default function ToolCallLimitModal({ limit, onDecision }: ToolCallLimitModalProps) {
+export default function ToolCallLimitModal({ limit, onDecision, disabled = false }: ToolCallLimitModalProps) {
   const titleId = useId();
   const descriptionId = useId();
   const dialogRef = useDialogFocus(() => onDecision("stop"), limit ? `limit-${limit.completedRounds}` : "closed", Boolean(limit));
@@ -25,10 +26,10 @@ export default function ToolCallLimitModal({ limit, onDecision }: ToolCallLimitM
           </div>
         </header>
         <div className="toolCallDecisionRow">
-          <button type="button" className="toolCallDecisionOption primary" data-dialog-initial-focus onClick={() => onDecision("continue")}>
+          <button type="button" className="toolCallDecisionOption primary" disabled={disabled} data-dialog-initial-focus onClick={() => onDecision("continue")}>
             {t("confirmations.continueToolCalls")}
           </button>
-          <button type="button" className="toolCallDecisionOption" onClick={() => onDecision("stop")}>
+          <button type="button" className="toolCallDecisionOption" disabled={disabled} onClick={() => onDecision("stop")}>
             {t("confirmations.stopToolCalls")}
           </button>
         </div>

@@ -1,4 +1,4 @@
-export type { AppConfig, InterfaceLanguage, PermissionMode, ToolExecutionMode, ToolExecutionModes } from "./Config";
+export type { AppConfig, InterfaceLanguage, PermissionMode, PermissionSnapshot, ToolExecutionMode, ToolExecutionModes } from "./Config";
 export { PERMISSION_MODE_ALLOWED_TOOLS } from "./Config";
 export type {
   WebviewToHandlerMessage,
@@ -13,6 +13,13 @@ export type {
   PathCompletionItem,
   GenerationSnapshot,
   QueuedGenerationMessage,
+  WorkspaceBinding,
+  WorkspaceFolderBinding,
+  WorkspaceCapabilities,
+  WorkspaceConnectionState,
+  WorkspaceContextStatus,
+  WorkspaceRebinding,
+  ReferencedFile,
 } from "./messages/Webview";
 export type {
   ChatMessage,

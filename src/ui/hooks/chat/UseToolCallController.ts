@@ -8,9 +8,10 @@ interface ToolCallControllerOptions {
   messages: ChatMessage[];
   isProcessing: boolean;
   vscode: VsCodeApi | null;
+  actionsDisabled?: boolean;
 }
 
-export function useToolCallController({ messages, isProcessing, vscode }: ToolCallControllerOptions) {
+export function useToolCallController({ messages, isProcessing, vscode, actionsDisabled = false }: ToolCallControllerOptions) {
   const [toolCallGroups, setToolCallGroups] = useState<ToolCallGroup[]>([]);
   const [toolCallLimit, setToolCallLimit] = useState<{ completedRounds: number; batchSize: number } | null>(null);
   const generationIdRef = useRef<string | undefined>(undefined);
@@ -92,11 +93,11 @@ export function useToolCallController({ messages, isProcessing, vscode }: ToolCa
   const postToolCallAction = useCallback(
     (toolCallId: string, action: ToolCallAction, options: ToolCallActionOptions = {}) => {
       const generationId = generationIdRef.current;
-      if (generationId) {
+      if (generationId && !actionsDisabled) {
         vscode?.postMessage({ type: "executeToolCall", generationId, toolCallId, action, trustForSession: options.trustForSession });
       }
     },
-    [vscode],
+    [actionsDisabled, vscode],
   );
 
   const handleExecute = useCallback(
@@ -113,10 +114,10 @@ export function useToolCallController({ messages, isProcessing, vscode }: ToolCa
   const handleLimitDecision = useCallback((action: "continue" | "stop") => {
     setToolCallLimit(null);
     const generationId = generationIdRef.current;
-    if (generationId) {
+    if (generationId && !actionsDisabled) {
       vscode?.postMessage({ type: "toolCallLimitDecision", generationId, action });
     }
-  }, [vscode]);
+  }, [actionsDisabled, vscode]);
 
   return {
     dispatcher,

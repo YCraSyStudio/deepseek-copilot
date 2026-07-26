@@ -45,4 +45,7 @@ export interface ConfirmationRequiredResult {
   cwd?: string;
   shell?: string;
   beforeHash?: string;
+  reasonCode?: string;
+  normalizedCommand?: string;
+  workspaceContained?: boolean;
 }

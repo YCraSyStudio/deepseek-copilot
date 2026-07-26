@@ -29,7 +29,7 @@ async function handleSearchContent(args: Record<string, unknown>, context?: Tool
 
   const includePattern = normalizeFilePattern(args.filePattern);
   const workspace = getToolWorkspaceHost();
-  if (!workspace.getRootPath()) {
+  if (!workspace.getRootPath() && !workspace.getWorkspaceId?.()) {
     throw new Error("No workspace folder open");
   }
   if (!workspace.findFiles) {

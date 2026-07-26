@@ -31,13 +31,35 @@ export interface WorkspaceCommandResult {
   truncated: { stdout: boolean; stderr: boolean };
 }
 
-export async function resolveCommandEnvironment(cwd?: string): Promise<{ cwd: string; shell: string }> {
-  const rootPath = getToolWorkspaceHost().getRootPath();
+export interface CommandEnvironment {
+  cwd: string;
+  shell: string;
+  workspaceRoot: string;
+}
+
+export async function resolveCommandEnvironment(cwd?: string): Promise<CommandEnvironment> {
+  const workspace = getToolWorkspaceHost();
+  if (workspace.resolveLocalPath) {
+    const resolved = await workspace.resolveLocalPath(cwd);
+    if (!resolved.workspaceRoot) {
+      throw new Error("Terminal workspace root is unavailable");
+    }
+    return {
+      cwd: resolved.absolutePath,
+      shell: process.platform === "win32" ? (process.env.ComSpec ?? "cmd.exe") : (process.env.SHELL ?? "/bin/sh"),
+      workspaceRoot: resolved.workspaceRoot,
+    };
+  }
+  const rootPath = workspace.getRootPath();
   if (!rootPath) {
     throw new Error("No workspace folder open");
   }
   const workDir = cwd ? (await resolveWorkspacePathSecure(cwd, rootPath, realpath)).absolutePath : rootPath;
-  return { cwd: workDir, shell: process.platform === "win32" ? (process.env.ComSpec ?? "cmd.exe") : (process.env.SHELL ?? "/bin/sh") };
+  return {
+    cwd: workDir,
+    shell: process.platform === "win32" ? (process.env.ComSpec ?? "cmd.exe") : (process.env.SHELL ?? "/bin/sh"),
+    workspaceRoot: rootPath,
+  };
 }
 
 export async function executeWorkspaceCommand(command: string, options: WorkspaceCommandOptions = {}): Promise<WorkspaceCommandResult> {

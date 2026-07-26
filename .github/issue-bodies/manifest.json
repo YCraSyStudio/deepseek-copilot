@@ -2,20 +2,12 @@
   "repository": "YarCrasy/deepseek-copilot",
   "issues": [
     {
-      "id": "003",
-      "priority": "P0",
-      "title": "[P0] Pin an immutable workspace context for every run",
-      "bodyFile": ".github/issue-bodies/003-p0-pin-workspace-context.md",
-      "labels": ["BUG", "INTEGRATION"],
-      "dependsOn": []
-    },
-    {
       "id": "004",
       "priority": "P0",
       "title": "[P0] Make terminal auto-approval fail closed and scope session trust",
       "bodyFile": ".github/issue-bodies/004-p0-harden-terminal-execution.md",
       "labels": ["BUG", "IMPROVEMENT", "INTEGRATION"],
-      "dependsOn": ["003", "005"]
+      "dependsOn": ["005"]
     },
     {
       "id": "005",
@@ -23,14 +15,6 @@
       "title": "[P0] Make elevated permissions workspace-scoped and transactional",
       "bodyFile": ".github/issue-bodies/005-p0-transactional-permission-updates.md",
       "labels": ["BUG", "INTEGRATION", "FRONTEND"],
-      "dependsOn": []
-    },
-    {
-      "id": "006",
-      "priority": "P0",
-      "title": "[P0] Preserve protocol-valid DeepSeek tool transcripts",
-      "bodyFile": ".github/issue-bodies/006-p0-preserve-deepseek-tool-transcripts.md",
-      "labels": ["BUG", "INTEGRATION"],
       "dependsOn": []
     },
     {
@@ -55,7 +39,7 @@
       "title": "[P1] Guarantee tool-call identity, terminal states, and auditability",
       "bodyFile": ".github/issue-bodies/009-p1-tool-call-integrity-and-audit.md",
       "labels": ["BUG", "INTEGRATION", "FRONTEND"],
-      "dependsOn": ["006"]
+      "dependsOn": []
     },
     {
       "id": "010",
@@ -63,7 +47,7 @@
       "title": "[P1] Prevent file tools from overwriting unsaved editor buffers",
       "bodyFile": ".github/issue-bodies/010-p1-protect-unsaved-editor-buffers.md",
       "labels": ["BUG", "INTEGRATION"],
-      "dependsOn": ["003"]
+      "dependsOn": []
     },
     {
       "id": "011",
@@ -79,7 +63,7 @@
       "title": "[P1] Harden streaming timeouts, bounds, and partial-response recovery",
       "bodyFile": ".github/issue-bodies/012-p1-harden-streaming-resilience.md",
       "labels": ["BUG", "INTEGRATION", "FRONTEND"],
-      "dependsOn": ["006"]
+      "dependsOn": []
     },
     {
       "id": "013",
@@ -103,7 +87,7 @@
       "title": "[P1] Align DeepSeek provider options with the documented API contract",
       "bodyFile": ".github/issue-bodies/015-p1-align-deepseek-provider-contract.md",
       "labels": ["BUG", "INTEGRATION"],
-      "dependsOn": ["006"]
+      "dependsOn": []
     },
     {
       "id": "016",
@@ -135,6 +119,7 @@
       "title": "[P1] Remove temporary legacy conversation migration",
       "bodyFile": ".github/issue-bodies/019-p1-remove-legacy-conversation-migration.md",
       "labels": ["IMPROVEMENT", "INTEGRATION"],
+      "githubIssue": 61,
       "dependsOn": []
     }
   ]

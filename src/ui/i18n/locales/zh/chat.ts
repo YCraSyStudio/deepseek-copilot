@@ -2,6 +2,7 @@ import type { TranslationCatalog } from "../Types";
 
 export const chat = {
   chat: {
+    applyingPermissions: "正在应用权限...",
     apiKeyMissing: "缺少 API key",
     askAnythingAboutYourCode: "询问任何代码问题...",
     configureApiKey: "请先在设置中配置 API key...",
@@ -26,6 +27,7 @@ export const chat = {
     pathSuggestionCount: "有 {count} 个路径建议。",
     noFilesOrFoldersFound: "未找到文件或文件夹。",
     deepseekIsThinking: "DeepSeek 正在思考...",
+    compactingContext: "正在压缩会话上下文...",
     jumpToLatest: "跳到最新响应块",
     latest: "最新",
     streaming: "DeepSeek 响应正在传输。",
@@ -33,6 +35,16 @@ export const chat = {
     queueMessage: "消息入队",
     interruptAndGuide: "中断并引导",
     recoveredDrafts: "VS Code 关闭后恢复的草稿：",
-    restoreDraft: "恢复"
+    restoreDraft: "恢复",
+    attachContext: "附加上下文文件",
+    openWorkspace: "打开工作区",
+    reassignWorkspace: "重新分配",
+    unavailableCapabilities: "不可用功能",
+    workspaceState: {
+      connected: "已连接",
+      disconnected: "已断开",
+      changed: "已更改",
+      empty: "空"
+    }
   }
 } satisfies TranslationCatalog;

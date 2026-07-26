@@ -68,10 +68,47 @@ export interface QueuedGenerationMessage {
   queuedAt: number;
 }
 
+export interface WorkspaceFolderBinding {
+  uri: string;
+  name: string;
+  alias: string;
+  scheme: string;
+}
+
+export interface WorkspaceCapabilities {
+  files: boolean;
+  search: boolean;
+  git: boolean;
+  terminal: boolean;
+}
+
+export interface WorkspaceBinding {
+  schemaVersion: 1;
+  uri: string;
+  name: string;
+  revision: string;
+  folders: WorkspaceFolderBinding[];
+  capabilities: WorkspaceCapabilities;
+}
+
+export type WorkspaceConnectionState = "connected" | "disconnected" | "changed" | "empty";
+
+export interface WorkspaceContextStatus {
+  binding: WorkspaceBinding;
+  state: WorkspaceConnectionState;
+  defaultFolderAlias?: string;
+}
+
+export interface WorkspaceRebinding {
+  fromWorkspaceUri: string;
+  toWorkspaceUri: string;
+  at: number;
+}
+
 export interface GenerationSnapshot {
   generationId: string;
   conversationId: string;
-  status: "starting" | "streaming" | "awaiting_confirmation" | "running_tool" | "interrupted" | "completed" | "error";
+  status: "starting" | "compacting" | "streaming" | "awaiting_confirmation" | "running_tool" | "interrupted" | "completed" | "error";
   userMessage: ConversationMessage;
   content: string;
   timeline: AssistantTimelineEvent[];
@@ -89,6 +126,8 @@ export interface Conversation {
   messages: ConversationMessage[];
   model: string;
   workspaceUri: string;
+  workspaceBinding?: WorkspaceBinding;
+  workspaceRebindings?: WorkspaceRebinding[];
 }
 
 export interface ConversationSummary {
@@ -121,6 +160,17 @@ export interface PathCompletionItem {
   type: "file" | "directory";
 }
 
+export interface ReferencedFile {
+  path: string;
+  content?: string;
+  type: "file" | "directory";
+  selection?: { startLine: number; startCharacter: number; endLine: number; endCharacter: number };
+  referenceId?: string;
+  scope?: "workspace" | "external-snapshot";
+  rootUri?: string;
+  bindingRevision?: string;
+}
+
 export interface ProjectInstructionStatusSource {
   path: string;
   scope: "home" | "workspace" | "workspace-local";
@@ -130,8 +180,8 @@ export interface ProjectInstructionStatusSource {
 
 export type WebviewToHandlerMessage =
   | { type: "getConfig" }
-  | { type: "saveConfig"; config: Partial<AppConfig> }
-  | { type: "resetConfig" }
+  | { type: "saveConfig"; requestId: string; config: Partial<AppConfig> }
+  | { type: "resetConfig"; requestId: string }
   | { type: "testConnection"; apiKey: string; baseUrl: string; model: string }
   | {
       type: "sendMessage";
@@ -140,7 +190,8 @@ export type WebviewToHandlerMessage =
       modelId: string;
       reasoning: string;
       conversationId?: string;
-      referencedFiles?: Array<{ path: string; content?: string; type: "file" | "directory"; selection?: { startLine: number; startCharacter: number; endLine: number; endCharacter: number } }>;
+      workspaceRevision?: string;
+      referencedFiles?: ReferencedFile[];
     }
   | {
       type: "steerGeneration";
@@ -150,13 +201,14 @@ export type WebviewToHandlerMessage =
       modelId: string;
       reasoning: string;
       conversationId: string;
-      referencedFiles?: Array<{ path: string; content?: string; type: "file" | "directory"; selection?: { startLine: number; startCharacter: number; endLine: number; endCharacter: number } }>;
+      workspaceRevision?: string;
+      referencedFiles?: ReferencedFile[];
     }
   | { type: "cancelGeneration"; generationId: string }
   | { type: "getGenerationSnapshot" }
   | { type: "consumeRecoveredDraft"; conversationId: string; clientRequestId: string }
   | { type: "copyCode"; code: string }
-  | { type: "insertCode"; code: string }
+  | { type: "insertCode"; code: string; conversationId?: string; workspaceRevision?: string }
   | { type: "selectModel"; modelId: string }
   | { type: "newConversation" }
   | { type: "getHistory" }
@@ -165,20 +217,32 @@ export type WebviewToHandlerMessage =
   | { type: "deleteConversations"; ids: string[] }
   | { type: "executeToolCall"; generationId: string; toolCallId: string; action: "execute" | "reject"; trustForSession?: boolean }
   | { type: "toolCallLimitDecision"; generationId: string; action: "continue" | "stop" }
-  | { type: "getPathCompletions"; requestId: number; query: string }
+  | { type: "getWorkspaceContext"; conversationId?: string }
+  | { type: "rebindConversationWorkspace"; conversationId: string; workspaceRevision?: string }
+  | { type: "openConversationWorkspace"; conversationId: string }
+  | { type: "selectContextFiles"; conversationId?: string }
+  | { type: "getPathCompletions"; requestId: number; query: string; conversationId?: string; workspaceRevision?: string }
   | { type: "getAvailableTools" }
-  | { type: "openFile"; path: string; line?: number };
+  | { type: "openFile"; path: string; line?: number; conversationId?: string; workspaceRevision?: string };
 
 export type HandlerToWebviewMessage =
-  | { type: "configLoaded"; config: Partial<AppConfig> }
-  | { type: "configSaved"; success: boolean }
-  | { type: "configReset"; config: Partial<AppConfig> }
+  | { type: "configLoaded"; revision: number; config: Partial<AppConfig> }
+  | {
+      type: "configUpdateResult";
+      requestId: string;
+      revision: number;
+      operation: "save" | "reset";
+      status: "success" | "error" | "cancelled";
+      config: Partial<AppConfig>;
+      error?: string;
+    }
   | { type: "connectionTestResult"; success: boolean; error?: string }
   | { type: "apiKeyStatusSettings"; status: "configured" | "missing"; keyPreview?: string }
   | { type: "apiKeyStatus"; status: "configured" | "missing"; keyPreview?: string }
   | { type: "generationAccepted"; generationId: string; conversationId: string; clientRequestId: string }
   | { type: "messageQueued"; conversationId: string; clientRequestId: string; position: number }
   | { type: "generationSnapshot"; generations: GenerationSnapshot[]; recoveredDrafts: Array<{ conversationId: string; messages: QueuedGenerationMessage[] }> }
+  | { type: "contextCompactionUpdated"; generationId: string; conversationId: string; status: "compacting" | "completed" }
   | { type: "showTyping"; generationId?: string; conversationId?: string }
   | { type: "streamTimelineDelta"; generationId?: string; conversationId?: string; eventId: string; eventType: "reasoning" | "content"; content: string }
   | { type: "streamTimelineToolGroup"; generationId?: string; conversationId?: string; event: Extract<AssistantTimelineEvent, { type: "tool-group" }> }
@@ -205,7 +269,10 @@ export type HandlerToWebviewMessage =
   | { type: "clearChat" }
   | { type: "activeConversationChanged"; id: string }
   | { type: "projectInstructionsStatus"; sources: ProjectInstructionStatusSource[]; homeAgentsAllowed: boolean }
-  | { type: "pathCompletions"; requestId: number; query: string; items: PathCompletionItem[] }
+  | { type: "workspaceContextChanged"; context: WorkspaceContextStatus }
+  | { type: "workspaceRebindResult"; success: boolean; context?: WorkspaceContextStatus; error?: string }
+  | { type: "contextFilesSelected"; files: ReferencedFile[] }
+  | { type: "pathCompletions"; requestId: number; query: string; workspaceRevision: string; items: PathCompletionItem[] }
   | { type: "modelChanged"; modelId: string }
   | { type: "history"; conversations: ConversationSummary[] }
   | { type: "historyError"; error: string }

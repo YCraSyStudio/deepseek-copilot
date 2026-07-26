@@ -21,7 +21,7 @@
 
 - The separate drop zone view was removed.
 - Explorer copy/paste integration was not kept because VS Code does not expose copied Explorer URIs to webviews as normal clipboard data.
-- Workspace context is currently entered through chat input path autocomplete after typing `./` or `../`.
+- Workspace context can be entered through `./` path autocomplete, Explorer/editor commands, or the native attachment button. `../` is rejected. Explicit external files are temporary read-only snapshots and do not authorize tools.
 
 ## Icons
 

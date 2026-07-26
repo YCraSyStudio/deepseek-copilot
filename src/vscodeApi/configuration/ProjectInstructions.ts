@@ -1,6 +1,11 @@
 import * as os from "os";
 import * as vscode from "vscode";
 import { SettingsManager } from "@/vscodeApi/storage";
+import {
+  captureCurrentWorkspaceBinding,
+  captureWorkspaceRunSnapshot,
+  type WorkspaceRunSnapshot,
+} from "@/vscodeApi/workspace";
 
 const AGENTS_FILE_NAME = "AGENTS.md";
 const PROJECT_INSTRUCTIONS_HEADER = "## Project Instructions";
@@ -24,10 +29,12 @@ interface CandidateSource {
   uri: vscode.Uri;
   scope: ProjectInstructionSource["scope"];
   precedence: number;
+  rootAlias?: string;
 }
 
-export async function loadProjectInstructions(): Promise<ProjectInstructionsResult> {
-  const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+export async function loadProjectInstructions(
+  workspaceSnapshot = captureWorkspaceRunSnapshot(captureCurrentWorkspaceBinding()),
+): Promise<ProjectInstructionsResult> {
   const homeAgentsAllowed = isHomeAgentsAllowed();
   const candidates: CandidateSource[] = [];
 
@@ -39,17 +46,19 @@ export async function loadProjectInstructions(): Promise<ProjectInstructionsResu
     });
   }
 
-  if (workspaceFolder) {
+  for (const [rootIndex, folder] of workspaceSnapshot.folders.entries()) {
     candidates.push(
       {
-        uri: vscode.Uri.joinPath(workspaceFolder.uri, AGENTS_FILE_NAME),
+        uri: vscode.Uri.joinPath(folder.rootUri, AGENTS_FILE_NAME),
         scope: "workspace",
-        precedence: 10,
+        precedence: 10 + rootIndex * 2,
+        rootAlias: folder.alias,
       },
       {
-        uri: vscode.Uri.joinPath(workspaceFolder.uri, ".yrs-dpsk-copilot", AGENTS_FILE_NAME),
+        uri: vscode.Uri.joinPath(folder.rootUri, ".yrs-dpsk-copilot", AGENTS_FILE_NAME),
         scope: "workspace-local",
-        precedence: 20,
+        precedence: 11 + rootIndex * 2,
+        rootAlias: folder.alias,
       },
     );
   }
@@ -113,7 +122,8 @@ async function readInstructionSource(candidate: CandidateSource): Promise<Loaded
 
 function formatSourcePath(candidate: CandidateSource): string {
   if (candidate.scope === "home") {return "~/.yrs-dpsk-copilot/AGENTS.md";}
-  return candidate.scope === "workspace-local" ? ".yrs-dpsk-copilot/AGENTS.md" : "AGENTS.md";
+  const relativePath = candidate.scope === "workspace-local" ? ".yrs-dpsk-copilot/AGENTS.md" : "AGENTS.md";
+  return candidate.rootAlias ? `./${candidate.rootAlias}/${relativePath}` : relativePath;
 }
 
 function formatProjectInstructions(sources: LoadedInstructionSource[]): string {
@@ -121,12 +131,15 @@ function formatProjectInstructions(sources: LoadedInstructionSource[]): string {
     return "";
   }
 
-  const sections = sources.map((source) => `<project-instructions source=${JSON.stringify(source.path)}>
+  const sections = sources.map((source) => {
+    const rootScope = source.scope === "home" ? "" : ` applies-to-root=${JSON.stringify(source.path.split("/").slice(0, 2).join("/"))}`;
+    return `<project-instructions source=${JSON.stringify(source.path)}${rootScope}>
 ${source.content.replace(/<\/project-instructions>/gi, "&lt;/project-instructions&gt;")}
-</project-instructions>`);
+</project-instructions>`;
+  });
 
   return `${PROJECT_INSTRUCTIONS_HEADER}
-The following AGENTS.md instructions are ordered from lowest to highest precedence. When they conflict, follow the later, higher-precedence source.
+The following AGENTS.md instructions are ordered from lowest to highest precedence. When they conflict within the same root, follow the later, higher-precedence source. A block with applies-to-root affects only files under that logical workspace root.
 
 ${sections.join("\n\n")}`;
 }

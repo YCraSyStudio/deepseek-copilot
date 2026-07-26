@@ -27,4 +27,5 @@ export type ToolsSectionProps = {
   tools: AvailableToolInfo[];
   updateConfig: UpdateConfigFn;
   saveOnBlur: SaveOnBlurFn;
+  permissionUpdatePending?: boolean;
 };

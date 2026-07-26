@@ -3,6 +3,7 @@ export interface ReferencedFileContext {
   content?: string;
   type: string;
   selection?: { startLine: number; startCharacter: number; endLine: number; endCharacter: number };
+  scope?: "workspace" | "external-snapshot";
 }
 
 export function buildFileContext(files: ReferencedFileContext[]): string {
@@ -14,7 +15,8 @@ export function buildFileContext(files: ReferencedFileContext[]): string {
     if (file.content) {
       const content = file.content.replace(/<\/referenced-file>/gi, "&lt;/referenced-file&gt;");
       const selection = file.selection ? ` selection=${JSON.stringify(`${file.selection.startLine}:${file.selection.startCharacter}-${file.selection.endLine}:${file.selection.endCharacter}`)}` : "";
-      return `<referenced-file path=${JSON.stringify(file.path)}${selection} bytes=${Buffer.byteLength(content, "utf8")}>
+      const scope = file.scope === "external-snapshot" ? ` scope="external-snapshot"` : "";
+      return `<referenced-file path=${JSON.stringify(file.path)}${scope}${selection} bytes=${Buffer.byteLength(content, "utf8")}>
 ${content}
 </referenced-file>`;
     }

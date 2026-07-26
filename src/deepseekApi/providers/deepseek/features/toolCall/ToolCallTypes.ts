@@ -9,9 +9,12 @@ export interface ToolCallResult {
 }
 
 export interface ToolCallCycleOptions {
+  getToolsForRound?: (phase: "reasoning" | "tools", round: number) => Promise<ToolDefinition[]> | ToolDefinition[];
   maxRounds?: number;
   onRoundStart?: (round: number, toolCalls: ToolCall[]) => Promise<void> | void;
   onToolResult?: (toolCallId: string, result: string) => void;
+  onTranscriptUpdate?: (messages: ChatMessage[], status: "complete" | "incomplete") => void;
+  validateRequestBudget?: (messages: ChatMessage[], tools: ToolDefinition[]) => void;
   signal?: AbortSignal;
   streamFinalResponse?: boolean;
   streamToolCallRounds?: boolean;
@@ -29,6 +32,7 @@ export interface ToolCallCycleResult {
   rounds: number;
   toolCallsExecuted: number;
   response: ChatResponse;
+  transcript: ChatMessage[];
 }
 
 export type ToolExecutor = (toolCall: ToolCall) => Promise<string>;

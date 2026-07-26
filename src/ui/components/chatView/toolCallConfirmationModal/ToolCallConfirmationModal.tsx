@@ -14,9 +14,10 @@ interface ToolCallConfirmationModalProps {
   onReject: (toolCallId: string) => void;
   onExecuteAll: () => void;
   onRejectAll: () => void;
+  disabled?: boolean;
 }
 
-function ToolCallConfirmationModal({ pendingToolCalls, onExecute, onReject, onExecuteAll, onRejectAll }: ToolCallConfirmationModalProps) {
+function ToolCallConfirmationModal({ pendingToolCalls, onExecute, onReject, onExecuteAll, onRejectAll, disabled = false }: ToolCallConfirmationModalProps) {
   const titleId = useId();
   const descriptionId = useId();
   const activeToolCall = pendingToolCalls[0];
@@ -83,13 +84,14 @@ function ToolCallConfirmationModal({ pendingToolCalls, onExecute, onReject, onEx
             dangerConfirmation={activeToolCall.dangerConfirmation}
             onConfirm={onExecute}
             onCancel={onReject}
+            disabled={disabled}
           />
         ) : (
           <div className="toolCallDecisionRow">
-            <button type="button" className="toolCallDecisionOption primary" onClick={() => onExecute(activeToolCall.toolCallId)}>
+            <button type="button" className="toolCallDecisionOption primary" disabled={disabled} onClick={() => onExecute(activeToolCall.toolCallId)}>
               {t("confirmations.executeOnce")}
             </button>
-            <button type="button" className="toolCallDecisionOption" data-dialog-initial-focus onClick={() => onReject(activeToolCall.toolCallId)}>
+            <button type="button" className="toolCallDecisionOption" disabled={disabled} data-dialog-initial-focus onClick={() => onReject(activeToolCall.toolCallId)}>
               {t("confirmations.reject")}
             </button>
           </div>
@@ -97,10 +99,10 @@ function ToolCallConfirmationModal({ pendingToolCalls, onExecute, onReject, onEx
 
         {manualBatchCount > 1 ? (
           <div className="toolCallModalBatchActions">
-            <button type="button" className="toolCallActionBtn" onClick={onExecuteAll}>
+            <button type="button" className="toolCallActionBtn" disabled={disabled} onClick={onExecuteAll}>
               {t("confirmations.executeAllManualToolsOnce")}
             </button>
-            <button type="button" className="toolCallActionBtn secondary" onClick={onRejectAll}>
+            <button type="button" className="toolCallActionBtn secondary" disabled={disabled} onClick={onRejectAll}>
               {t("confirmations.rejectAllManualTools")}
             </button>
           </div>

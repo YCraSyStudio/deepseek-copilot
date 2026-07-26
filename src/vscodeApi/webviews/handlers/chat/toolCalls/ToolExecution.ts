@@ -8,9 +8,16 @@ const DANGER_CANCELLED = "Tool call cancelled by user (dangerous operation)";
 const USER_REJECTED = "Tool call rejected by user";
 const CYCLE_UNAVAILABLE = "Tool call cycle not available";
 const TOOL_DISABLED = "Tool call rejected because the tool is disabled";
+const UNTRUSTED_WORKSPACE = "Tool call rejected because the workspace is not trusted";
+const MUTATING_TOOLS = new Set(["create_file", "edit_file", "apply_patch", "run_terminal_command"]);
 
 export async function executeToolCall(toolCall: ToolCall, ctx: ToolExecutionContext): Promise<string> {
   recordInitialToolCall(toolCall, ctx);
+
+  if (!ctx.isWorkspaceTrusted() && MUTATING_TOOLS.has(toolCall.function.name)) {
+    postToolCallResult(ctx, createRejectedResult(toolCall, UNTRUSTED_WORKSPACE));
+    return UNTRUSTED_WORKSPACE;
+  }
 
   const mode = ctx.getToolMode(toolCall.function.name);
   if (mode === "disabled") {
@@ -18,10 +25,21 @@ export async function executeToolCall(toolCall: ToolCall, ctx: ToolExecutionCont
     return TOOL_DISABLED;
   }
 
-  if (ctx.autoApproveMode) {
+  if (ctx.autoApproveMode && toolCall.function.name !== "run_terminal_command") {
     const result = await ctx.toolExecutor.executeForced(toolCall, { signal: ctx.signal });
     postToolCallResult(ctx, result);
     return result.result;
+  }
+
+  if (ctx.autoApproveMode) {
+    const result = await ctx.toolExecutor.execute(toolCall, { signal: ctx.signal });
+    return handleExecutionResult({
+      toolCall,
+      result,
+      ctx,
+      announceStarted: true,
+      round: ctx.getCurrentRound(),
+    });
   }
 
   if (mode === "enabled") {

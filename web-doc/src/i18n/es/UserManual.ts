@@ -11,7 +11,8 @@ export const userManual: PageContent = {
       items: [
         "Abre Yar's DeepSeek Copilot desde la Activity Bar e introduce la API key en Settings. La clave se guarda en VS Code Secret Storage.",
         "Elige el modelo, thinking mode, reasoning effort, límite de respuesta, máximo de rondas de herramientas y límite de generaciones concurrentes. La concurrencia predeterminada es 8 y admite valores entre 1 y 16.",
-        "Escribe ./ o ../ para autocompletar rutas del workspace, o usa los menús contextuales del explorador y del editor para adjuntar archivos y selecciones exactas.",
+        "Escribe ./ para autocompletar rutas seguras del workspace. El recorrido a padres con ../ nunca se acepta. En multi-root, las rutas comienzan por un alias estable como ./frontend/src/App.tsx.",
+        "Usa el botón de adjuntar o los comandos del explorador/editor para aportar contexto explícito. Los archivos externos se convierten en snapshots acotados y de solo lectura; nunca conceden acceso de herramientas a su carpeta.",
         "Usa Stop generation para interrumpir la petición actual y cualquier árbol de procesos de terminal activo. El prompt y la respuesta parcial disponible permanecen en el historial como un turno interrumpido.",
       ],
     },
@@ -72,7 +73,7 @@ export const userManual: PageContent = {
       items: [
         "Auto context incluye el editor activo y los cambios staged y unstaged de Git con límites de tiempo y tamaño.",
         "Los archivos referenciados y las instrucciones AGENTS.md tienen límites de tamaño, usan etiquetas relativas al workspace y se delimitan como datos no confiables.",
-        "El contexto de conversación se recorta a un presupuesto acotado; los resultados grandes, el razonamiento y los archivos se acortan por el centro.",
+        "El presupuesto total incluye system prompts, esquemas de herramientas, historial, referencias, salida reservada y margen de seguridad. Las generaciones antiguas completas se resumen de forma atómica y los archivos grandes se reducen a rangos de líneas literales relevantes. Nunca se truncan argumentos, razonamiento obligatorio ni ciclos de herramientas activos.",
         "Usa /context para inspeccionar qué enviaría una petición normal. También están disponibles /status, /tools, /mode, /auto-context, /review, /goal, /summarize y /clear-context.",
       ],
     },

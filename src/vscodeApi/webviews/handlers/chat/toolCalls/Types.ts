@@ -1,9 +1,11 @@
 import type * as vscode from "vscode";
-import type { AppConfig, AssistantTimelineEvent, ChatMessage, ToolCall, ToolDefinition, ToolExecutionMode, ToolExecutionModes } from "@/adapters";
+import type { AppConfig, AssistantTimelineEvent, ChatMessage, PermissionSnapshot, ToolCall, ToolDefinition, ToolExecutionMode } from "@/adapters";
 import type { ToolCallCycleResult } from "@/deepseekApi/providers/deepseek/features/toolCall";
 import type { ToolExecutor } from "@/core/tools/ToolExecutor";
 import type { ConfirmationRequiredResult, ExecutionResult } from "@/core/tools/Types";
 import type { StreamEventEmitter } from "../StreamEventEmitter";
+import type { DangerTrustScope } from "./DangerTrustStore";
+import type { ProviderTranscript } from "@/core/chat/ProviderTranscript";
 
 export interface PendingToolCallCycle {
   toolCalls: Map<string, ToolCall>;
@@ -52,11 +54,15 @@ export interface ToolCallRunOptions {
   tools: ToolDefinition[];
   providerConfig: AppConfig;
   webviewView: vscode.WebviewView;
-  toolExecutionModes: ToolExecutionModes;
+  permissionSnapshot: PermissionSnapshot;
+  capturePermissionSnapshot: () => Promise<PermissionSnapshot>;
+  onPermissionSnapshot?: (snapshot: PermissionSnapshot) => void;
+  onTranscriptUpdate?: (transcript: ProviderTranscript) => void;
   exposeReasoning: boolean;
   signal?: AbortSignal;
   isCancelling: () => boolean;
-  autoApproveMode: boolean;
+  trustScope: DangerTrustScope;
+  isWorkspaceTrusted: () => boolean;
 }
 
 export interface ToolCallRunResult {
@@ -64,6 +70,7 @@ export interface ToolCallRunResult {
   timeline: AssistantTimelineEvent[];
   toolCalls?: StoredExecution[];
   partial?: boolean;
+  providerTranscript?: ProviderTranscript;
 }
 
 export interface ToolExecutionContext {
@@ -72,6 +79,7 @@ export interface ToolExecutionContext {
   executedToolCalls: Map<string, StoredExecution>;
   signal?: AbortSignal;
   autoApproveMode: boolean;
+  isWorkspaceTrusted: () => boolean;
   getToolMode: (toolName: string) => ToolExecutionMode;
   getCurrentRound: () => number;
   getPendingCycle: () => PendingToolCallCycle | null;

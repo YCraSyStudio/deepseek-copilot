@@ -33,12 +33,15 @@ export type MessageDispatcher = {
   onClearChat?: () => void;
   onModelChanged?: (modelId: string) => void;
   onApiKeyStatus?: (status: ApiKeyStatus) => void;
-  onConfigLoaded?: (config: Partial<AppConfig>) => void;
+  onConfigLoaded?: (config: Partial<AppConfig>, revision: number) => void;
+  onConfigUpdateResult?: (message: Extract<HandlerToWebviewMessage, { type: "configUpdateResult" }>) => void;
   onToolCallStarted?: (data: { generationId?: string; toolCalls: ToolCall[]; round: number }) => void;
   onToolCallResult?: (data: { generationId?: string; toolCallId: string; toolName: string; result: string; isError?: boolean; rejected?: boolean; status: ToolCallStatus }) => void;
   onToolCallActionAccepted?: (data: { generationId?: string; toolCallId: string; status: "running" | "rejected" }) => void;
   onToolCallConfirmationRequired?: (data: { generationId?: string; toolCalls: ToolCall[]; round: number; autoExecute: boolean; dangerConfirmation?: DangerConfirmationData }) => void;
   onToolCallLimitReached?: (data: { generationId?: string; completedRounds: number; batchSize: number }) => void;
+  onContextCompactionUpdated?: (data: { generationId: string; status: "compacting" | "completed" }) => void;
+  onGenerationSnapshot?: (message: Extract<HandlerToWebviewMessage, { type: "generationSnapshot" }>) => void;
 };
 
 /**
@@ -56,11 +59,14 @@ export function useMessageHandler(vscode: VsCodeApi | null, dispatcher: MessageD
     onModelChanged,
     onApiKeyStatus,
     onConfigLoaded,
+    onConfigUpdateResult,
     onToolCallStarted,
     onToolCallResult,
     onToolCallActionAccepted,
     onToolCallConfirmationRequired,
     onToolCallLimitReached,
+    onContextCompactionUpdated,
+    onGenerationSnapshot,
   } = dispatcher;
 
   useEffect(() => {
@@ -114,7 +120,12 @@ export function useMessageHandler(vscode: VsCodeApi | null, dispatcher: MessageD
 
         case "configLoaded":
           if (message.config.interfaceLanguage) {setInterfaceLanguage(message.config.interfaceLanguage);}
-          onConfigLoaded?.(message.config);
+          onConfigLoaded?.(message.config, message.revision);
+          break;
+
+        case "configUpdateResult":
+          if (message.config.interfaceLanguage) {setInterfaceLanguage(message.config.interfaceLanguage);}
+          onConfigUpdateResult?.(message);
           break;
 
         case "toolCallStarted":
@@ -154,6 +165,14 @@ export function useMessageHandler(vscode: VsCodeApi | null, dispatcher: MessageD
         case "toolCallLimitReached":
           onToolCallLimitReached?.({ generationId: message.generationId, completedRounds: message.completedRounds, batchSize: message.batchSize });
           break;
+
+        case "contextCompactionUpdated":
+          onContextCompactionUpdated?.({ generationId: message.generationId, status: message.status });
+          break;
+
+        case "generationSnapshot":
+          onGenerationSnapshot?.(message);
+          break;
       }
     };
 
@@ -174,10 +193,13 @@ export function useMessageHandler(vscode: VsCodeApi | null, dispatcher: MessageD
     onModelChanged,
     onApiKeyStatus,
     onConfigLoaded,
+    onConfigUpdateResult,
     onToolCallStarted,
     onToolCallResult,
     onToolCallActionAccepted,
     onToolCallConfirmationRequired,
     onToolCallLimitReached,
+    onContextCompactionUpdated,
+    onGenerationSnapshot,
   ]);
 }

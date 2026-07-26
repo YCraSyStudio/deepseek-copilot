@@ -57,6 +57,9 @@ export class ToolExecutor {
           cwd: parsedResult.cwd,
           shell: parsedResult.shell,
           beforeHash: parsedResult.beforeHash,
+          reasonCode: parsedResult.reasonCode,
+          normalizedCommand: parsedResult.normalizedCommand,
+          workspaceContained: parsedResult.workspaceContained,
         };
 
         return {
@@ -156,7 +159,8 @@ export class ToolExecutor {
 }
 
 async function runWorkspaceMutation<T>(operation: () => Promise<T>): Promise<T> {
-  const key = getToolWorkspaceHost().getRootPath() ?? "workspace:unknown";
+  const workspace = getToolWorkspaceHost();
+  const key = workspace.getWorkspaceId?.() ?? workspace.getRootPath() ?? "workspace:unknown";
   const previous = workspaceMutationQueues.get(key) ?? Promise.resolve();
   let release!: () => void;
   const current = new Promise<void>((resolve) => { release = resolve; });

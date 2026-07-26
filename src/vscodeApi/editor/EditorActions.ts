@@ -1,15 +1,23 @@
 import * as vscode from "vscode";
 import { logError } from "@/shared/logging/Logger";
-import type { PathCompletionItem } from "@/adapters";
+import type { PathCompletionItem, WorkspaceBinding } from "@/adapters";
+import {
+  captureWorkspaceRunSnapshot,
+  findSnapshotFolderForUri,
+  type WorkspaceFolderSnapshot,
+  type WorkspaceRunSnapshot,
+} from "@/vscodeApi/workspace";
+import { createVsCodeToolWorkspace } from "@/vscodeApi/tools/VsCodeToolWorkspace";
 
-export async function openWorkspaceFile(filePath: string, line?: number): Promise<void> {
+export async function openWorkspaceFile(
+  filePath: string,
+  binding: WorkspaceBinding,
+  line?: number,
+): Promise<void> {
   try {
-    const workspaceFolders = vscode.workspace.workspaceFolders;
-    if (!workspaceFolders || workspaceFolders.length === 0) {
-      return;
-    }
-
-    const fileUri = vscode.Uri.joinPath(workspaceFolders[0].uri, filePath);
+    const snapshot = captureWorkspaceRunSnapshot(binding);
+    await createVsCodeToolWorkspace(snapshot).resolvePath!(filePath, false);
+    const fileUri = resolveWorkspaceUri(snapshot, filePath);
     const document = await vscode.workspace.openTextDocument(fileUri);
     const editor = await vscode.window.showTextDocument(document);
 
@@ -21,13 +29,15 @@ export async function openWorkspaceFile(filePath: string, line?: number): Promis
     }
   } catch (err) {
     logError(`[EditorActions] Error opening file '${filePath}'`, err);
+    await vscode.window.showErrorMessage(err instanceof Error ? err.message : "Unable to open the workspace file.");
   }
 }
 
-export async function insertCodeIntoActiveEditor(code: string): Promise<void> {
+export async function insertCodeIntoActiveEditor(code: string, binding: WorkspaceBinding): Promise<void> {
+  const snapshot = captureWorkspaceRunSnapshot(binding);
   const editor = vscode.window.activeTextEditor;
-  if (!editor) {
-    await vscode.window.showInformationMessage("Open an editor to insert code from Yar's DeepSeek Copilot.");
+  if (!editor || !findSnapshotFolderForUri(snapshot, editor.document.uri)) {
+    await vscode.window.showInformationMessage("Open an editor that belongs to this chat workspace before inserting code.");
     return;
   }
 
@@ -38,58 +48,100 @@ export async function insertCodeIntoActiveEditor(code: string): Promise<void> {
   });
 }
 
-export async function getPathCompletionItems(query: string): Promise<PathCompletionItem[]> {
-  const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-  if (!workspaceFolder || !isRelativePathQuery(query)) {
+export async function getPathCompletionItems(
+  query: string,
+  binding: WorkspaceBinding,
+): Promise<PathCompletionItem[]> {
+  if (!isSafeCompletionQuery(query)) {
     return [];
   }
-
+  const snapshot = captureWorkspaceRunSnapshot(binding);
   const normalizedQuery = query.replace(/\\/g, "/");
-  const slashIndex = normalizedQuery.lastIndexOf("/");
-  const directoryQuery = slashIndex >= 0 ? normalizedQuery.slice(0, slashIndex + 1) : "./";
-  const namePrefix = slashIndex >= 0 ? normalizedQuery.slice(slashIndex + 1).toLowerCase() : normalizedQuery.toLowerCase();
-  const directoryUri = resolveWorkspacePath(workspaceFolder.uri, directoryQuery);
+  const remainder = normalizedQuery.slice(2);
+
+  if (snapshot.folders.length > 1 && !remainder.includes("/")) {
+    const prefix = remainder.toLocaleLowerCase();
+    return snapshot.folders
+      .filter((folder) => folder.alias.toLocaleLowerCase().startsWith(prefix))
+      .map((folder) => ({ label: `${folder.alias}/`, path: `./${folder.alias}/`, type: "directory" as const }))
+      .slice(0, 50);
+  }
+
+  const { folder, rootRelativeQuery } = resolveCompletionRoot(snapshot, remainder);
+  if (!folder) {
+    return [];
+  }
+  const slashIndex = rootRelativeQuery.lastIndexOf("/");
+  const directoryPart = slashIndex >= 0 ? rootRelativeQuery.slice(0, slashIndex + 1) : "";
+  const namePrefix = (slashIndex >= 0 ? rootRelativeQuery.slice(slashIndex + 1) : rootRelativeQuery).toLocaleLowerCase();
+  const directoryUri = vscode.Uri.joinPath(folder.rootUri, ...directoryPart.split("/").filter(Boolean));
+  const outputPrefix = snapshot.folders.length > 1 ? `./${folder.alias}/${directoryPart}` : `./${directoryPart}`;
 
   try {
+    const logicalDirectory = snapshot.folders.length > 1
+      ? `${folder.alias}/${directoryPart || "."}`
+      : directoryPart || ".";
+    await createVsCodeToolWorkspace(snapshot).resolvePath!(logicalDirectory, false);
     const entries = await vscode.workspace.fs.readDirectory(directoryUri);
     return entries
-      .filter(([name]) => !name.startsWith(".") && name.toLowerCase().startsWith(namePrefix))
+      .filter(([name, type]) =>
+        !name.startsWith(".") &&
+        name.toLocaleLowerCase().startsWith(namePrefix) &&
+        (type & vscode.FileType.SymbolicLink) === 0)
       .map(([name, type]) => {
         const isDirectory = type === vscode.FileType.Directory;
         return {
           label: isDirectory ? `${name}/` : name,
-          path: `${directoryQuery}${name}${isDirectory ? "/" : ""}`,
+          path: `${outputPrefix}${name}${isDirectory ? "/" : ""}`,
           type: isDirectory ? "directory" : "file",
         } satisfies PathCompletionItem;
       })
-      .sort((a, b) => {
-        if (a.type !== b.type) {
-          return a.type === "directory" ? -1 : 1;
-        }
-        return a.label.localeCompare(b.label);
-      })
+      .sort((a, b) => a.type === b.type ? a.label.localeCompare(b.label) : a.type === "directory" ? -1 : 1)
       .slice(0, 50);
   } catch {
     return [];
   }
 }
 
-function isRelativePathQuery(query: string): boolean {
-  return query.startsWith("./") || query.startsWith("../");
+function isSafeCompletionQuery(query: string): boolean {
+  const normalized = query.replace(/\\/g, "/");
+  return normalized.startsWith("./") &&
+    !normalized.split("/").includes("..") &&
+    !normalized.includes("\0") &&
+    !/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(normalized.slice(2));
 }
 
-function resolveWorkspacePath(root: vscode.Uri, query: string): vscode.Uri {
-  const segments: string[] = [];
-  for (const segment of query.split("/")) {
-    if (!segment || segment === ".") {
-      continue;
-    }
-    if (segment === "..") {
-      segments.pop();
-      continue;
-    }
-    segments.push(segment);
+function resolveCompletionRoot(
+  snapshot: WorkspaceRunSnapshot,
+  remainder: string,
+): { folder?: WorkspaceFolderSnapshot; rootRelativeQuery: string } {
+  if (snapshot.folders.length === 1) {
+    return { folder: snapshot.folders[0], rootRelativeQuery: remainder };
   }
+  const [alias, ...segments] = remainder.split("/");
+  return {
+    folder: snapshot.folders.find((candidate) => candidate.alias === alias),
+    rootRelativeQuery: segments.join("/"),
+  };
+}
 
-  return vscode.Uri.joinPath(root, ...segments);
+function resolveWorkspaceUri(snapshot: WorkspaceRunSnapshot, input: string): vscode.Uri {
+  const normalized = input.replace(/\\/g, "/").replace(/^\.\//, "");
+  if (
+    !normalized ||
+    normalized.startsWith("/") ||
+    normalized.split("/").includes("..") ||
+    /^[a-zA-Z]:\//.test(normalized) ||
+    /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(normalized)
+  ) {
+    throw new Error("The file path must stay inside the chat workspace.");
+  }
+  const parts = normalized.split("/").filter(Boolean);
+  const folder = snapshot.folders.length === 1
+    ? snapshot.folders[0]
+    : snapshot.folders.find((candidate) => candidate.alias === parts.shift());
+  if (!folder) {
+    throw new Error(`Choose a workspace root alias: ${snapshot.folders.map((candidate) => candidate.alias).join(", ")}.`);
+  }
+  return vscode.Uri.joinPath(folder.rootUri, ...parts);
 }

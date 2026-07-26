@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import type { AppConfig } from "@/adapters";
+import type { AppConfig, HandlerToWebviewMessage } from "@/adapters";
 import type { ChatMessage, InitialConfig, StoredToolCall } from "../../views/chatView/ChatViewTypes";
 import { useStreamHandler, type MessageDispatcher } from "../../views/chatView/hooks";
 
@@ -10,6 +10,7 @@ interface ChatMessagesControllerOptions {
   externalListRef?: React.RefObject<HTMLDivElement | null>;
   onApiKeyStatusChange?: (status: "configured" | "missing") => void;
   onConfigLoaded?: (config: InitialConfig) => void;
+  onConfigUpdateResult?: (message: Extract<HandlerToWebviewMessage, { type: "configUpdateResult" }>) => void;
   onModelChanged?: (modelId: string) => void;
   onProcessingChange?: (isProcessing: boolean) => void;
   onGenerationCancelled?: () => void;
@@ -23,6 +24,7 @@ export function useChatMessagesController({
   externalListRef,
   onApiKeyStatusChange,
   onConfigLoaded,
+  onConfigUpdateResult,
   onModelChanged,
   onProcessingChange,
   onGenerationCancelled,
@@ -154,8 +156,9 @@ export function useChatMessagesController({
     onModelChanged: useCallback((modelId: string) => onModelChanged?.(modelId), [onModelChanged]),
     onApiKeyStatus: useCallback((status) => onApiKeyStatusChange?.(status), [onApiKeyStatusChange]),
     onConfigLoaded: useCallback(
-      (config: Partial<AppConfig>) => {
+      (config: Partial<AppConfig>, revision: number) => {
         onConfigLoaded?.({
+          revision,
           reasoning: config.thinkingMode === false ? "off" : config.reasoningEffort === "max" ? "max" : "high",
           model: config.model ?? undefined,
           permissionMode: config.permissionMode,
@@ -163,6 +166,7 @@ export function useChatMessagesController({
       },
       [onConfigLoaded],
     ),
+    onConfigUpdateResult: useCallback((message) => onConfigUpdateResult?.(message), [onConfigUpdateResult]),
   };
 
   return { messages, isProcessing, listRef, dispatcher };

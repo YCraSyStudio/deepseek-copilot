@@ -23,7 +23,8 @@ Official reference:
 4. Danger and execution mode are evaluated.
 5. If confirmation is required, the UI decides.
 6. The tool result goes back into the DeepSeek cycle.
-7. The final answer is shown and persisted.
+7. Every assistant and tool message is appended to a hidden canonical provider transcript.
+8. The final answer is shown and persisted separately from that transcript.
 
 ## Rules
 
@@ -42,6 +43,9 @@ Official reference:
 - Each result must return as a message with `role: "tool"` and `tool_call_id`.
 - Arguments arrive as a JSON string; code must parse and validate them.
 - In thinking mode with tool calls, `reasoning_content` must be preserved for later turns.
+- Persistence replays only complete `assistant(tool_calls) -> tool results -> assistant` sequences. Interrupted sequences retain their visible partial answer but are not replayed as provider messages.
+- The webview receives the presentation timeline, never the canonical transcript or its hidden reasoning.
+- A request budget counts system text, tool schemas, exact transcripts, references, output allowance, and safety margin. Active cycles and JSON arguments are rejected rather than truncated.
 - `strict` mode is beta and requires the beta base URL and compatible schemas.
 
 [Back](INDEX.md)

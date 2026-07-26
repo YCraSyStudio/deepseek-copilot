@@ -67,8 +67,14 @@ export class GenerationCoordinator<T> {
     return this.queues.get(conversationId) ?? [];
   }
 
-  clearQueue(conversationId: string): void {
+  getQueuedConversationIds(): readonly string[] {
+    return [...this.queues.keys()];
+  }
+
+  clearQueue(conversationId: string): readonly GenerationTask<T>[] {
+    const queued = this.queues.get(conversationId) ?? [];
     this.queues.delete(conversationId);
+    return queued;
   }
 
   getActiveGenerations(): readonly ActiveGeneration<T>[] {

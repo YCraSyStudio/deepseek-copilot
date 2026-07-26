@@ -13,12 +13,24 @@ export function isWebviewToHandlerMessage(value: unknown): value is WebviewToHan
 
   switch (value.type) {
     case "getConfig":
-    case "resetConfig":
     case "newConversation":
     case "getHistory":
     case "getAvailableTools":
     case "getGenerationSnapshot":
       return hasOnlyKeys(value, ["type"]);
+    case "getWorkspaceContext":
+    case "selectContextFiles":
+      return hasOnlyKeys(value, ["type", "conversationId"]) &&
+        (value.conversationId === undefined || isNonEmptyBoundedString(value.conversationId, 512));
+    case "rebindConversationWorkspace":
+      return hasOnlyKeys(value, ["type", "conversationId", "workspaceRevision"]) &&
+        isNonEmptyBoundedString(value.conversationId, 512) &&
+        isOptionalBoundedString(value.workspaceRevision, 256);
+    case "openConversationWorkspace":
+      return hasOnlyKeys(value, ["type", "conversationId"]) &&
+        isNonEmptyBoundedString(value.conversationId, 512);
+    case "resetConfig":
+      return hasOnlyKeys(value, ["type", "requestId"]) && isNonEmptyBoundedString(value.requestId, 128);
     case "cancelGeneration":
       return hasOnlyKeys(value, ["type", "generationId"]) && isNonEmptyBoundedString(value.generationId, 512);
     case "consumeRecoveredDraft":
@@ -26,7 +38,9 @@ export function isWebviewToHandlerMessage(value: unknown): value is WebviewToHan
         isNonEmptyBoundedString(value.conversationId, 512) &&
         isNonEmptyBoundedString(value.clientRequestId, 512);
     case "saveConfig":
-      return hasOnlyKeys(value, ["type", "config"]) && isAppConfigPatch(value.config);
+      return hasOnlyKeys(value, ["type", "requestId", "config"]) &&
+        isNonEmptyBoundedString(value.requestId, 128) &&
+        isAppConfigPatch(value.config);
     case "testConnection":
       return (
         hasOnlyKeys(value, ["type", "apiKey", "baseUrl", "model"]) &&
@@ -37,12 +51,16 @@ export function isWebviewToHandlerMessage(value: unknown): value is WebviewToHan
     case "sendMessage":
       return validateSendMessage(value);
     case "steerGeneration":
-      return validateSendMessageFields(value, ["type", "generationId", "clientRequestId", "text", "modelId", "reasoning", "conversationId", "referencedFiles"]) &&
+      return validateSendMessageFields(value, ["type", "generationId", "clientRequestId", "text", "modelId", "reasoning", "conversationId", "workspaceRevision", "referencedFiles"]) &&
         isNonEmptyBoundedString(value.generationId, 512) &&
         isNonEmptyBoundedString(value.conversationId, 512);
     case "copyCode":
-    case "insertCode":
       return hasOnlyKeys(value, ["type", "code"]) && isBoundedString(value.code, MAX_CODE_TEXT);
+    case "insertCode":
+      return hasOnlyKeys(value, ["type", "code", "conversationId", "workspaceRevision"]) &&
+        isBoundedString(value.code, MAX_CODE_TEXT) &&
+        (value.conversationId === undefined || isNonEmptyBoundedString(value.conversationId, 512)) &&
+        isOptionalBoundedString(value.workspaceRevision, 256);
     case "selectModel":
       return hasOnlyKeys(value, ["type", "modelId"]) && isNonEmptyBoundedString(value.modelId, 256);
     case "loadConversation":
@@ -64,16 +82,20 @@ export function isWebviewToHandlerMessage(value: unknown): value is WebviewToHan
         (value.action === "continue" || value.action === "stop");
     case "getPathCompletions":
       return (
-        hasOnlyKeys(value, ["type", "requestId", "query"]) &&
+        hasOnlyKeys(value, ["type", "requestId", "query", "conversationId", "workspaceRevision"]) &&
         Number.isSafeInteger(value.requestId) &&
         (value.requestId as number) >= 0 &&
-        isBoundedString(value.query, 4096)
+        isBoundedString(value.query, 4096) &&
+        (value.conversationId === undefined || isNonEmptyBoundedString(value.conversationId, 512)) &&
+        isOptionalBoundedString(value.workspaceRevision, 256)
       );
     case "openFile":
       return (
-        hasOnlyKeys(value, ["type", "path", "line"]) &&
+        hasOnlyKeys(value, ["type", "path", "line", "conversationId", "workspaceRevision"]) &&
         isNonEmptyBoundedString(value.path, 32_768) &&
-        (value.line === undefined || (Number.isSafeInteger(value.line) && (value.line as number) >= 1))
+        (value.line === undefined || (Number.isSafeInteger(value.line) && (value.line as number) >= 1)) &&
+        (value.conversationId === undefined || isNonEmptyBoundedString(value.conversationId, 512)) &&
+        isOptionalBoundedString(value.workspaceRevision, 256)
       );
     default:
       return false;
@@ -81,7 +103,7 @@ export function isWebviewToHandlerMessage(value: unknown): value is WebviewToHan
 }
 
 function validateSendMessage(value: Record<string, unknown>): boolean {
-  return validateSendMessageFields(value, ["type", "clientRequestId", "text", "modelId", "reasoning", "conversationId", "referencedFiles"]);
+  return validateSendMessageFields(value, ["type", "clientRequestId", "text", "modelId", "reasoning", "conversationId", "workspaceRevision", "referencedFiles"]);
 }
 
 function validateSendMessageFields(value: Record<string, unknown>, keys: readonly string[]): boolean {
@@ -91,7 +113,8 @@ function validateSendMessageFields(value: Record<string, unknown>, keys: readonl
     !isNonEmptyBoundedString(value.text, MAX_CHAT_TEXT) ||
     !isNonEmptyBoundedString(value.modelId, 256) ||
     (value.reasoning !== "off" && value.reasoning !== "high" && value.reasoning !== "max") ||
-    (value.conversationId !== undefined && !isNonEmptyBoundedString(value.conversationId, 512))
+    (value.conversationId !== undefined && !isNonEmptyBoundedString(value.conversationId, 512)) ||
+    !isOptionalBoundedString(value.workspaceRevision, 256)
   ) {
     return false;
   }
@@ -107,11 +130,15 @@ function validateSendMessageFields(value: Record<string, unknown>, keys: readonl
   for (const reference of value.referencedFiles) {
     if (
       !isRecord(reference) ||
-      !hasOnlyKeys(reference, ["path", "content", "type", "selection"]) ||
+      !hasOnlyKeys(reference, ["path", "content", "type", "selection", "referenceId", "scope", "rootUri", "bindingRevision"]) ||
       !isNonEmptyBoundedString(reference.path, 32_768) ||
       (reference.type !== "file" && reference.type !== "directory") ||
       (reference.content !== undefined && !isBoundedString(reference.content, MAX_REFERENCE_CONTENT)) ||
-      (reference.selection !== undefined && !isSelectionRange(reference.selection))
+      (reference.selection !== undefined && !isSelectionRange(reference.selection)) ||
+      (reference.referenceId !== undefined && !isNonEmptyBoundedString(reference.referenceId, 512)) ||
+      (reference.scope !== undefined && reference.scope !== "workspace" && reference.scope !== "external-snapshot") ||
+      !isOptionalBoundedString(reference.rootUri, 32_768) ||
+      !isOptionalBoundedString(reference.bindingRevision, 256)
     ) {
       return false;
     }

@@ -5,7 +5,7 @@ import { InputCtrls, InputFooter, MessagesSection } from "./sections";
 import { useChatConfig } from "./hooks";
 import type { ApiKeyStatus, ChatMessage } from "./ChatViewTypes";
 import { getVsCodeApi } from "@webview/VsCodeApi";
-import type { Conversation, PermissionMode } from "@/adapters";
+import type { Conversation, PermissionMode, WorkspaceContextStatus } from "@/adapters";
 import type { GenerationSnapshot } from "@/adapters";
 import { t } from "@webview/i18n";
 
@@ -16,6 +16,10 @@ interface ReferencedFile {
   language?: string;
   type: "file" | "directory";
   size?: number;
+  referenceId?: string;
+  scope?: "workspace" | "external-snapshot";
+  rootUri?: string;
+  bindingRevision?: string;
 }
 
 type ChatCommandMessage =
@@ -25,6 +29,9 @@ type ChatCommandMessage =
   | { type: "generationAccepted"; generationId: string; conversationId: string }
   | { type: "streamDone"; generationId?: string; conversationId?: string }
   | { type: "streamError"; generationId?: string; conversationId?: string }
+  | { type: "workspaceContextChanged"; context: WorkspaceContextStatus }
+  | { type: "workspaceRebindResult"; success: boolean; context?: WorkspaceContextStatus; error?: string }
+  | { type: "contextFilesSelected"; files: ReferencedFile[] }
   | { type: "generationSnapshot"; generations: GenerationSnapshot[]; recoveredDrafts: Array<{ conversationId: string; messages: Array<{ clientRequestId: string; text: string }> }> };
 
 interface ChatViewState {
@@ -49,6 +56,7 @@ function ChatView({ loadedConversation }: ChatViewProps) {
   const [conversationId, setConversationId] = useState<string | undefined>(loadedConversation?.id ?? savedState?.conversationId);
   const [activeGenerationId, setActiveGenerationId] = useState<string | undefined>();
   const [recoveredDrafts, setRecoveredDrafts] = useState<Array<{ clientRequestId: string; text: string }>>([]);
+  const [workspaceContext, setWorkspaceContext] = useState<WorkspaceContextStatus>();
   const lastSubmittedPromptRef = useRef("");
 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -57,17 +65,20 @@ function ChatView({ loadedConversation }: ChatViewProps) {
     selectedModel,
     reasoning,
     permissionMode,
+    isPermissionUpdatePending,
+    configUpdateError,
     selectedModelRef,
     reasoningRef,
     applySavedConfig,
+    applyConfigUpdateResult,
     handleReasoningChange,
     handleModelChange,
     handlePermissionModeChange,
   } = useChatConfig();
 
   const handleConfigLoaded = useMemo(
-    () => (config: { reasoning?: string; model?: string; permissionMode?: PermissionMode }) => {
-      applySavedConfig(config);
+    () => (config: { revision: number; reasoning?: string; model?: string; permissionMode?: PermissionMode }) => {
+      applySavedConfig(config, config.revision);
     },
     [applySavedConfig],
   );
@@ -105,16 +116,30 @@ function ChatView({ loadedConversation }: ChatViewProps) {
 
   const canSend = useMemo(() => {
     const trimmedDraft = draft.trim();
-    return trimmedDraft.length > 0 && (apiKeyStatus === "configured" || trimmedDraft.startsWith("/"));
-  }, [draft, apiKeyStatus]);
+    const workspaceReady = workspaceContext?.state === "connected" || workspaceContext?.state === "empty";
+    return !isPermissionUpdatePending &&
+      trimmedDraft.length > 0 &&
+      (apiKeyStatus === "configured" || trimmedDraft.startsWith("/")) &&
+      (workspaceReady || trimmedDraft.startsWith("/"));
+  }, [draft, apiKeyStatus, isPermissionUpdatePending, workspaceContext]);
 
   useEffect(() => {
     focusInput();
   }, []);
 
   useEffect(() => {
+    getVsCodeApi()?.postMessage({ type: "getWorkspaceContext", conversationId });
+  }, [conversationId]);
+
+  useEffect(() => {
     const vscode = getVsCodeApi();
-    vscode?.setState<ChatViewState>({ schemaVersion: 2, draft, referencedFiles, messages, conversationId });
+    vscode?.setState<ChatViewState>({
+      schemaVersion: 2,
+      draft,
+      referencedFiles: referencedFiles.filter((file) => file.scope !== "external-snapshot"),
+      messages,
+      conversationId,
+    });
   }, [draft, referencedFiles, messages, conversationId]);
 
   useEffect(() => {
@@ -123,7 +148,7 @@ function ChatView({ loadedConversation }: ChatViewProps) {
 
     const handleMessage = (event: MessageEvent<ChatCommandMessage>) => {
       const message = event.data;
-      if (message.type === "addReferencedFiles") {
+      if (message.type === "addReferencedFiles" || message.type === "contextFilesSelected") {
         appendReferencedFiles(message.files);
       }
       if (message.type === "setDraft") {
@@ -132,6 +157,18 @@ function ChatView({ loadedConversation }: ChatViewProps) {
       }
       if (message.type === "activeConversationChanged") {
         setConversationId(message.id);
+      }
+      if (message.type === "workspaceContextChanged") {
+        setWorkspaceContext((previous) => {
+          if (previous?.binding.revision && previous.binding.revision !== message.context.binding.revision) {
+            setReferencedFiles((files) => files.filter((file) => file.scope === "external-snapshot"));
+          }
+          return message.context;
+        });
+      }
+      if (message.type === "workspaceRebindResult" && message.success && message.context) {
+        setReferencedFiles([]);
+        setWorkspaceContext(message.context);
       }
       if (message.type === "generationAccepted" && message.conversationId === conversationId) {
         setActiveGenerationId(message.generationId);
@@ -175,16 +212,21 @@ function ChatView({ loadedConversation }: ChatViewProps) {
   return (
     <div className="chatView">
       <MessagesSection
+        conversationId={conversationId}
         messages={messages}
         onMessagesChange={setMessages}
         onApiKeyStatusChange={setApiKeyStatus}
         onConfigLoaded={handleConfigLoaded}
+        onConfigUpdateResult={applyConfigUpdateResult}
+        permissionUpdatePending={isPermissionUpdatePending}
         onModelChanged={handleModelChanged}
         onProcessingChange={setIsProcessing}
         onFocusInput={focusInput}
         onGenerationCancelled={handleGenerationCancelled}
       />
       {apiKeyStatus === "missing" ? <div className="statusMessage warning">{t("chat.apiKeyMissing")}</div> : null}
+      {isPermissionUpdatePending ? <div className="statusMessage" role="status" aria-live="polite">{t("chat.applyingPermissions")}</div> : null}
+      {configUpdateError ? <div className="statusMessage warning" role="alert">{configUpdateError}</div> : null}
 
       <div className="inputArea">
         {recoveredDrafts.length > 0 ? (
@@ -223,6 +265,7 @@ function ChatView({ loadedConversation }: ChatViewProps) {
           rows={1}
           referencedFiles={referencedFiles}
           conversationId={conversationId}
+          workspaceRevision={workspaceContext?.binding.revision}
           activeGenerationId={activeGenerationId}
           onSend={handleSend}
         />
@@ -230,11 +273,14 @@ function ChatView({ loadedConversation }: ChatViewProps) {
           reasoning={reasoning}
           selectedModel={selectedModel}
           permissionMode={permissionMode}
+          permissionUpdatePending={isPermissionUpdatePending}
           onModelChange={handleModelChange}
           onReasoningChange={handleReasoningChange}
           onPermissionModeChange={handlePermissionModeChange}
           referencedFiles={referencedFiles}
           onRemoveReferencedFile={removeFile}
+          workspaceContext={workspaceContext}
+          conversationId={conversationId}
         />
       </div>
     </div>
@@ -250,7 +296,9 @@ function getSavedChatState(): ChatViewState | undefined {
   return {
     schemaVersion: 2,
     draft: typeof state.draft === "string" ? state.draft : "",
-    referencedFiles: Array.isArray(state.referencedFiles) ? state.referencedFiles.filter(isReferencedFile) : [],
+    referencedFiles: Array.isArray(state.referencedFiles)
+      ? state.referencedFiles.filter(isReferencedFile).filter((file) => file.scope !== "external-snapshot")
+      : [],
     messages: Array.isArray(state.messages) ? (state.messages as ChatMessage[]) : [],
     conversationId: typeof state.conversationId === "string" && state.conversationId.trim() ? state.conversationId : undefined,
   };

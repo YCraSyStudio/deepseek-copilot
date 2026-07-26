@@ -6,19 +6,23 @@ import type { Conversation, ConversationSummary } from "@/adapters";
 import { createConversationTitle } from "@/core/chat/ConversationTitle";
 import { findDuplicateConversationIds } from "@/core/chat/ConversationDeduplication";
 import { isConversation } from "@/core/chat/ConversationValidation";
+import { isConversationContextSummary, sanitizeStoredTranscript } from "@/core/chat/ProviderTranscript";
 import { CONVERSATION_STORAGE_KEY } from "@/shared/constants";
 import { SettingsManager } from "./SettingsManager";
 import { writeJsonFileAtomic } from "./JsonFileStorage";
 import { getCorruptHistoryDirectory, getHistoryDirectory } from "./UserDataPaths";
+import { captureCurrentWorkspaceBinding, createLegacyWorkspaceBinding } from "@/vscodeApi/workspace";
 
 const MAX_CONVERSATIONS = 100;
 const MAX_TOTAL_BYTES = 24 * 1024 * 1024;
 
-interface StoredConversation {
-  conversation: Conversation;
+interface StoredConversationRecord {
+  conversation: StoredConversationData;
   filePath: string;
   sizeBytes: number;
 }
+
+type StoredConversationData = import("@/core/chat/ProviderTranscript").StoredConversation;
 
 export class HistoryManager {
   private readonly legacyHistoryCleared: Promise<void>;
@@ -33,8 +37,11 @@ export class HistoryManager {
   }
 
   getWorkspaceUri(): string {
-    const activeUri = vscode.window.activeTextEditor?.document.uri;
-    return ((activeUri ? vscode.workspace.getWorkspaceFolder(activeUri)?.uri : undefined) ?? vscode.workspace.workspaceFolders?.[0]?.uri)?.toString() ?? "workspace:unknown";
+    return this.getWorkspaceBinding().uri;
+  }
+
+  getWorkspaceBinding() {
+    return captureCurrentWorkspaceBinding();
   }
 
   async getSummaries(): Promise<ConversationSummary[]> {
@@ -45,7 +52,7 @@ export class HistoryManager {
     return retained.map(toSummary).sort((a, b) => b.updatedAt - a.updatedAt);
   }
 
-  async save(conversation: Conversation): Promise<void> {
+  async save(conversation: StoredConversationData): Promise<void> {
     if (!SettingsManager.load().historyEnabled) {return;}
     const normalized = normalizeConversation(conversation);
     await this.enqueueMutation(async () => {
@@ -63,7 +70,7 @@ export class HistoryManager {
     await this.enqueueMutation(() => Promise.all(uniqueIds.map((id) => rm(getConversationPath(id), { force: true }))).then(() => undefined));
   }
 
-  async getById(id: string): Promise<Conversation | undefined> {
+  async getById(id: string): Promise<StoredConversationData | undefined> {
     await this.waitForPendingMutations();
     const filePath = getConversationPath(id);
     try {
@@ -80,7 +87,7 @@ export class HistoryManager {
     }
   }
 
-  private async readAll(): Promise<StoredConversation[]> {
+  private async readAll(): Promise<StoredConversationRecord[]> {
     await this.legacyHistoryCleared;
     await mkdir(getHistoryDirectory(), { recursive: true });
     const entries = await readdir(getHistoryDirectory(), { withFileTypes: true });
@@ -89,10 +96,10 @@ export class HistoryManager {
         .filter((entry) => entry.isFile() && entry.name.endsWith(".json"))
         .map((entry) => this.readStoredConversation(path.join(getHistoryDirectory(), entry.name))),
     );
-    return records.filter((record): record is StoredConversation => record !== undefined);
+    return records.filter((record): record is StoredConversationRecord => record !== undefined);
   }
 
-  private async readStoredConversation(filePath: string): Promise<StoredConversation | undefined> {
+  private async readStoredConversation(filePath: string): Promise<StoredConversationRecord | undefined> {
     try {
       const [raw, metadata] = await Promise.all([readFile(filePath, "utf8"), stat(filePath)]);
       const parsed = JSON.parse(raw) as unknown;
@@ -107,14 +114,14 @@ export class HistoryManager {
     }
   }
 
-  private async applyRetentionAndLimits(records: StoredConversation[]): Promise<StoredConversation[]> {
+  private async applyRetentionAndLimits(records: StoredConversationRecord[]): Promise<StoredConversationRecord[]> {
     const retentionDays = SettingsManager.load().historyRetentionDays;
     const threshold = retentionDays === 0 ? 0 : Date.now() - retentionDays * 86_400_000;
     const duplicateIds = findDuplicateConversationIds(records.map((record) => record.conversation));
     const duplicates = records.filter((record) => duplicateIds.has(record.conversation.id));
     const sorted = records.filter((record) => !duplicateIds.has(record.conversation.id)).sort((a, b) => b.conversation.updatedAt - a.conversation.updatedAt);
-    const retained: StoredConversation[] = [];
-    const removed: StoredConversation[] = [...duplicates];
+    const retained: StoredConversationRecord[] = [];
+    const removed: StoredConversationRecord[] = [...duplicates];
     let totalBytes = 0;
 
     for (const record of sorted) {
@@ -156,7 +163,7 @@ function getConversationPath(id: string): string {
   return path.join(getHistoryDirectory(), `${encodeURIComponent(id)}.json`);
 }
 
-function toSummary(record: StoredConversation): ConversationSummary {
+function toSummary(record: StoredConversationRecord): ConversationSummary {
   const { conversation, sizeBytes } = record;
   return {
     id: conversation.id,
@@ -233,18 +240,33 @@ function isFileNotFoundError(error: unknown): boolean {
   return !!error && typeof error === "object" && "code" in error && (error as { code?: unknown }).code === "ENOENT";
 }
 
-function normalizeConversation(conversation: Conversation): Conversation {
+function normalizeConversation(conversation: StoredConversationData): StoredConversationData {
   const messages = conversation.messages.map((message) => ({
     ...message,
     content: message.content ?? "",
     toolCalls: message.toolCalls?.map(normalizeToolCall),
     timeline: message.timeline ?? undefined,
+    providerTranscript: sanitizeStoredTranscript(message.providerTranscript),
   }));
-  return { ...conversation, schemaVersion: 2, title: createConversationTitle(messages, conversation.title), messages };
+  const workspaceBinding = conversation.workspaceBinding ?? createLegacyWorkspaceBinding(conversation.workspaceUri);
+  return {
+    ...conversation,
+    schemaVersion: 2,
+    workspaceUri: workspaceBinding.uri,
+    workspaceBinding,
+    title: createConversationTitle(messages, conversation.title),
+    messages,
+    contextSummary: isConversationContextSummary(conversation.contextSummary)
+      ? structuredClone(conversation.contextSummary)
+      : undefined,
+  };
 }
 
-function needsLegacyConversationMigration(conversation: Conversation): boolean {
+function needsLegacyConversationMigration(conversation: StoredConversationData): boolean {
   if (conversation.schemaVersion !== 2) {
+    return true;
+  }
+  if (!conversation.workspaceBinding) {
     return true;
   }
   return conversation.messages.some((message) =>
@@ -253,7 +275,7 @@ function needsLegacyConversationMigration(conversation: Conversation): boolean {
   );
 }
 
-function migrateLegacyConversation(conversation: Conversation): Conversation {
+function migrateLegacyConversation(conversation: StoredConversationData): StoredConversationData {
   let currentGenerationId: string | undefined;
   const messages = conversation.messages.map((message, index) => {
     if (message.role === "user") {
@@ -272,7 +294,8 @@ function migrateLegacyConversation(conversation: Conversation): Conversation {
 
     return currentGenerationId && !message.generationId ? { ...message, generationId: currentGenerationId } : message;
   });
-  return normalizeConversation({ ...conversation, schemaVersion: 2, messages });
+  const workspaceBinding = conversation.workspaceBinding ?? createLegacyWorkspaceBinding(conversation.workspaceUri);
+  return normalizeConversation({ ...conversation, schemaVersion: 2, workspaceUri: workspaceBinding.uri, workspaceBinding, messages });
 }
 
 function createLegacyGenerationId(conversationId: string, messageId: string, index: number): string {

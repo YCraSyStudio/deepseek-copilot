@@ -4,17 +4,20 @@ export const changelog: PageContent = {
   navTitle: "Changelog",
   title: "Changelog",
   description: "Relevant changes and preview status.",
-  lead: "Version 0.1.2 adds isolated concurrent generations, per-conversation queues, recoverable checkpoints, and safer workspace execution.",
+  lead: "Version 0.1.3-unreleased adds immutable logical-workspace bindings, safe multi-root aliases, and explicit external context snapshots.",
   sections: [
     {
-      title: "0.1.2 generation coordination",
+      title: "0.1.3-unreleased workspace safety and generation coordination",
       items: [
         "Added one active generation per conversation with configurable cross-conversation concurrency from 1 to 16, defaulting to 8.",
         "Added Queue message and Interrupt and guide controls, targeted cancellation, and generation-bound stream and tool events.",
         "Added atomic generation checkpoints that recover partial output, cancel unfinished tools, and expose queued prompts as drafts after restart.",
         "Introduced conversation schema v2 with generation ownership and a verified activation-time migration for valid legacy or partially migrated history; compatibility remains active until its scheduled cleanup release.",
         "Pinned each generation to its conversation workspace and serialized mutating tools per workspace while allowing concurrent read-only work.",
+        "Added revisioned logical-workspace bindings, deterministic multi-root aliases, disconnected-history reassignment, ./-only autocomplete, and bounded external file snapshots that never grant tool access.",
         "Added coordinated provider shutdown so active work is checkpointed, cancelled, and flushed during extension deactivation.",
+        "Added host-only canonical DeepSeek tool transcripts with exact reasoning, JSON arguments, tool results, protocol ordering, checkpoint recovery, and safe replay.",
+        "Added total request budgeting, atomic conversation summaries, and literal relevant-line extraction for large references, with at most four auxiliary DeepSeek calls and a deterministic local fallback.",
       ],
     },
     {

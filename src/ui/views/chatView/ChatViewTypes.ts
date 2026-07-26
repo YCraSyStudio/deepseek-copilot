@@ -1,4 +1,4 @@
-import type { ConversationMessage, StoredToolCall, DangerConfirmationData } from "@/adapters/messages/Webview";
+import type { ConversationMessage, HandlerToWebviewMessage, StoredToolCall, DangerConfirmationData } from "@/adapters/messages/Webview";
 import type { PermissionMode } from "@/adapters";
 
 export type { StoredToolCall, DangerConfirmationData };
@@ -8,6 +8,7 @@ export type ChatMessage = ConversationMessage;
 export type ApiKeyStatus = "missing" | "configured";
 
 export type InitialConfig = {
+  revision: number;
   provider?: string;
   reasoning?: string;
   model?: string;
@@ -55,12 +56,15 @@ export type CodeAction = "copy" | "insert";
 
 /** Chat message section props. */
 export type MessagesSectionProps = {
+  conversationId?: string;
   messages?: ChatMessage[];
   onMessagesChange?: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
   isProcessing?: boolean;
   listRef?: React.RefObject<HTMLDivElement | null>;
   onApiKeyStatusChange?: (status: ApiKeyStatus) => void;
   onConfigLoaded?: (config: InitialConfig) => void;
+  onConfigUpdateResult?: (message: Extract<HandlerToWebviewMessage, { type: "configUpdateResult" }>) => void;
+  permissionUpdatePending?: boolean;
   onModelChanged?: (modelId: string) => void;
   onProcessingChange?: (isProcessing: boolean) => void;
   onFocusInput?: () => void;

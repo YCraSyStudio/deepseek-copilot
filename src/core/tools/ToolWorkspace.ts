@@ -16,7 +16,11 @@ export interface ToolWorkspaceFindOptions {
 
 export interface ToolWorkspaceHost {
   getRootPath(): string | undefined;
-  setRootPath?(rootPath: string | undefined): void;
+  getWorkspaceId?(): string;
+  getAvailableRootAliases?(): string[];
+  getDefaultRootAlias?(): string | undefined;
+  resolvePath?(path: string, allowSensitive: boolean): Promise<string>;
+  resolveLocalPath?(path?: string): Promise<ResolvedWorkspacePath>;
   realPath?(absolutePath: string): Promise<string>;
   findFiles?(options: ToolWorkspaceFindOptions): Promise<string[]>;
   readFile(path: string): Promise<Uint8Array>;
@@ -31,6 +35,7 @@ export interface ToolWorkspaceHost {
 export interface ResolvedWorkspacePath {
   absolutePath: string;
   relativePath: string;
+  workspaceRoot?: string;
 }
 
 export interface ResolveWorkspacePathOptions {
@@ -118,6 +123,9 @@ export async function resolveWorkspacePathSecure(
 
 function createValidatingWorkspaceHost(host: ToolWorkspaceHost): ToolWorkspaceHost {
   async function validate(rawPath: string, allowSensitive = false): Promise<string> {
+    if (host.resolvePath) {
+      return host.resolvePath(rawPath, allowSensitive);
+    }
     const rootPath = host.getRootPath();
     if (!rootPath) {
       throw new Error("No workspace folder open");
@@ -130,20 +138,32 @@ function createValidatingWorkspaceHost(host: ToolWorkspaceHost): ToolWorkspaceHo
 
   return {
     getRootPath: host.getRootPath.bind(host),
-    setRootPath: host.setRootPath?.bind(host),
+    getWorkspaceId: host.getWorkspaceId?.bind(host),
+    getAvailableRootAliases: host.getAvailableRootAliases?.bind(host),
+    getDefaultRootAlias: host.getDefaultRootAlias?.bind(host),
+    resolvePath: host.resolvePath?.bind(host),
+    resolveLocalPath: host.resolveLocalPath?.bind(host),
     realPath: host.realPath?.bind(host),
     findFiles: host.findFiles
       ? async (options: ToolWorkspaceFindOptions) => {
-          const rootPath = host.getRootPath();
-          if (!rootPath) {
-            throw new Error("No workspace folder open");
-          }
           const paths = await host.findFiles!(options);
           const accepted = new Set<string>();
           for (const rawPath of paths) {
-            const resolved = resolveWorkspacePath(rawPath, rootPath, { allowSensitive: true });
-            if (!isSensitiveWorkspacePath(resolved.relativePath)) {
-              accepted.add(resolved.relativePath);
+            if (host.resolvePath) {
+              try {
+                accepted.add(await host.resolvePath(rawPath, false));
+              } catch {
+                // Omit search results that fail containment or sensitive-path validation.
+              }
+            } else {
+              const rootPath = host.getRootPath();
+              if (!rootPath) {
+                throw new Error("No workspace folder open");
+              }
+              const resolved = resolveWorkspacePath(rawPath, rootPath, { allowSensitive: true });
+              if (!isSensitiveWorkspacePath(resolved.relativePath)) {
+                accepted.add(resolved.relativePath);
+              }
             }
           }
           return [...accepted];

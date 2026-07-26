@@ -73,7 +73,7 @@ Yar's DeepSeek Copilot can execute workspace tools when enabled. Tool access is 
 - `read-only`: read, list, and search workspace files.
 - `workspace`: read-only tools plus file creation, editing, and patches.
 - `full-access`: all tools, including terminal execution. Dangerous commands still require confirmation.
-- `auto-approve`: all non-disabled tools; DeepSeek's tool calls execute directly without heuristic confirmation. Use only in trusted workspaces.
+- `auto-approve`: all non-disabled tools. Non-terminal tools execute directly; terminal commands execute automatically only when the strict parser proves they are read-only and workspace-contained.
 
 Tool execution is then controlled per tool:
 
@@ -81,7 +81,7 @@ Tool execution is then controlled per tool:
 - `enabled`: execute with normal safety checks.
 - `auto_approve`: execute without confirmation only when the operation is not considered dangerous.
 
-Dangerous operations, such as overwriting files or running risky terminal commands, require confirmation unless the global permission mode is `auto-approve`. Terminal commands are not OS-sandboxed by the extension.
+Dangerous operations, such as overwriting files or running risky terminal commands, require confirmation. Terminal commands are not OS-sandboxed, so global `auto-approve` does not bypass confirmation for unknown, mutating, dynamic, or out-of-workspace shell forms.
 
 Tool calls have one visible lifecycle: awaiting confirmation, running, then completed, rejected, cancelled, or error. Calls within a round execute sequentially, identical repeated calls are skipped, and the configured round limit stops loops.
 
@@ -99,7 +99,7 @@ Terminal commands are non-interactive. Results include stdout, stderr, exit code
 
 ## Context and Chat Commands
 
-Context is size-bounded before each API request. Large reasoning blocks, tool results, files, Git changes, and `AGENTS.md` instructions are trimmed or rejected at defined limits. Referenced content is labeled with workspace-relative paths and delimited as untrusted data.
+Context is budgeted before every API request, including system prompts, tool schemas, history, references, output allowance, and a safety margin. Complete older generations are summarized atomically; oversized referenced files are reduced to literal relevant line ranges. Tool-call arguments, required reasoning, and an active tool cycle are never truncated. Referenced content is labeled with workspace-relative paths and delimited as untrusted data.
 
 Available slash commands:
 

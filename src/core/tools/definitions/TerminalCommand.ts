@@ -13,10 +13,10 @@ async function handleTerminalCommand(args: Record<string, unknown>, context?: To
     return "Error: command parameter is required";
   }
 
-  const analysis = analyzeDangerLevel(command);
+  const environment = await resolveCommandEnvironment(cwd);
+  const analysis = await analyzeDangerLevel(command, environment);
 
   if (analysis.level !== "safe") {
-    const environment = await resolveCommandEnvironment(cwd);
     return JSON.stringify({
       requiresConfirmation: true,
       dangerLevel: analysis.level,
@@ -24,6 +24,9 @@ async function handleTerminalCommand(args: Record<string, unknown>, context?: To
       command,
       cwd: environment.cwd,
       shell: environment.shell,
+      reasonCode: analysis.reasonCode,
+      normalizedCommand: analysis.normalizedCommand,
+      workspaceContained: analysis.workspaceContained,
     });
   }
 

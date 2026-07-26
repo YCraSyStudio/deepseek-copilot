@@ -17,13 +17,13 @@ VS Code automatically generates activation events from those contributions. Do n
 
 `src/Extension.ts` should:
 
-- create `VsCodeToolWorkspace`.
-- inject it into `core/tools`.
 - create `WebviewProvider`.
 - register it in `ExtensionRuntime` and await history/checkpoint initialization.
 - register `WebviewProvider.viewType`.
 - register commands.
 - add disposables to `context.subscriptions`.
+
+`ChatHandler` creates one immutable `VsCodeToolWorkspace` from the conversation binding when each generation starts and scopes it through `AsyncLocalStorage`; activation does not install a mutable process-wide workspace root.
 
 ## `deactivate()`
 

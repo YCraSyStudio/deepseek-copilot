@@ -9,6 +9,10 @@ interface ReferencedFile {
   path: string;
   content?: string;
   type: "file" | "directory";
+  referenceId?: string;
+  scope?: "workspace" | "external-snapshot";
+  rootUri?: string;
+  bindingRevision?: string;
 }
 
 type Props = {
@@ -22,6 +26,7 @@ type Props = {
   rows?: number;
   referencedFiles?: ReferencedFile[];
   conversationId?: string;
+  workspaceRevision?: string;
   activeGenerationId?: string;
   onSend?: (text: string) => void;
 };
@@ -39,6 +44,7 @@ const InputCtrl = forwardRef<HTMLTextAreaElement, Props>(
       rows = 1,
       referencedFiles,
       conversationId,
+      workspaceRevision,
       activeGenerationId,
       onSend,
     },
@@ -60,7 +66,11 @@ const InputCtrl = forwardRef<HTMLTextAreaElement, Props>(
     useEffect(() => {
       const handleMessage = (event: MessageEvent<HandlerToWebviewMessage>) => {
         const message = event.data;
-        if (message.type !== "pathCompletions" || message.requestId !== activeRequestIdRef.current) {
+        if (
+          message.type !== "pathCompletions" ||
+          message.requestId !== activeRequestIdRef.current ||
+          (workspaceRevision && message.workspaceRevision !== workspaceRevision)
+        ) {
           return;
         }
 
@@ -74,7 +84,7 @@ const InputCtrl = forwardRef<HTMLTextAreaElement, Props>(
 
       window.addEventListener("message", handleMessage);
       return () => window.removeEventListener("message", handleMessage);
-    }, []);
+    }, [workspaceRevision]);
 
     useEffect(() => () => {
       if (completionTimerRef.current) {
@@ -112,7 +122,7 @@ const InputCtrl = forwardRef<HTMLTextAreaElement, Props>(
         requestIdRef.current = requestId;
         activeRequestIdRef.current = requestId;
         const sendRequest = () => {
-          vscode.postMessage({ type: "getPathCompletions", requestId, query: token.query });
+          vscode.postMessage({ type: "getPathCompletions", requestId, query: token.query, conversationId, workspaceRevision });
         };
 
         if (immediate) {
@@ -121,7 +131,7 @@ const InputCtrl = forwardRef<HTMLTextAreaElement, Props>(
           completionTimerRef.current = setTimeout(sendRequest, 140);
         }
       },
-      [vscode],
+      [vscode, conversationId, workspaceRevision],
     );
 
     const handleSend = useCallback(() => {
@@ -141,13 +151,10 @@ const InputCtrl = forwardRef<HTMLTextAreaElement, Props>(
         modelId: selectedModelRef.current,
         reasoning: reasoningRef.current,
         conversationId,
-        referencedFiles: referencedFiles?.map((f) => ({
-          path: f.path,
-          content: f.content,
-          type: f.type,
-        })),
+        workspaceRevision,
+        referencedFiles: referencedFiles?.map(toRequestReference),
       });
-    }, [input, vscode, canSend, setInput, selectedModelRef, reasoningRef, referencedFiles, conversationId, onSend]);
+    }, [input, vscode, canSend, setInput, selectedModelRef, reasoningRef, referencedFiles, conversationId, workspaceRevision, onSend]);
 
     const handleCancel = useCallback(() => {
       if (activeGenerationId) {
@@ -170,9 +177,10 @@ const InputCtrl = forwardRef<HTMLTextAreaElement, Props>(
         modelId: selectedModelRef.current,
         reasoning: reasoningRef.current,
         conversationId,
-        referencedFiles: referencedFiles?.map((file) => ({ path: file.path, content: file.content, type: file.type })),
+        workspaceRevision,
+        referencedFiles: referencedFiles?.map(toRequestReference),
       });
-    }, [activeGenerationId, conversationId, input, onSend, reasoningRef, referencedFiles, selectedModelRef, setInput, vscode]);
+    }, [activeGenerationId, conversationId, input, onSend, reasoningRef, referencedFiles, selectedModelRef, setInput, vscode, workspaceRevision]);
 
     const insertCompletion = useCallback(
       (completion: PathCompletionItem) => {
@@ -310,3 +318,15 @@ const InputCtrl = forwardRef<HTMLTextAreaElement, Props>(
 );
 
 export default InputCtrl;
+
+function toRequestReference(file: ReferencedFile) {
+  return {
+    path: file.path,
+    content: file.content,
+    type: file.type,
+    referenceId: file.referenceId,
+    scope: file.scope,
+    rootUri: file.rootUri,
+    bindingRevision: file.bindingRevision,
+  };
+}

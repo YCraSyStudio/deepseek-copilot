@@ -7,10 +7,11 @@ interface ToolsTabProps {
   tools: AvailableToolInfo[];
   updateConfig: UpdateConfigFn;
   saveOnBlur: SaveOnBlurFn;
+  permissionUpdatePending?: boolean;
 }
 
-function ToolsTab({ config, tools, updateConfig, saveOnBlur }: ToolsTabProps) {
-  return <ToolsSection config={config} tools={tools} updateConfig={updateConfig} saveOnBlur={saveOnBlur} />;
+function ToolsTab({ config, tools, updateConfig, saveOnBlur, permissionUpdatePending }: ToolsTabProps) {
+  return <ToolsSection config={config} tools={tools} updateConfig={updateConfig} saveOnBlur={saveOnBlur} permissionUpdatePending={permissionUpdatePending} />;
 }
 
 export default ToolsTab;

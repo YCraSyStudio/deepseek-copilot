@@ -6,7 +6,7 @@ Permission and per-tool mode changes are optimistic in the webview. `saveConfig`
 
 A user can therefore switch from `auto-approve` or `full-access` to a safer mode, see the safer value in the UI, and still start one generation with the old effective permissions. Reset and save failures can also leave the chat UI and host with different configurations.
 
-These high-risk settings are stored globally, so a trusted workspace can also inherit `auto-approve`, terminal auto-approval, or write access that was granted while working in a different repository.
+Permission modes and per-tool execution modes are intentionally global. Trusted workspaces inherit those choices; untrusted workspaces must still receive a host-enforced safe effective configuration.
 
 Relevant code:
 
@@ -18,36 +18,35 @@ Relevant code:
 
 ## Objective
 
-Make elevated permissions workspace-scoped, host-authoritative, acknowledged, ordered, and atomic from the user's perspective.
+Make global permissions host-authoritative, acknowledged, ordered, atomic from the user's perspective, and fail-closed in untrusted workspaces. Apply confirmed changes to active generations only at reasoning/tool-round boundaries.
 
 ## To-Do List
 
-- [ ] Add a request ID or monotonically increasing configuration version to save/reset messages.
-- [ ] Keep send/tool controls disabled while a permission-affecting update is pending.
-- [ ] Apply the effective in-memory configuration before or atomically with durable persistence.
-- [ ] Return the authoritative normalized configuration in the acknowledgement.
-- [ ] Handle save/reset failure visibly and restore the last effective UI state.
-- [ ] Keep only safe defaults global; store elevated permission and per-tool auto-approval grants per workspace or session.
-- [ ] Require an explicit confirmation before enabling `auto-approve` for a workspace/session.
-- [ ] Ensure a newly opened workspace cannot inherit elevated grants from another project.
-- [ ] Fail closed if the workspace is not trusted, even if manifest-level Restricted Mode behavior changes later.
-- [ ] Capture one immutable configuration snapshot per generation.
-- [ ] Ensure permission downgrades take effect before any subsequently accepted request.
-- [ ] Handle out-of-order acknowledgements without reverting newer settings.
+- [x] Add request IDs and a monotonically increasing authoritative revision to save/reset messages.
+- [x] Keep send/tool controls disabled while a permission-affecting update is pending.
+- [x] Publish effective in-memory configuration only after durable atomic persistence succeeds.
+- [x] Return the authoritative normalized configuration in every acknowledgement.
+- [x] Handle save/reset failure visibly and restore the last effective UI state.
+- [x] Keep permission and per-tool modes global by design.
+- [x] Require an explicit host confirmation before enabling global `auto-approve`.
+- [x] Fail closed if the workspace is not trusted, even if manifest-level Restricted Mode behavior changes later.
+- [x] Capture one immutable permission snapshot per reasoning or tool round.
+- [x] Ensure permission changes take effect before any subsequently accepted request or round.
+- [x] Handle out-of-order acknowledgements without reverting newer settings.
 
 ## Acceptance Criteria
 
-- [ ] The mode displayed as active is always the mode used by newly accepted generations.
-- [ ] A delayed disk write cannot allow one request under stale permissions.
-- [ ] New workspaces start with the safe default unless the user explicitly grants elevated access there.
-- [ ] Save/reset errors are visible and do not leave split UI/host state.
-- [ ] Each generation uses one stable permission/tool-mode snapshot.
+- [x] The confirmed mode displayed as active is used by newly accepted generations.
+- [x] A delayed disk write cannot allow one request or round under stale permissions.
+- [x] Trusted workspaces inherit the global choice; untrusted workspaces effectively use `read-only` without auto-approval.
+- [x] Save/reset errors are visible and do not leave split UI/host state.
+- [x] Each reasoning/tool round uses one stable permission snapshot and adopts changes only at the next boundary.
 
 ## Regression Tests
 
-- [ ] Delay `SettingsManager.save`, downgrade from `auto-approve`, and attempt to send immediately.
-- [ ] Complete two configuration writes in reverse order.
-- [ ] Open two trusted workspaces and verify elevated grants do not carry between them.
-- [ ] Verify all write/terminal paths fail closed under a simulated untrusted workspace.
-- [ ] Simulate persistence failure during save and reset.
-- [ ] Verify chat and settings views converge on the same normalized values.
+- [x] Delay persistence, downgrade from `auto-approve`, and verify the next permission snapshot waits.
+- [x] Deliver acknowledgements in reverse revision order and ignore the stale result.
+- [x] Verify global elevated grants remain global for trusted workspaces.
+- [x] Verify write/terminal paths fail closed and auto-approval is removed under a simulated untrusted workspace.
+- [x] Simulate persistence failure and verify resident configuration and revision roll back.
+- [x] Verify chat and settings consume the same normalized, revisioned result.

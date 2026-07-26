@@ -210,7 +210,10 @@ function formatRelativePath(path: string): string {
   if (!normalized || normalized === ".") {
     return "./";
   }
-  return normalized.startsWith("./") || normalized.startsWith("../") ? normalized : `./${normalized}`;
+  if (normalized === ".." || normalized.split("/").includes("..") || /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(normalized)) {
+    return "[invalid workspace path]";
+  }
+  return normalized.startsWith("./") ? normalized : `./${normalized}`;
 }
 
 function parseArguments(argumentsJson: string): Record<string, unknown> | null {

@@ -18,7 +18,7 @@ const TOOL_MODE_OPTIONS: Array<{ value: ToolExecutionMode; label: string }> = [
   { value: "auto_approve", label: t("tools.autoApprove") },
 ];
 
-function ToolsSection({ config, tools, updateConfig, saveOnBlur }: ToolsSectionProps) {
+function ToolsSection({ config, tools, updateConfig, saveOnBlur, permissionUpdatePending = false }: ToolsSectionProps) {
   const selectedPermission = PERMISSION_MODE_OPTIONS.find((option) => option.value === config.permissionMode) ?? PERMISSION_MODE_OPTIONS[0];
 
   const updatePermissionMode = (permissionMode: PermissionMode) => {
@@ -50,6 +50,8 @@ function ToolsSection({ config, tools, updateConfig, saveOnBlur }: ToolsSectionP
           aria-label={t("tools.permissionMode")}
           aria-describedby="permissionModeDescription permissionModeScope"
           value={config.permissionMode}
+          disabled={permissionUpdatePending}
+          aria-busy={permissionUpdatePending}
           onChange={(event) => {
             const permissionMode = parsePermissionMode(event.target.value);
             if (permissionMode) {updatePermissionMode(permissionMode);}
@@ -83,7 +85,7 @@ function ToolsSection({ config, tools, updateConfig, saveOnBlur }: ToolsSectionP
                 className="toolModeSelect"
                 aria-label={t("tools.nameMode", { name: tool.name })}
                 aria-disabled={!isAllowed}
-                disabled={!isAllowed}
+                disabled={!isAllowed || permissionUpdatePending}
                 value={mode}
                 onChange={(event) => {
                   const toolMode = parseToolExecutionMode(event.target.value);

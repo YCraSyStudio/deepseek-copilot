@@ -22,11 +22,11 @@
 1. The UI sends `sendMessage` with a unique `clientRequestId`.
 2. `ChatHandler` resolves or creates the conversation and enqueues the request.
 3. `GenerationCoordinator` allows one active run per conversation and up to `maxConcurrentGenerations` across conversations.
-4. The run receives a unique `generationId`, an isolated `ConversationState`, and a workspace host pinned to the conversation URI.
-5. `ChatHandler` loads settings and the API key, builds context, and starts streaming.
+4. The run receives a unique `generationId`, an isolated `ConversationState`, and an immutable `ToolWorkspace` captured from the conversation's revisioned logical-workspace binding.
+5. `ChatHandler` loads settings and the API key, calculates the total request budget, and starts streaming. If needed, it summarizes complete older generations and reduces large references to literal relevant line ranges; auxiliary calls use the selected model with thinking and tools disabled and have a deterministic local fallback.
 6. Every generation event carries `generationId` and `conversationId` so stale or background events cannot mutate the selected chat.
-7. Progress is checkpointed, with streaming writes coalesced and tool-state transitions persisted immediately.
-8. The completed or interrupted turn is saved to schema-v2 history.
+7. Progress and the hidden canonical provider transcript are checkpointed, with streaming writes coalesced and tool-state transitions persisted immediately.
+8. The completed or interrupted presentation turn is saved to schema-v2 history. Only a complete protocol-valid transcript is eligible for later API replay.
 
 ## Queue, steering, and cancellation
 
@@ -48,9 +48,9 @@ Read-only tools may run across concurrent generations. Workspace mutations are s
 
 ## Referenced files
 
-1. The user selects files through path autocomplete or an Explorer/editor command.
-2. The extension resolves workspace-relative paths and bounded previews.
-3. The chat sends the validated references as explicit context.
+1. The user selects internal files through `./` autocomplete or explicitly attaches files through the native picker or Explorer/editor command.
+2. Internal references retain root URI, relative path, and binding revision. External files become bounded, temporary `external-snapshot` records without an absolute path.
+3. The host validates the reference against the captured binding or its temporary snapshot registry before sending it as untrusted context. External snapshots never grant tool access.
 
 ## Shutdown
 

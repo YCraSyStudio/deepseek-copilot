@@ -1,10 +1,8 @@
 import * as vscode from "vscode";
 import type { AppConfig } from "@/adapters";
-import { setToolWorkspaceHost } from "@/core/tools/ToolWorkspace";
 import { CONFIG_SECTION, INCLUDE_HOME_AGENTS_KEY } from "@/shared/constants";
 import { registerExtensionApi } from "@/vscodeApi/activation/RegisterExtensionApi";
 import { SettingsManager } from "@/vscodeApi/storage";
-import { createVsCodeToolWorkspace } from "@/vscodeApi/tools/VsCodeToolWorkspace";
 import { WebviewProvider } from "@/vscodeApi/webviews/WebviewProvider";
 import { setActiveProvider } from "./ExtensionRuntime";
 
@@ -31,8 +29,6 @@ const LEGACY_SETTING_KEYS: ReadonlyArray<LegacySettingKey> = [
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   await initializeUserSettings();
-  setToolWorkspaceHost(createVsCodeToolWorkspace());
-
   const provider = new WebviewProvider(context.extensionUri, context);
   setActiveProvider(provider);
   await provider.initialize();

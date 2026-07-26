@@ -8,36 +8,34 @@
 
 - `disabled`: do not execute.
 - `enabled`: execute with normal rules.
-- `auto_approve`: allow without confirmation if danger analysis does not require it.
+- `auto_approve`: allow without confirmation only when the tool proves the operation is safe.
 
-The global `auto-approve` permission mode makes every non-disabled tool available and treats DeepSeek's emitted tool call as approval. It executes the forced handler directly without heuristic confirmation.
+The global `auto-approve` permission mode is an explicit, warned delegation for non-disabled tools. Non-terminal tools may use their forced handlers directly because their schemas and workspace validation remain authoritative. Terminal commands always pass through danger analysis first.
 
-Global `auto-approve` is an explicit trust decision, not a security classifier. Workspace path validation and argument schemas still apply, but terminal commands are not protected by an OS sandbox.
+Terminal commands are not protected by an OS sandbox. In every permission mode, an unknown, mutating, dynamic, encoded, chained, redirected, or potentially out-of-workspace command requires explicit confirmation.
 
-## Danger analysis
+## Terminal read-only model
 
 Logic lives in `src/core/tools/definitions/DangerAnalysis.ts`.
 
-It should mark as dangerous:
+The analyzer resolves the actual shell and working directory, tokenizes only a conservative subset of that shell's syntax, and accepts a small allowlist of read-only forms:
 
-- deletions or overwrites.
-- destructive commands.
-- dangerous shell redirection.
-- changes outside the workspace.
-- secret usage.
-- ambiguous high-impact operations.
+- POSIX: basic location and identity queries plus modeled `ls`, `cat`, `head`, `tail`, and `grep` forms.
+- `cmd.exe`: modeled `dir`, `type`, `where`, identity, version, and output forms.
+- PowerShell: modeled `Get-Location`, `Get-ChildItem`, `Get-Content`, and `Select-String` forms.
+- Git: selected read-only forms of `status`, `diff`, `log`, `show`, `rev-parse`, `ls-files`, and `branch --show-current`.
 
-## Expected UX
+Every flag not explicitly supported requires confirmation. Path operands must resolve through existing ancestors and remain within the captured workspace; traversal, absolute paths, providers, globs, and external symlinks are not automatically approved. An unknown shell never produces a safe classification.
+
+## Expected UX and delegated trust
 
 When there is risk:
 
-1. backend sends `toolCallConfirmationRequired`.
-2. UI shows tool, arguments, and reason.
-3. user approves or cancels.
-4. backend executes only if both `generationId` and `toolCallId` match the pending tool in that generation's `ToolCallSession`.
+1. the backend sends `toolCallConfirmationRequired`;
+2. the UI shows the exact command, resolved shell, working directory, arguments, and reason;
+3. the user executes once, trusts the exact operation for the conversation, or cancels;
+4. the backend accepts the response only for the pending `generationId` and `toolCallId`.
 
-Session trust and pending confirmations are scoped to one generation. They must not authorize a tool call in another concurrent conversation.
-
-Do not auto-approve a destructive operation just because the tool is set to `auto_approve`. The global `auto-approve` permission mode is the separate explicit opt-in that bypasses this confirmation.
+Non-destructive trust may be reused by an exact normalized operation in later generations of the same conversation. Its key also contains workspace URI, resolved execution context, and the relevant configuration fingerprint. It is cleared on conversation, workspace, configuration, or permission-mode changes. Destructive operations are never delegated and require separate confirmation every time.
 
 [Back](INDEX.md)

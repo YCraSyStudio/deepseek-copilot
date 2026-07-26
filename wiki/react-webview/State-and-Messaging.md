@@ -12,7 +12,7 @@ The UI uses `src/ui/VsCodeApi.ts` and `postMessage`.
 - `useStreamHandler`: accumulates chunks and reasoning, then renders text progressively so transport chunk boundaries are not exposed directly to the user.
 - `useChatConfig`: loads and maintains configuration.
 - `useToolCallController`: coordinates approvals and results for the owning `generationId`.
-- `FileSelector`: renders path autocomplete suggestions for `./` and `../`.
+- `FileSelector`: renders revision-bound path autocomplete suggestions only for `./`; `../` never opens the selector.
 
 ## Rules
 

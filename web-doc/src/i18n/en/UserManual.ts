@@ -11,7 +11,8 @@ export const userManual: PageContent = {
       items: [
         "Open Yar's DeepSeek Copilot from the Activity Bar and enter the API key in Settings. The key is stored in VS Code Secret Storage.",
         "Choose the model, thinking mode, reasoning effort, response limit, maximum tool rounds, and concurrent generation limit. Concurrency defaults to 8 and accepts values from 1 to 16.",
-        "Type ./ or ../ to autocomplete workspace paths, or use the Explorer and editor context-menu commands to attach files and exact selections.",
+        "Type ./ to autocomplete safe workspace paths. Parent traversal with ../ is never accepted. In multi-root workspaces, paths begin with a stable alias such as ./frontend/src/App.tsx.",
+        "Use the attachment button or Explorer/editor commands for explicit context. Files outside the workspace become bounded, read-only snapshots; they never grant tools access to the surrounding folder.",
         "Use Stop generation to interrupt the current request and any running terminal process tree. The prompt and available partial response remain in history as an interrupted turn.",
       ],
     },
@@ -72,7 +73,7 @@ export const userManual: PageContent = {
       items: [
         "Auto context includes the active editor plus staged and unstaged Git changes with time and size limits.",
         "Referenced files and AGENTS.md instructions are size-limited, use workspace-relative labels, and are delimited as untrusted data.",
-        "Conversation context is pruned to a bounded budget; large tool results, reasoning, and file contents are shortened from the middle.",
+        "The total request budget includes system prompts, tool schemas, history, references, output allowance, and safety margin. Complete older generations are summarized atomically; large files are reduced to literal relevant line ranges. Tool arguments, required reasoning, and active tool cycles are never truncated.",
         "Use /context to inspect what a normal request would send. Other commands include /status, /tools, /mode, /auto-context, /review, /goal, /summarize, and /clear-context.",
       ],
     },

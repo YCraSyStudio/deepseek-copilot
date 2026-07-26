@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useVsCode } from "../contexts";
 import { MODEL_OPTIONS } from "@/adapters/deepseek/Models";
-import type { PermissionMode } from "@/adapters";
+import type { AppConfig, HandlerToWebviewMessage, PermissionMode } from "@/adapters";
+import { shouldApplyConfigRevision } from "@webview/config/ConfigRevision";
 
 /**
  * Converts the UI reasoning value to the config expected by the extension host.
@@ -18,14 +19,16 @@ function reasoningToConfig(value: string): { thinkingMode: boolean; reasoningEff
 export function useChatConfig() {
   const vscode = useVsCode();
 
-  const provider = "deepseek";
   const [reasoning, setReasoning] = useState<string>("high");
   const [selectedModel, setSelectedModel] = useState<string>(MODEL_OPTIONS[0]?.value ?? "");
   const [permissionMode, setPermissionMode] = useState<PermissionMode>("read-only");
+  const [isPermissionUpdatePending, setPermissionUpdatePending] = useState(false);
+  const [configUpdateError, setConfigUpdateError] = useState<string | null>(null);
 
   const selectedModelRef = useRef(selectedModel);
   const reasoningRef = useRef(reasoning);
-  const providerRef = useRef(provider);
+  const revisionRef = useRef(-1);
+  const pendingPermissionRequestRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     selectedModelRef.current = selectedModel;
@@ -36,7 +39,13 @@ export function useChatConfig() {
   /**
    * Applies saved config from configLoaded without side effects inside useEffect.
    */
-  const applySavedConfig = useCallback((config: { reasoning?: string; model?: string; permissionMode?: PermissionMode }) => {
+  const applySavedConfig = useCallback((config: { reasoning?: string; model?: string; permissionMode?: PermissionMode }, revision?: number) => {
+    if (revision !== undefined) {
+      if (!shouldApplyConfigRevision(revisionRef.current, revision)) {
+        return;
+      }
+      revisionRef.current = revision;
+    }
     if (config.reasoning !== undefined) {
       setReasoning(config.reasoning);
       reasoningRef.current = config.reasoning;
@@ -50,12 +59,25 @@ export function useChatConfig() {
     }
   }, []);
 
+  const applyConfigUpdateResult = useCallback((message: Extract<HandlerToWebviewMessage, { type: "configUpdateResult" }>) => {
+    applySavedConfig({
+      reasoning: message.config.thinkingMode === false ? "off" : message.config.reasoningEffort === "max" ? "max" : "high",
+      model: message.config.model,
+      permissionMode: message.config.permissionMode,
+    }, message.revision);
+    if (pendingPermissionRequestRef.current === message.requestId) {
+      pendingPermissionRequestRef.current = undefined;
+      setPermissionUpdatePending(false);
+      setConfigUpdateError(message.status === "error" ? (message.error ?? "Failed to apply permissions.") : null);
+    }
+  }, [applySavedConfig]);
+
   const handleReasoningChange = useCallback(
     (value: string) => {
       setReasoning(value);
       reasoningRef.current = value;
       const configUpdate = reasoningToConfig(value);
-      vscode?.postMessage({ type: "saveConfig", config: configUpdate });
+      vscode?.postMessage({ type: "saveConfig", requestId: crypto.randomUUID(), config: configUpdate });
     },
     [vscode],
   );
@@ -65,28 +87,33 @@ export function useChatConfig() {
       setSelectedModel(modelId);
       selectedModelRef.current = modelId;
       vscode?.postMessage({ type: "selectModel", modelId });
-      vscode?.postMessage({ type: "saveConfig", config: { model: modelId } });
+      vscode?.postMessage({ type: "saveConfig", requestId: crypto.randomUUID(), config: { model: modelId } });
     },
     [vscode],
   );
 
   const handlePermissionModeChange = useCallback(
     (value: PermissionMode) => {
+      const requestId = crypto.randomUUID();
       setPermissionMode(value);
-      vscode?.postMessage({ type: "saveConfig", config: { permissionMode: value } });
+      setConfigUpdateError(null);
+      setPermissionUpdatePending(true);
+      pendingPermissionRequestRef.current = requestId;
+      vscode?.postMessage({ type: "saveConfig", requestId, config: { permissionMode: value } });
     },
     [vscode],
   );
 
   return {
-    provider,
     selectedModel,
     reasoning,
     permissionMode,
+    isPermissionUpdatePending,
+    configUpdateError,
     selectedModelRef,
     reasoningRef,
-    providerRef,
     applySavedConfig,
+    applyConfigUpdateResult,
     handleReasoningChange,
     handleModelChange,
     handlePermissionModeChange,

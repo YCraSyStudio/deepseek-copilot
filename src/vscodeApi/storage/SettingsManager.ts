@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
-import type { AppConfig, InterfaceLanguage, PermissionMode, ToolExecutionMode, ToolExecutionModes } from "@/adapters";
+import type { AppConfig, InterfaceLanguage, PermissionMode, PermissionSnapshot, ToolExecutionMode, ToolExecutionModes } from "@/adapters";
 import { MAX_OUTPUT_TOKENS } from "@/adapters";
 import { DEEPSEEK_DEFAULTS } from "@/deepseekApi";
 import { writeJsonFileAtomic } from "./JsonFileStorage";
@@ -30,24 +30,72 @@ const STORED_SETTING_KEYS = new Set<StoredSettingKey>([
 
 export class SettingsManager {
   private static writeQueue: Promise<void> = Promise.resolve();
+  private static currentConfig: AppConfig = normalizeConfig({});
+  private static revision = 0;
+  private static initialized = false;
+  private static pendingPermissionUpdates = 0;
+  private static persistSettings: (settings: StoredSettings) => Promise<void> =
+    (settings) => writeJsonFileAtomic(getSettingsFilePath(), settings);
 
-  static initialize(initialSettings: unknown = {}): Promise<void> {
+  static async initialize(initialSettings: unknown = {}): Promise<void> {
+    if (SettingsManager.initialized) {
+      return;
+    }
     if (existsSync(getSettingsFilePath())) {
-      return Promise.resolve();
+      SettingsManager.currentConfig = normalizeConfig(readStoredSettings());
+      SettingsManager.initialized = true;
+      return;
     }
     const initialConfig = normalizeConfig(initialSettings);
-    return SettingsManager.enqueueWrite(() => writeJsonFileAtomic(getSettingsFilePath(), toStoredSettings(initialConfig)));
+    await SettingsManager.enqueueWrite(() => SettingsManager.persistSettings(toStoredSettings(initialConfig)));
+    SettingsManager.currentConfig = initialConfig;
+    SettingsManager.initialized = true;
   }
 
   static load(): AppConfig {
-    const stored = readStoredSettings();
-    return normalizeConfig(stored);
+    return cloneConfig(SettingsManager.currentConfig);
+  }
+
+  static getRevision(): number {
+    return SettingsManager.revision;
+  }
+
+  static isPermissionUpdatePending(): boolean {
+    return SettingsManager.pendingPermissionUpdates > 0;
+  }
+
+  static async waitForPendingWrites(): Promise<void> {
+    await SettingsManager.writeQueue;
+  }
+
+  static async capturePermissionSnapshot(workspaceTrusted: boolean): Promise<PermissionSnapshot> {
+    await SettingsManager.waitForPendingWrites();
+    const config = SettingsManager.load();
+    const permissionMode = workspaceTrusted ? config.permissionMode : "read-only";
+    const toolExecutionModes = Object.fromEntries(
+      Object.entries(config.toolExecutionModes).map(([toolName, mode]) => [
+        toolName,
+        !workspaceTrusted && mode === "auto_approve" ? "enabled" : mode,
+      ]),
+    );
+    const revision = SettingsManager.revision;
+    return Object.freeze({
+      revision,
+      permissionMode,
+      toolExecutionModes: Object.freeze(toolExecutionModes),
+      workspaceTrusted,
+      fingerprint: JSON.stringify({
+        revision,
+        permissionMode,
+        toolExecutionModes: Object.fromEntries(Object.entries(toolExecutionModes).sort(([left], [right]) => left.localeCompare(right))),
+        workspaceTrusted,
+      }),
+    });
   }
 
   static save(partial: Partial<AppConfig>): Promise<void> {
-    return SettingsManager.enqueueWrite(async () => {
-      const current = SettingsManager.load();
-      const next = { ...current };
+    return SettingsManager.enqueueMutation(isPermissionAffectingPatch(partial), async () => {
+      const next = SettingsManager.load();
 
       for (const [key, value] of Object.entries(partial)) {
         if (!isStoredSettingKey(key) || value === undefined) {
@@ -56,12 +104,39 @@ export class SettingsManager {
         Object.assign(next, { [key]: normalizeSettingValue(key, value) });
       }
 
-      await writeJsonFileAtomic(getSettingsFilePath(), toStoredSettings(next));
+      await SettingsManager.persistSettings(toStoredSettings(next));
+      SettingsManager.currentConfig = normalizeConfig(next);
+      SettingsManager.revision += 1;
     });
   }
 
   static reset(): Promise<void> {
-    return SettingsManager.enqueueWrite(() => writeJsonFileAtomic(getSettingsFilePath(), toStoredSettings(DEEPSEEK_DEFAULTS)));
+    return SettingsManager.enqueueMutation(true, async () => {
+      const next = normalizeConfig(DEEPSEEK_DEFAULTS);
+      await SettingsManager.persistSettings(toStoredSettings(next));
+      SettingsManager.currentConfig = next;
+      SettingsManager.revision += 1;
+    });
+  }
+
+  static setPersistenceForTests(persist?: (settings: unknown) => Promise<void>): void {
+    if (process.env.NODE_ENV !== "test") {
+      throw new Error("Test persistence override is only available in tests");
+    }
+    SettingsManager.persistSettings = persist
+      ? (settings) => persist(settings)
+      : (settings) => writeJsonFileAtomic(getSettingsFilePath(), settings);
+  }
+
+  private static enqueueMutation(permissionAffecting: boolean, operation: () => Promise<void>): Promise<void> {
+    if (permissionAffecting) {
+      SettingsManager.pendingPermissionUpdates += 1;
+    }
+    return SettingsManager.enqueueWrite(operation).finally(() => {
+      if (permissionAffecting) {
+        SettingsManager.pendingPermissionUpdates = Math.max(0, SettingsManager.pendingPermissionUpdates - 1);
+      }
+    });
   }
 
   private static enqueueWrite(operation: () => Promise<void>): Promise<void> {
@@ -69,6 +144,18 @@ export class SettingsManager {
     SettingsManager.writeQueue = next.catch(() => undefined);
     return next;
   }
+}
+
+function cloneConfig(config: AppConfig): AppConfig {
+  return {
+    ...config,
+    toolExecutionModes: { ...config.toolExecutionModes },
+  };
+}
+
+function isPermissionAffectingPatch(partial: Partial<AppConfig>): boolean {
+  return Object.prototype.hasOwnProperty.call(partial, "permissionMode") ||
+    Object.prototype.hasOwnProperty.call(partial, "toolExecutionModes");
 }
 
 function readStoredSettings(): unknown {

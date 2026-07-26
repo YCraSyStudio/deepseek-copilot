@@ -7,6 +7,7 @@ import { getVsCodeApi } from "../../VsCodeApi";
 import { DEFAULT_CONFIG, MODEL_OPTIONS, REASONING_EFFORT_OPTIONS, type SettingsConfig } from "./settingsDataModels";
 import type { AvailableToolInfo, HandlerToWebviewMessage, ToolExecutionModes } from "@/adapters";
 import { setInterfaceLanguage, t } from "@webview/i18n";
+import { shouldApplyConfigRevision } from "@webview/config/ConfigRevision";
 
 type SettingsTab = "general" | "tools";
 type Notification = { type: "error" | "success"; message: string };
@@ -19,7 +20,10 @@ function SettingsView() {
   const [hasLoadedConfig, setHasLoadedConfig] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [notification, setNotification] = useState<Notification | null>(null);
+  const [permissionUpdatePending, setPermissionUpdatePending] = useState(false);
   const loadedRef = useRef(false);
+  const revisionRef = useRef(-1);
+  const pendingSecurityRequestsRef = useRef(new Set<string>());
   const tabRefs = useRef<Record<SettingsTab, HTMLButtonElement | null>>({ general: null, tools: null });
   const effectiveToolExecutionModes = useMemo(() => normalizeToolExecutionModes(config.toolExecutionModes, tools), [config.toolExecutionModes, tools]);
 
@@ -38,7 +42,12 @@ function SettingsView() {
 
   const saveOnBlur = useCallback(
     <K extends keyof SettingsConfig>(key: K, value: SettingsConfig[K]) => {
-      vscode?.postMessage({ type: "saveConfig", config: { [key]: value } });
+      const requestId = crypto.randomUUID();
+      if (key === "permissionMode" || key === "toolExecutionModes") {
+        pendingSecurityRequestsRef.current.add(requestId);
+        setPermissionUpdatePending(true);
+      }
+      vscode?.postMessage({ type: "saveConfig", requestId, config: { [key]: value } });
     },
     [vscode],
   );
@@ -80,26 +89,30 @@ function SettingsView() {
       const message = event.data;
       switch (message.type) {
         case "configLoaded":
+          if (!shouldApplyConfigRevision(revisionRef.current, message.revision)) {break;}
+          revisionRef.current = message.revision;
           if (message.config.interfaceLanguage) {setInterfaceLanguage(message.config.interfaceLanguage);}
           applyConfig(message.config);
           loadedRef.current = true;
           setHasLoadedConfig(true);
           setLoadError(null);
           break;
-        case "configReset":
-          if (message.config.interfaceLanguage) {setInterfaceLanguage(message.config.interfaceLanguage);}
-          applyConfig(message.config);
-          loadedRef.current = true;
-          setHasLoadedConfig(true);
-          setLoadError(null);
-          setNotification({ type: "success", message: t("settings.reset.success") });
-          break;
-        case "configSaved":
-          if (message.success) {
-            setNotification({ type: "success", message: t("settings.save.success") });
-          } else {
+        case "configUpdateResult":
+          if (pendingSecurityRequestsRef.current.delete(message.requestId)) {
+            setPermissionUpdatePending(pendingSecurityRequestsRef.current.size > 0);
+          }
+          if (shouldApplyConfigRevision(revisionRef.current, message.revision)) {
+            revisionRef.current = message.revision;
+            if (message.config.interfaceLanguage) {setInterfaceLanguage(message.config.interfaceLanguage);}
+            applyConfig(message.config);
+          }
+          if (message.status === "success") {
+            setNotification({ type: "success", message: message.operation === "reset" ? t("settings.reset.success") : t("settings.save.success") });
+          } else if (message.status === "error") {
             setNotification({ type: "error", message: t("settings.save.error") });
             if (!loadedRef.current) {setLoadError(t("settings.load.error"));}
+          } else {
+            setNotification(null);
           }
           break;
         case "availableTools":
@@ -176,13 +189,25 @@ function SettingsView() {
             tools={tools}
             updateConfig={updateConfig}
             saveOnBlur={saveOnBlur}
+            permissionUpdatePending={permissionUpdatePending}
           />
         ) : null}
       </div>
 
-      <button type="button" className="btn-secondary" onClick={() => vscode?.postMessage({ type: "resetConfig" })} disabled={!hasLoadedConfig}>
+      <button
+        type="button"
+        className="btn-secondary"
+        onClick={() => {
+          const requestId = crypto.randomUUID();
+          pendingSecurityRequestsRef.current.add(requestId);
+          setPermissionUpdatePending(true);
+          vscode?.postMessage({ type: "resetConfig", requestId });
+        }}
+        disabled={!hasLoadedConfig || permissionUpdatePending}
+      >
         {t("settings.reset.label")}
       </button>
+      {permissionUpdatePending ? <div className="settingsState" role="status" aria-live="polite">{t("chat.applyingPermissions")}</div> : null}
 
       {notification ? (
         <div className={`notification ${notification.type}`} role={notification.type === "error" ? "alert" : "status"}>

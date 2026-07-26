@@ -1,12 +1,14 @@
 import * as vscode from "vscode";
-import type { Conversation, WebviewToHandlerMessage } from "@/adapters";
+import type { WebviewToHandlerMessage } from "@/adapters";
+import type { StoredConversation } from "@/core/chat/ProviderTranscript";
+import { toPresentationConversation } from "@/core/chat/ProviderTranscript";
 import { HistoryManager } from "@/vscodeApi/storage";
 import { logWarning } from "@/shared/logging/Logger";
 
 export class HistoryHandler {
   constructor(
     private readonly historyManager: HistoryManager,
-    private readonly onConversationLoaded?: (conversation: Conversation) => void,
+    private readonly onConversationLoaded?: (conversation: StoredConversation) => void,
     private readonly onConversationDeleted?: (id: string) => void,
     private readonly onBeforeConversationDelete?: (id: string) => Promise<void>,
   ) {}
@@ -72,7 +74,7 @@ export class HistoryHandler {
 
   private async deleteConversations(ids: string[], webviewView: vscode.WebviewView): Promise<void> {
     const deleted = (await Promise.all(ids.map((id) => this.historyManager.getById(id)))).filter(
-      (item): item is Conversation => item !== undefined,
+      (item): item is StoredConversation => item !== undefined,
     );
     if (deleted.length === 0) {
       await this.getHistory(webviewView);
@@ -106,6 +108,9 @@ export class HistoryHandler {
     }
 
     this.onConversationLoaded?.(conversation);
-    await webviewView.webview.postMessage({ type: "conversationLoaded", conversation });
+    await webviewView.webview.postMessage({
+      type: "conversationLoaded",
+      conversation: toPresentationConversation(conversation),
+    });
   }
 }

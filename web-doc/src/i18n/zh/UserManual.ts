@@ -11,7 +11,8 @@ export const userManual: PageContent = {
       items: [
         "从 Activity Bar 打开 Yar's DeepSeek Copilot，并在 Settings 中输入 API key。密钥保存在 VS Code Secret Storage 中。",
         "选择模型、thinking mode、reasoning effort、响应上限、最大工具轮数和并发生成上限。默认并发数为 8，可设置为 1 到 16。",
-        "输入 ./ 或 ../ 可自动补全工作区路径，也可以通过资源管理器和编辑器上下文菜单附加文件和精确选区。",
+        "输入 ./ 可自动补全安全的工作区路径；始终拒绝 ../ 父目录遍历。多根工作区路径以稳定别名开头，例如 ./frontend/src/App.tsx。",
+        "可使用附件按钮或资源管理器/编辑器命令显式添加上下文。工作区外文件会转换为受限的只读快照，绝不会授予工具访问其所在文件夹的权限。",
         "使用 Stop generation 可中断当前请求和正在运行的终端进程树。提示和已有的部分响应会作为中断轮次保留在历史记录中。",
       ],
     },
@@ -72,7 +73,7 @@ export const userManual: PageContent = {
       items: [
         "自动上下文会在时间和大小限制内包含当前编辑器以及 Git 的 staged 和 unstaged 更改。",
         "引用文件和 AGENTS.md 指令有大小限制，使用工作区相对标签，并作为不受信任的数据进行分隔。",
-        "会话上下文会裁剪到固定预算；大型工具结果、推理和文件内容会从中间缩短。",
+        "总请求预算包含系统提示、工具 schema、历史记录、引用内容、预留输出和安全余量。较旧的完整生成会按原子轮次摘要，大文件只保留与请求相关的原始行范围；工具参数、协议所需推理和活动工具周期绝不会被截断。",
         "使用 /context 可检查普通请求将发送的内容。其他命令包括 /status、/tools、/mode、/auto-context、/review、/goal、/summarize 和 /clear-context。",
       ],
     },

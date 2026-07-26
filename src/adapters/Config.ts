@@ -40,6 +40,14 @@ export interface AppConfig {
   userId?: string;
 }
 
+export interface PermissionSnapshot {
+  revision: number;
+  permissionMode: PermissionMode;
+  toolExecutionModes: ToolExecutionModes;
+  workspaceTrusted: boolean;
+  fingerprint: string;
+}
+
 export const DEFAULT_CONFIG: AppConfig = {
   interfaceLanguage: "auto",
   apiKey: "",

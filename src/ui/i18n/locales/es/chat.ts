@@ -2,6 +2,7 @@ import type { TranslationCatalog } from "../Types";
 
 export const chat = {
   chat: {
+    applyingPermissions: "Aplicando permisos...",
     apiKeyMissing: "Falta la API key",
     askAnythingAboutYourCode: "Pregunta cualquier cosa sobre tu código...",
     configureApiKey: "Configura primero la API key en Ajustes...",
@@ -26,6 +27,7 @@ export const chat = {
     pathSuggestionCount: "Hay {count} sugerencias de ruta disponibles.",
     noFilesOrFoldersFound: "No se encontraron archivos ni carpetas.",
     deepseekIsThinking: "DeepSeek está pensando...",
+    compactingContext: "Compactando el contexto de la conversación...",
     jumpToLatest: "Saltar al último bloque de respuesta",
     latest: "Último",
     streaming: "La respuesta de DeepSeek se está transmitiendo.",
@@ -33,6 +35,16 @@ export const chat = {
     queueMessage: "Poner mensaje en cola",
     interruptAndGuide: "Interrumpir y guiar",
     recoveredDrafts: "Borradores recuperados tras cerrar VS Code:",
-    restoreDraft: "Restaurar"
+    restoreDraft: "Restaurar",
+    attachContext: "Adjuntar archivos de contexto",
+    openWorkspace: "Abrir workspace",
+    reassignWorkspace: "Reasignar",
+    unavailableCapabilities: "Capacidades no disponibles",
+    workspaceState: {
+      connected: "conectado",
+      disconnected: "desconectado",
+      changed: "modificado",
+      empty: "vacío"
+    }
   }
 } satisfies TranslationCatalog;
