@@ -1,3 +1,11 @@
+.messagesSection {
+  flex: auto;
+  min-width: 0;
+  min-height: 0;
+  position: relative;
+  display: flex;
+}
+
 .msgList {
   flex-direction: column;
   flex: auto;
@@ -10,24 +18,27 @@
 }
 .jumpToLatest {
   z-index: 10;
-  border: 1px solid var(--border-color);
-  background: var(--button-secondary-bg);
-  color: var(--text-primary);
+  border: 1px solid var(--vscode-button-border, transparent);
+  background: var(--vscode-button-background, var(--accent-color));
+  color: var(--vscode-button-foreground, #fff);
   cursor: pointer;
   font: inherit;
-  border-radius: 999px;
+  border-radius: 50%;
   align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
   position: absolute;
-  right: 14px;
-  bottom: 92px;
+  left: 50%;
+  bottom: 12px;
   display: inline-flex;
+  transform: translateX(-50%);
   box-shadow: 0 4px 14px #0006;
 
   &:hover,
   &:focus-visible {
-    background: var(--button-secondary-hover);
+    background: var(--vscode-button-hoverBackground, var(--button-secondary-hover));
   }
 }
 .typingIndicator {

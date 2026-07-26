@@ -11,10 +11,10 @@ export class DeepSeekProvider extends BaseProvider {
     super(config);
   }
 
-  async chatCompletion(request: ChatCompletionRequest): Promise<ChatCompletionResponse> {
+  async chatCompletion(request: ChatCompletionRequest, signal?: AbortSignal): Promise<ChatCompletionResponse> {
     const chatRequest = this._applyDefaults(request);
     const body = buildChatBody(chatRequest, this.config);
-    const response = await chatCompletion({ ...chatRequest, ...body } as ChatRequest, this.config.apiKey, this.config.baseUrl);
+    const response = await chatCompletion({ ...chatRequest, ...body } as ChatRequest, this.config.apiKey, this.config.baseUrl, signal);
     return response;
   }
 

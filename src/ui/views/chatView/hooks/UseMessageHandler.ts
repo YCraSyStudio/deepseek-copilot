@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import type { VsCodeApi } from "@webview/VsCodeApi";
 import type { AssistantTimelineEvent, HandlerToWebviewMessage, AppConfig, StoredToolCall, ToolCall } from "@/adapters";
 import type { ApiKeyStatus, DangerConfirmationData, ToolCallStatus } from "../ChatViewTypes";
@@ -48,26 +48,8 @@ export type MessageDispatcher = {
  * Registers the webview message listener and routes messages to the dispatcher.
  */
 export function useMessageHandler(vscode: VsCodeApi | null, dispatcher: MessageDispatcher): void {
-  const {
-    onAddMessage,
-    onShowTyping,
-    onStreamTimelineDelta,
-    onStreamTimelineToolGroup,
-    onStreamDone,
-    onStreamError,
-    onClearChat,
-    onModelChanged,
-    onApiKeyStatus,
-    onConfigLoaded,
-    onConfigUpdateResult,
-    onToolCallStarted,
-    onToolCallResult,
-    onToolCallActionAccepted,
-    onToolCallConfirmationRequired,
-    onToolCallLimitReached,
-    onContextCompactionUpdated,
-    onGenerationSnapshot,
-  } = dispatcher;
+  const dispatcherRef = useRef(dispatcher);
+  dispatcherRef.current = dispatcher;
 
   useEffect(() => {
     if (!vscode) {
@@ -79,23 +61,23 @@ export function useMessageHandler(vscode: VsCodeApi | null, dispatcher: MessageD
 
       switch (message.type) {
         case "addMessage":
-          onAddMessage?.(message.message);
+          dispatcherRef.current.onAddMessage?.(message.message);
           break;
 
         case "showTyping":
-          onShowTyping?.(message.generationId);
+          dispatcherRef.current.onShowTyping?.(message.generationId);
           break;
 
         case "streamTimelineDelta":
-          onStreamTimelineDelta?.({ generationId: message.generationId, eventId: message.eventId, eventType: message.eventType, content: message.content });
+          dispatcherRef.current.onStreamTimelineDelta?.({ generationId: message.generationId, eventId: message.eventId, eventType: message.eventType, content: message.content });
           break;
 
         case "streamTimelineToolGroup":
-          onStreamTimelineToolGroup?.(message.event, message.generationId);
+          dispatcherRef.current.onStreamTimelineToolGroup?.(message.event, message.generationId);
           break;
 
         case "streamDone":
-          onStreamDone?.({
+          dispatcherRef.current.onStreamDone?.({
             cancelled: message.cancelled,
             finish_reason: message.finish_reason,
             generationId: message.generationId,
@@ -103,33 +85,33 @@ export function useMessageHandler(vscode: VsCodeApi | null, dispatcher: MessageD
           break;
 
         case "streamError":
-          onStreamError?.(message.error, message.generationId);
+          dispatcherRef.current.onStreamError?.(message.error, message.generationId);
           break;
 
         case "clearChat":
-          onClearChat?.();
+          dispatcherRef.current.onClearChat?.();
           break;
 
         case "modelChanged":
-          onModelChanged?.(message.modelId);
+          dispatcherRef.current.onModelChanged?.(message.modelId);
           break;
 
         case "apiKeyStatus":
-          onApiKeyStatus?.(message.status);
+          dispatcherRef.current.onApiKeyStatus?.(message.status);
           break;
 
         case "configLoaded":
           if (message.config.interfaceLanguage) {setInterfaceLanguage(message.config.interfaceLanguage);}
-          onConfigLoaded?.(message.config, message.revision);
+          dispatcherRef.current.onConfigLoaded?.(message.config, message.revision);
           break;
 
         case "configUpdateResult":
           if (message.config.interfaceLanguage) {setInterfaceLanguage(message.config.interfaceLanguage);}
-          onConfigUpdateResult?.(message);
+          dispatcherRef.current.onConfigUpdateResult?.(message);
           break;
 
         case "toolCallStarted":
-          onToolCallStarted?.({
+          dispatcherRef.current.onToolCallStarted?.({
             generationId: message.generationId,
             toolCalls: message.toolCalls,
             round: message.round,
@@ -137,7 +119,7 @@ export function useMessageHandler(vscode: VsCodeApi | null, dispatcher: MessageD
           break;
 
         case "toolCallResult":
-          onToolCallResult?.({
+          dispatcherRef.current.onToolCallResult?.({
             generationId: message.generationId,
             toolCallId: message.toolCallId,
             toolName: message.toolName,
@@ -149,11 +131,11 @@ export function useMessageHandler(vscode: VsCodeApi | null, dispatcher: MessageD
           break;
 
         case "toolCallActionAccepted":
-          onToolCallActionAccepted?.({ generationId: message.generationId, toolCallId: message.toolCallId, status: message.status });
+          dispatcherRef.current.onToolCallActionAccepted?.({ generationId: message.generationId, toolCallId: message.toolCallId, status: message.status });
           break;
 
         case "toolCallConfirmationRequired":
-          onToolCallConfirmationRequired?.({
+          dispatcherRef.current.onToolCallConfirmationRequired?.({
             generationId: message.generationId,
             toolCalls: message.toolCalls,
             round: message.round,
@@ -163,15 +145,15 @@ export function useMessageHandler(vscode: VsCodeApi | null, dispatcher: MessageD
           break;
 
         case "toolCallLimitReached":
-          onToolCallLimitReached?.({ generationId: message.generationId, completedRounds: message.completedRounds, batchSize: message.batchSize });
+          dispatcherRef.current.onToolCallLimitReached?.({ generationId: message.generationId, completedRounds: message.completedRounds, batchSize: message.batchSize });
           break;
 
         case "contextCompactionUpdated":
-          onContextCompactionUpdated?.({ generationId: message.generationId, status: message.status });
+          dispatcherRef.current.onContextCompactionUpdated?.({ generationId: message.generationId, status: message.status });
           break;
 
         case "generationSnapshot":
-          onGenerationSnapshot?.(message);
+          dispatcherRef.current.onGenerationSnapshot?.(message);
           break;
       }
     };
@@ -181,25 +163,5 @@ export function useMessageHandler(vscode: VsCodeApi | null, dispatcher: MessageD
     vscode.postMessage({ type: "getGenerationSnapshot" });
 
     return () => window.removeEventListener("message", handleMessage);
-  }, [
-    vscode,
-    onAddMessage,
-    onShowTyping,
-    onStreamTimelineDelta,
-    onStreamTimelineToolGroup,
-    onStreamDone,
-    onStreamError,
-    onClearChat,
-    onModelChanged,
-    onApiKeyStatus,
-    onConfigLoaded,
-    onConfigUpdateResult,
-    onToolCallStarted,
-    onToolCallResult,
-    onToolCallActionAccepted,
-    onToolCallConfirmationRequired,
-    onToolCallLimitReached,
-    onContextCompactionUpdated,
-    onGenerationSnapshot,
-  ]);
+  }, [vscode]);
 }

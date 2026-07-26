@@ -79,6 +79,7 @@ export interface ToolExecutionContext {
   executedToolCalls: Map<string, StoredExecution>;
   signal?: AbortSignal;
   autoApproveMode: boolean;
+  fullAccessMode: boolean;
   isWorkspaceTrusted: () => boolean;
   getToolMode: (toolName: string) => ToolExecutionMode;
   getCurrentRound: () => number;

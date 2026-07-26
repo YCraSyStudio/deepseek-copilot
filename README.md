@@ -71,8 +71,7 @@ Yar's DeepSeek Copilot can execute workspace tools when enabled. Tool access is 
 
 - `chat`: no tools.
 - `read-only`: read, list, and search workspace files.
-- `workspace`: read-only tools plus file creation, editing, and patches.
-- `full-access`: all tools, including terminal execution. Dangerous commands still require confirmation.
+- `full-access`: all non-disabled tools execute immediately, including terminal commands, without confirmation prompts.
 - `auto-approve`: all non-disabled tools. Non-terminal tools execute directly; terminal commands execute automatically only when the strict parser proves they are read-only and workspace-contained.
 
 Tool execution is then controlled per tool:
@@ -81,7 +80,7 @@ Tool execution is then controlled per tool:
 - `enabled`: execute with normal safety checks.
 - `auto_approve`: execute without confirmation only when the operation is not considered dangerous.
 
-Dangerous operations, such as overwriting files or running risky terminal commands, require confirmation. Terminal commands are not OS-sandboxed, so global `auto-approve` does not bypass confirmation for unknown, mutating, dynamic, or out-of-workspace shell forms.
+Outside `full-access`, dangerous operations such as overwriting files or running risky terminal commands require confirmation. Terminal commands are not OS-sandboxed: `auto-approve` does not bypass confirmation for unknown, mutating, dynamic, or out-of-workspace shell forms. `full-access` is an explicit unattended mode and bypasses those prompts, while workspace binding, path validation, disabled tools, and VS Code Workspace Trust remain enforced. Legacy `workspace` settings migrate to `full-access`.
 
 Tool calls have one visible lifecycle: awaiting confirmation, running, then completed, rejected, cancelled, or error. Calls within a round execute sequentially, identical repeated calls are skipped, and the configured round limit stops loops.
 
@@ -104,7 +103,7 @@ Context is budgeted before every API request, including system prompts, tool sch
 Available slash commands:
 
 - `/status`, `/context`, `/tools`
-- `/mode chat|read-only|workspace|full-access|auto-approve`
+- `/mode chat|read-only|full-access|auto-approve`
 - `/auto-context on|off`
 - `/review`, `/goal [text]`
 - `/summarize`, `/clear-context`

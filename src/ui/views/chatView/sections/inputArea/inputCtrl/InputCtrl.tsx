@@ -28,7 +28,7 @@ type Props = {
   conversationId?: string;
   workspaceRevision?: string;
   activeGenerationId?: string;
-  onSend?: (text: string) => void;
+  onSend?: (text: string, clientRequestId: string) => void;
 };
 
 const InputCtrl = forwardRef<HTMLTextAreaElement, Props>(
@@ -143,10 +143,11 @@ const InputCtrl = forwardRef<HTMLTextAreaElement, Props>(
       setInput("");
       setCompletions([]);
       setPathToken(null);
-      onSend?.(text);
+      const clientRequestId = crypto.randomUUID();
+      onSend?.(text, clientRequestId);
       vscode.postMessage({
         type: "sendMessage",
-        clientRequestId: crypto.randomUUID(),
+        clientRequestId,
         text,
         modelId: selectedModelRef.current,
         reasoning: reasoningRef.current,
@@ -168,11 +169,12 @@ const InputCtrl = forwardRef<HTMLTextAreaElement, Props>(
         return;
       }
       setInput("");
-      onSend?.(text);
+      const clientRequestId = crypto.randomUUID();
+      onSend?.(text, clientRequestId);
       vscode.postMessage({
         type: "steerGeneration",
         generationId: activeGenerationId,
-        clientRequestId: crypto.randomUUID(),
+        clientRequestId,
         text,
         modelId: selectedModelRef.current,
         reasoning: reasoningRef.current,

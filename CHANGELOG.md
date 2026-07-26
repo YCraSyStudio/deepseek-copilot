@@ -15,6 +15,9 @@
 - Secured workspace content search with literal matching, sensitive-path filtering, traversal protection, file and output limits, cancellation, and timeouts.
 - Updated the English, Spanish, and Chinese web documentation, generated static site, and technical wiki for the new generation, recovery, and migration flows.
 - Hardened terminal execution with shell-specific read-only allowlists, workspace-contained path checks, mandatory confirmation for unknown syntax even under global auto-approve, and conversation/workspace/configuration-scoped trust.
+- Simplified permission modes by removing the redundant `workspace` option, migrating it to `full-access`, and making `full-access` execute every enabled tool without confirmation prompts.
+- Simplified the chat footer by removing the workspace badge and reassignment controls, and replaced the ambiguous “Latest” control with a solid down-arrow anchored to the bottom center of the message area.
+- Fixed exaggerated Markdown spacing between headings, tables, lists, and other adjacent blocks in assistant responses.
 - Made global permission updates host-authoritative and revisioned, with durable rollback, stale-acknowledgement protection, Restricted Mode enforcement, and immutable permission snapshots at reasoning/tool-round boundaries.
 - Preserved protocol-valid DeepSeek tool transcripts independently from the visible timeline, including hidden reasoning, exact tool-call ordering, valid JSON arguments, checkpoints, and safe replay after reload.
 - Replaced field-level history truncation with a total request budget that counts prompts, tool schemas, history, references, output allowance, and safety margin; older atomic generations are summarized and oversized files are reduced to literal model-selected line ranges with a deterministic local fallback.

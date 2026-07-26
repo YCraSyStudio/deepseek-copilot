@@ -7,7 +7,7 @@ export abstract class BaseProvider {
   constructor(protected config: AppConfig) {}
 
   /** Chat completion without streaming. */
-  abstract chatCompletion(request: ChatCompletionRequest): Promise<ChatCompletionResponse>;
+  abstract chatCompletion(request: ChatCompletionRequest, signal?: AbortSignal): Promise<ChatCompletionResponse>;
 
   /** Chat completion with callback-based streaming. */
   abstract chatCompletionStream(request: ChatCompletionRequest, onChunk: (chunk: StreamChunk) => void, signal?: AbortSignal): Promise<void>;

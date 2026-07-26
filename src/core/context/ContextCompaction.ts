@@ -107,7 +107,7 @@ export class ContextCompactor {
       thinking: { type: "disabled" },
       tool_choice: "none",
       max_tokens: AUXILIARY_MAX_TOKENS,
-    });
+    }, this.signal);
     if (this.signal.aborted) {
       throw createAbortError();
     }

@@ -29,22 +29,12 @@ export const chat = {
     deepseekIsThinking: "DeepSeek está pensando...",
     compactingContext: "Compactando el contexto de la conversación...",
     jumpToLatest: "Saltar al último bloque de respuesta",
-    latest: "Último",
     streaming: "La respuesta de DeepSeek se está transmitiendo.",
     finished: "La generación de la respuesta ha terminado.",
     queueMessage: "Poner mensaje en cola",
     interruptAndGuide: "Interrumpir y guiar",
     recoveredDrafts: "Borradores recuperados tras cerrar VS Code:",
     restoreDraft: "Restaurar",
-    attachContext: "Adjuntar archivos de contexto",
-    openWorkspace: "Abrir workspace",
-    reassignWorkspace: "Reasignar",
-    unavailableCapabilities: "Capacidades no disponibles",
-    workspaceState: {
-      connected: "conectado",
-      disconnected: "desconectado",
-      changed: "modificado",
-      empty: "vacío"
-    }
+    attachContext: "Adjuntar archivos de contexto"
   }
 } satisfies TranslationCatalog;

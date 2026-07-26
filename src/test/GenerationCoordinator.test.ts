@@ -61,6 +61,26 @@ suite("GenerationCoordinator", () => {
     await tick();
     assert.strictEqual(coordinator.getActiveForConversation("a"), undefined);
   });
+
+  test("can interrupt immediately from the generation-started notification", async () => {
+    let coordinator!: GenerationCoordinator<string>;
+    let observedAbort = false;
+    coordinator = new GenerationCoordinator<string>({
+      getLimit: () => 1,
+      onStarted: (generationId) => {
+        assert.strictEqual(coordinator.interrupt(generationId), true);
+      },
+      run: async (_generationId, _task, signal) => {
+        observedAbort = signal.aborted;
+      },
+    });
+
+    coordinator.enqueue(task("a", "first", 1));
+    await tick();
+
+    assert.strictEqual(observedAbort, true);
+    assert.strictEqual(coordinator.getActiveForConversation("a"), undefined);
+  });
 });
 
 function task(conversationId: string, payload: string, queuedAt: number) {

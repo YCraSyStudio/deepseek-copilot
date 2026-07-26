@@ -43,6 +43,8 @@ suite("Extension integration", () => {
     assert.ok(binding.folders[0]?.alias);
     assert.ok(binding.revision);
     assert.deepStrictEqual(await getPathCompletionItems("../", binding), []);
+    const resolvedTerminalRoot = await createVsCodeToolWorkspace().resolveLocalPath!();
+    assert.strictEqual(resolvedTerminalRoot.workspaceRoot, vscode.workspace.workspaceFolders?.[0]?.uri.fsPath);
   });
 
   test("keeps the multi-root virtual root listable but rejects it as a terminal cwd", async () => {

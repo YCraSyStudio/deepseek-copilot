@@ -74,7 +74,7 @@ export class ToolExecutor {
         toolCallId: toolCall.id,
         toolName: toolCall.function.name,
         result,
-        isError: isStructuredCommandError(parsedResult),
+        isError: isToolErrorResult(result, parsedResult),
       };
     } catch (err: unknown) {
       if (isCancellationError(err)) {
@@ -122,7 +122,7 @@ export class ToolExecutor {
         toolCallId: toolCall.id,
         toolName: toolCall.function.name,
         result,
-        isError: isStructuredCommandError(parseJson(result)),
+        isError: isToolErrorResult(result),
       };
     } catch (err: unknown) {
       if (isCancellationError(err)) {
@@ -201,6 +201,10 @@ function isStructuredCommandError(value: unknown): boolean {
   if (!value || typeof value !== "object") {return false;}
   const result = value as { kind?: unknown; exitCode?: unknown; timedOut?: unknown; cancelled?: unknown };
   return result.kind === "command_result" && (result.exitCode !== 0 || result.timedOut === true || result.cancelled === true);
+}
+
+function isToolErrorResult(result: string, parsedResult: unknown = parseJson(result)): boolean {
+  return isStructuredCommandError(parsedResult) || /^\s*Error(?:\s|:)/i.test(result);
 }
 
 function getErrorMessage(err: unknown): string {

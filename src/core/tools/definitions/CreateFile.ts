@@ -134,7 +134,7 @@ export const createFileDefinition: ToolDefinition = {
   function: {
     name: "create_file",
     description:
-      "Create a new file in the project with the specified content. Creates parent directories when needed. Does not overwrite existing files without confirmation.",
+      "Create a file with complete content and create parent directories when needed. If the file exists, this tool requests confirmation and then safely overwrites it; never use terminal redirection or a temporary-file move as a workaround.",
     strict: true,
     parameters: {
       type: "object",

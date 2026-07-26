@@ -1,4 +1,4 @@
-import { PERMISSION_MODE_ALLOWED_TOOLS } from "@/adapters";
+import { getDefaultToolExecutionMode, PERMISSION_MODE_ALLOWED_TOOLS } from "@/adapters";
 import type { PermissionMode, ToolExecutionMode, ToolExecutionModes } from "@/adapters";
 import type { ToolsSectionProps } from "..";
 import "./ToolsSection.css";
@@ -7,9 +7,8 @@ import { t } from "@webview/i18n";
 const PERMISSION_MODE_OPTIONS: Array<{ value: PermissionMode; label: string; description: string }> = [
   { value: "chat", label: t("tools.chat"), description: t("tools.noToolsTheModelCanOnlyAnswerInChat") },
   { value: "read-only", label: t("tools.readOnly"), description: t("tools.readOnlyDescription") },
-  { value: "workspace", label: t("tools.workspace"), description: t("tools.workspaceDescription") },
-  { value: "full-access", label: t("tools.fullAccess"), description: t("tools.fullAccessDescription") },
   { value: "auto-approve", label: t("tools.autoApprove"), description: t("tools.autoApproveModeDescription") },
+  { value: "full-access", label: t("tools.fullAccess"), description: t("tools.fullAccessDescription") },
 ];
 
 const TOOL_MODE_OPTIONS: Array<{ value: ToolExecutionMode; label: string }> = [
@@ -70,7 +69,7 @@ function ToolsSection({ config, tools, updateConfig, saveOnBlur, permissionUpdat
       <div className="toolsList" aria-label={t("tools.toolPermissions")}>
         {tools.length === 0 ? <div className="toolsEmptyState" role="status">{t("tools.noToolsAreAvailable")}</div> : null}
         {tools.map((tool) => {
-          const mode = config.toolExecutionModes[tool.name] ?? "enabled";
+          const mode = config.toolExecutionModes[tool.name] ?? getDefaultToolExecutionMode(config.permissionMode);
           const isAllowed = isToolAllowedByPermissionMode(config.permissionMode, tool.name);
           return (
             <div className="toolSettingRow" key={tool.name}>

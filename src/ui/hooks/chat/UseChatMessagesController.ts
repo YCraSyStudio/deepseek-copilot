@@ -120,6 +120,7 @@ export function useChatMessagesController({
 
         if (info.cancelled) {
           resetStreaming();
+          onGenerationCancelled?.();
           focusInput();
           return;
         }

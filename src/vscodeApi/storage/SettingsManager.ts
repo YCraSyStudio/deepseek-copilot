@@ -42,7 +42,12 @@ export class SettingsManager {
       return;
     }
     if (existsSync(getSettingsFilePath())) {
-      SettingsManager.currentConfig = normalizeConfig(readStoredSettings());
+      const storedSettings = readStoredSettings();
+      const normalizedConfig = normalizeConfig(storedSettings);
+      if (isRecord(storedSettings) && storedSettings.permissionMode === "workspace") {
+        await SettingsManager.enqueueWrite(() => SettingsManager.persistSettings(toStoredSettings(normalizedConfig)));
+      }
+      SettingsManager.currentConfig = normalizedConfig;
       SettingsManager.initialized = true;
       return;
     }
@@ -261,7 +266,8 @@ function clampInteger(value: unknown, min: number, max: number, fallback: number
 
 function normalizePermissionMode(value: unknown): PermissionMode {
   if (value === "approve-for-me") {return "auto-approve";}
-  return value === "chat" || value === "read-only" || value === "workspace" || value === "full-access" || value === "auto-approve" ? value : DEEPSEEK_DEFAULTS.permissionMode;
+  if (value === "workspace") {return "full-access";}
+  return value === "chat" || value === "read-only" || value === "full-access" || value === "auto-approve" ? value : DEEPSEEK_DEFAULTS.permissionMode;
 }
 
 function normalizeToolExecutionModes(value: unknown): ToolExecutionModes {

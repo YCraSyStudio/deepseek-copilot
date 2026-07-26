@@ -29,8 +29,8 @@ export const userManual: PageContent = {
     {
       title: "Permisos y estados de herramientas",
       items: [
-        "chat no expone herramientas; read-only permite read_file, list_directory y search_content; workspace añade creación y edición de archivos; full-access añade la ejecución de terminal; auto-approve expone todas las herramientas no deshabilitadas y delega su aprobación a DeepSeek.",
-        "Cada herramienta puede deshabilitarse, requerir aprobación manual o usar aprobación automática solo para operaciones seguras. El modo global Aprobación automática considera las tool calls de DeepSeek como aprobación y omite las confirmaciones heurísticas; úsalo solo en workspaces de confianza.",
+        "chat no expone herramientas; read-only permite read_file, list_directory y search_content; full-access ejecuta inmediatamente todas las herramientas no deshabilitadas sin confirmaciones; auto-approve conserva la confirmación para operaciones de terminal arriesgadas.",
+        "Cada herramienta puede deshabilitarse, requerir aprobación manual o usar aprobación automática solo para operaciones seguras. Full access es un modo desatendido y solo debe usarse en workspaces de confianza; el binding y Workspace Trust de VS Code siguen aplicándose.",
         "Las tool calls pasan por awaiting confirmation, running y un único estado final: completed, rejected, cancelled o error.",
         "El host de la extensión confirma las acciones de ejecutar y rechazar antes de que la webview fije el estado visible.",
         "Las tool calls de una ronda se ejecutan secuencialmente. Las llamadas idénticas repetidas se omiten y el límite configurable de rondas detiene los bucles.",

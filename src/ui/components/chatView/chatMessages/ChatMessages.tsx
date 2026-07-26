@@ -138,51 +138,53 @@ function MarkdownMessage({ content, role }: { content: string; role: ChatMessage
   const markdown = normalizeAssistantMarkdown(content);
 
   return (
-    <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
-      rehypePlugins={[rehypeSanitize]}
-      components={{
-        code({ className, children, ...props }) {
-          const languageId = getLanguageId(className);
-          const languageLabel = getLanguageLabel(languageId);
-          const rawCode = extractText(children);
-          const code = rawCode.replace(/\n$/, "");
-          const isInline = !className && !rawCode.includes("\n");
+    <div className="markdownMessage">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        rehypePlugins={[rehypeSanitize]}
+        components={{
+          code({ className, children, ...props }) {
+            const languageId = getLanguageId(className);
+            const languageLabel = getLanguageLabel(languageId);
+            const rawCode = extractText(children);
+            const code = rawCode.replace(/\n$/, "");
+            const isInline = !className && !rawCode.includes("\n");
 
-          if (isInline) {
+            if (isInline) {
+              return (
+                <code className="inline-code" {...props}>
+                  {children}
+                </code>
+              );
+            }
+
             return (
-              <code className="inline-code" {...props}>
-                {children}
-              </code>
-            );
-          }
-
-          return (
-            <div className="code-block" data-code-text={code}>
-              <div className="code-block-header">
-                <span className="lang-label">{languageLabel}</span>
-                <span className="code-actions">
-                  <button type="button" className="code-action-btn" data-code-action="copy">
-                    {t("tools.copy")}
-                  </button>
-                  {role === "assistant" ? (
-                    <button type="button" className="code-action-btn" data-code-action="insert">
-                      {t("tools.insert")}
+              <div className="code-block" data-code-text={code}>
+                <div className="code-block-header">
+                  <span className="lang-label">{languageLabel}</span>
+                  <span className="code-actions">
+                    <button type="button" className="code-action-btn" data-code-action="copy">
+                      {t("tools.copy")}
                     </button>
-                  ) : null}
-                </span>
+                    {role === "assistant" ? (
+                      <button type="button" className="code-action-btn" data-code-action="insert">
+                        {t("tools.insert")}
+                      </button>
+                    ) : null}
+                  </span>
+                </div>
+                <RefractorCode code={code} className={className} language={languageId} codeProps={props} />
               </div>
-              <RefractorCode code={code} className={className} language={languageId} codeProps={props} />
-            </div>
-          );
-        },
-        pre({ children }) {
-          return <>{children}</>;
-        },
-      }}
-    >
-      {markdown}
-    </ReactMarkdown>
+            );
+          },
+          pre({ children }) {
+            return <>{children}</>;
+          },
+        }}
+      >
+        {markdown}
+      </ReactMarkdown>
+    </div>
   );
 }
 
@@ -305,6 +307,7 @@ function buildMessageToolCallGroups(message: ChatMessage): ToolCallGroup[] {
       requiresConfirmation: toolCall.requiresConfirmation ?? false,
       dangerLevel: toolCall.dangerLevel,
       dangerConfirmed: toolCall.dangerConfirmed,
+      dangerConfirmation: toolCall.dangerConfirmation,
     });
   });
 

@@ -8,6 +8,8 @@ export const MIN_COMMAND_TIMEOUT_MS = 1_000;
 export const MAX_COMMAND_TIMEOUT_MS = 120_000;
 export const MIN_OUTPUT_BYTES = 4 * 1024;
 export const MAX_OUTPUT_BYTES = 4 * 1024 * 1024;
+const OUTPUT_DRAIN_GRACE_MS = 500;
+const TERMINATION_GRACE_MS = 1_500;
 
 export interface WorkspaceCommandOptions {
   cwd?: string;
@@ -85,12 +87,18 @@ export async function executeWorkspaceCommand(command: string, options: Workspac
     const stderr = new BoundedOutput(maxOutputBytes);
     let settled = false;
     let timedOut = false;
+    let exitCode: number | null = null;
+    let exitSignal: NodeJS.Signals | null = null;
+    let drainTimer: ReturnType<typeof setTimeout> | undefined;
+    let terminationTimer: ReturnType<typeof setTimeout> | undefined;
 
     child.stdout?.on("data", (chunk: Buffer) => stdout.append(chunk));
     child.stderr?.on("data", (chunk: Buffer) => stderr.append(chunk));
 
     const cleanup = () => {
       clearTimeout(timeout);
+      if (drainTimer) {clearTimeout(drainTimer);}
+      if (terminationTimer) {clearTimeout(terminationTimer);}
       options.signal?.removeEventListener("abort", onAbort);
     };
     const finish = (callback: () => void) => {
@@ -99,32 +107,54 @@ export async function executeWorkspaceCommand(command: string, options: Workspac
       cleanup();
       callback();
     };
+    const resolveResult = () => finish(() => resolve({
+      kind: "command_result",
+      command,
+      cwd: environment.cwd,
+      shell: environment.shell,
+      stdout: stdout.toString(),
+      stderr: stderr.toString(),
+      exitCode,
+      signal: exitSignal,
+      timedOut,
+      cancelled: false,
+      durationMs: Math.max(0, Math.round(performance.now() - startedAt)),
+      truncated: { stdout: stdout.truncated, stderr: stderr.truncated },
+    }));
+    const terminateAndBoundSettlement = () => {
+      terminateProcessTree(child);
+      if (terminationTimer) {clearTimeout(terminationTimer);}
+      terminationTimer = setTimeout(() => {
+        child.stdout?.destroy();
+        child.stderr?.destroy();
+        resolveResult();
+      }, TERMINATION_GRACE_MS);
+    };
     const onAbort = () => {
       terminateProcessTree(child);
       finish(() => reject(createAbortError()));
     };
     const timeout = setTimeout(() => {
       timedOut = true;
-      terminateProcessTree(child);
+      terminateAndBoundSettlement();
     }, timeoutMs);
 
     options.signal?.addEventListener("abort", onAbort, { once: true });
     child.once("error", (error) => finish(() => reject(error)));
-    child.once("close", (exitCode, exitSignal) => {
-      finish(() => resolve({
-        kind: "command_result",
-        command,
-        cwd: environment.cwd,
-        shell: environment.shell,
-        stdout: stdout.toString(),
-        stderr: stderr.toString(),
-        exitCode,
-        signal: exitSignal,
-        timedOut,
-        cancelled: false,
-        durationMs: Math.max(0, Math.round(performance.now() - startedAt)),
-        truncated: { stdout: stdout.truncated, stderr: stderr.truncated },
-      }));
+    child.once("exit", (code, signal) => {
+      exitCode = code;
+      exitSignal = signal;
+      drainTimer = setTimeout(() => {
+        // A detached descendant can inherit stdout/stderr after the shell exits,
+        // preventing Node's "close" event forever. This tool never permits a
+        // background process to outlive its finite command invocation.
+        terminateAndBoundSettlement();
+      }, OUTPUT_DRAIN_GRACE_MS);
+    });
+    child.once("close", (code, signal) => {
+      exitCode = code;
+      exitSignal = signal;
+      resolveResult();
     });
     if (options.signal?.aborted) {onAbort();}
   });
@@ -179,10 +209,35 @@ function clampInteger(value: number | undefined, min: number, max: number, fallb
 function terminateProcessTree(child: ChildProcess): void {
   if (!child.pid) {return;}
   if (process.platform === "win32") {
-    spawnSync("taskkill", ["/pid", String(child.pid), "/T", "/F"], { windowsHide: true, stdio: "ignore" });
+    const pid = child.pid;
+    const killed = spawnSync("taskkill", ["/pid", String(pid), "/T", "/F"], { windowsHide: true, stdio: "ignore" });
+    if (killed.status !== 0) {
+      terminateOrphanedWindowsDescendants(pid);
+    }
     return;
   }
   try { process.kill(-child.pid, "SIGTERM"); } catch { child.kill("SIGTERM"); }
+}
+
+function terminateOrphanedWindowsDescendants(parentPid: number): void {
+  const script = [
+    `$parents = @(${parentPid})`,
+    "$descendants = @()",
+    "$all = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue)",
+    "do {",
+    "  $children = @($all | Where-Object { $parents -contains [int]$_.ParentProcessId -and $descendants -notcontains [int]$_.ProcessId })",
+    "  $newIds = @($children | ForEach-Object { [int]$_.ProcessId })",
+    "  $descendants += $newIds",
+    "  $parents = $newIds",
+    "} while ($parents.Count -gt 0)",
+    "$descendants | Sort-Object -Descending | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }",
+  ].join("; ");
+  const cleanupProcess = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], {
+    windowsHide: true,
+    stdio: "ignore",
+    detached: true,
+  });
+  cleanupProcess.unref();
 }
 
 function createAbortError(): Error {

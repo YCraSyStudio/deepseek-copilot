@@ -63,7 +63,7 @@ export function buildChatBody(request: Partial<ChatRequest>, config: AppConfig):
   return body;
 }
 
-export async function chatCompletion(request: ChatRequest, apiKey: string, baseUrl: string): Promise<ChatResponse> {
+export async function chatCompletion(request: ChatRequest, apiKey: string, baseUrl: string, signal?: AbortSignal): Promise<ChatResponse> {
   const url = buildChatUrl(baseUrl);
   const response = await deepseekFetch({
     pathOrUrl: url,
@@ -72,6 +72,7 @@ export async function chatCompletion(request: ChatRequest, apiKey: string, baseU
     requestInit: {
       method: "POST",
       body: JSON.stringify({ ...request, stream: false }),
+      signal,
     },
   });
   return parseChatCompletionResponse(await response.json());

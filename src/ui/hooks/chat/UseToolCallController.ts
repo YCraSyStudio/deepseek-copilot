@@ -1,17 +1,18 @@
 import { useCallback, useMemo, useRef, useState } from "react";
-import type { ToolCall } from "@/adapters";
+import type { GenerationSnapshot, StoredToolCall, ToolCall } from "@/adapters";
 import type { VsCodeApi } from "@webview/VsCodeApi";
 import type { ChatMessage, ToolCallAction, ToolCallActionOptions, ToolCallGroup, ToolCallState } from "../../views/chatView/ChatViewTypes";
 import type { MessageDispatcher } from "../../views/chatView/hooks";
 
 interface ToolCallControllerOptions {
+  conversationId?: string;
   messages: ChatMessage[];
   isProcessing: boolean;
   vscode: VsCodeApi | null;
   actionsDisabled?: boolean;
 }
 
-export function useToolCallController({ messages, isProcessing, vscode, actionsDisabled = false }: ToolCallControllerOptions) {
+export function useToolCallController({ conversationId, messages, isProcessing, vscode, actionsDisabled = false }: ToolCallControllerOptions) {
   const [toolCallGroups, setToolCallGroups] = useState<ToolCallGroup[]>([]);
   const [toolCallLimit, setToolCallLimit] = useState<{ completedRounds: number; batchSize: number } | null>(null);
   const generationIdRef = useRef<string | undefined>(undefined);
@@ -51,6 +52,7 @@ export function useToolCallController({ messages, isProcessing, vscode, actionsD
                   status: data.status,
                   result: data.result,
                   requiresConfirmation: false,
+                  dangerConfirmation: undefined,
                   rejected: data.rejected,
                 }
               : toolCall,
@@ -64,6 +66,17 @@ export function useToolCallController({ messages, isProcessing, vscode, actionsD
     }, []),
 
     onToolCallLimitReached: useCallback((data) => setToolCallLimit(data), []),
+
+    onGenerationSnapshot: useCallback((message) => {
+      const generation = message.generations.find((candidate) => candidate.conversationId === conversationId);
+      if (!generation) {
+        return;
+      }
+      generationIdRef.current = generation.generationId;
+      if (generation.toolCalls.length > 0) {
+        setToolCallGroups(createSnapshotToolCallGroups(generation));
+      }
+    }, [conversationId]),
 
     onStreamDone: useCallback((info) => {
       if (info.cancelled) {
@@ -135,6 +148,33 @@ export function useToolCallController({ messages, isProcessing, vscode, actionsD
   };
 }
 
+export function createSnapshotToolCallGroups(
+  generation: Pick<GenerationSnapshot, "toolCalls">,
+): ToolCallGroup[] {
+  const groups = new Map<number, StoredToolCall[]>();
+  for (const toolCall of generation.toolCalls) {
+    const round = toolCall.round ?? 1;
+    const existing = groups.get(round);
+    if (existing) {
+      existing.push(toolCall);
+    } else {
+      groups.set(round, [toolCall]);
+    }
+  }
+
+  return [...groups.entries()]
+    .sort(([left], [right]) => left - right)
+    .map(([round, toolCalls]) => ({
+      id: `tool-round-${round}`,
+      round,
+      expanded: true,
+      toolCalls: toolCalls.map((toolCall) => ({
+        ...toolCall,
+        round,
+      })),
+    }));
+}
+
 interface CreateToolCallGroupOptions {
   toolCalls: ToolCall[];
   round: number;
@@ -187,13 +227,22 @@ function mergeConfirmationGroup(groups: ToolCallGroup[], newGroup: ToolCallGroup
   return updated;
 }
 
-function getVisibleActiveGroups(messages: ChatMessage[], activeGroups: ToolCallGroup[]): ToolCallGroup[] {
-  const storedToolCallIds = new Set(messages.flatMap((message) => message.toolCalls?.map((toolCall) => toolCall.toolCallId) ?? []));
+export function getVisibleActiveGroups(messages: ChatMessage[], activeGroups: ToolCallGroup[]): ToolCallGroup[] {
+  const terminalStoredToolCallIds = new Set(messages.flatMap((message) =>
+    message.toolCalls
+      ?.filter((toolCall) =>
+        toolCall.status === "completed" ||
+        toolCall.status === "error" ||
+        toolCall.status === "rejected" ||
+        toolCall.status === "cancelled"
+      )
+      .map((toolCall) => toolCall.toolCallId) ?? []
+  ));
 
   return activeGroups
     .map((group) => ({
       ...group,
-      toolCalls: group.toolCalls.filter((toolCall) => !storedToolCallIds.has(toolCall.toolCallId)),
+      toolCalls: group.toolCalls.filter((toolCall) => !terminalStoredToolCallIds.has(toolCall.toolCallId)),
     }))
     .filter((group) => group.toolCalls.length > 0);
 }

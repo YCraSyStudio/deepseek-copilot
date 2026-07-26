@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { randomUUID } from "node:crypto";
-import { PERMISSION_MODE_ALLOWED_TOOLS } from "@/adapters";
+import { getDefaultToolExecutionMode, PERMISSION_MODE_ALLOWED_TOOLS } from "@/adapters";
 import { createDeepSeekProvider } from "@/deepseekApi/ProviderFactory";
 import { appendProjectInstructionsToSystemPrompt, loadProjectInstructions } from "@/vscodeApi/configuration/ProjectInstructions";
 import { GenerationCheckpointStore, HistoryManager, SettingsManager, SecretsManager } from "@/vscodeApi/storage";
@@ -22,6 +22,7 @@ import { buildFileContext } from "@/core/context/FileReferences";
 import { ContextCompactor } from "@/core/context/ContextCompaction";
 import { getContextBudget, requestFitsContext } from "@/core/context/ContextBudget";
 import { ConversationState } from "@/core/chat/ConversationState";
+import { isDangerConfirmationData } from "@/core/chat/ConversationValidation";
 import { GenerationCoordinator, type GenerationTask } from "@/core/chat/GenerationCoordinator";
 import { createProviderTranscript, type ProviderTranscript, type StoredConversation } from "@/core/chat/ProviderTranscript";
 import { PartialStreamError } from "@/core/errors/PartialStreamError";
@@ -377,7 +378,13 @@ export class ChatHandler {
             providerTranscript: completed ? checkpoint.providerTranscript : undefined,
             toolCalls: checkpoint.toolCalls.map((tool) =>
               !completed && (tool.status === "pending" || tool.status === "awaiting_confirmation" || tool.status === "running")
-                ? { ...tool, status: "cancelled", result: tool.result ?? "Interrupted because VS Code closed.", requiresConfirmation: false }
+                ? {
+                    ...tool,
+                    status: "cancelled",
+                    result: tool.result ?? "Interrupted because VS Code closed.",
+                    requiresConfirmation: false,
+                    dangerConfirmation: undefined,
+                  }
                 : tool,
             ),
           }));
@@ -576,7 +583,11 @@ export class ChatHandler {
 
     try {
       const allTools = this.toolRegistry.getDefinitionsForAPI();
-      const toolExecutionModes = getEffectiveToolExecutionModes(initialPermissionSnapshot.toolExecutionModes, allTools);
+      const toolExecutionModes = getEffectiveToolExecutionModes(
+        initialPermissionSnapshot.toolExecutionModes,
+        allTools,
+        initialPermissionSnapshot.permissionMode,
+      );
       const toolProviderConfig: AppConfig = {
         ...providerConfig,
         thinkingMode: true,
@@ -586,7 +597,13 @@ export class ChatHandler {
         ? allTools.filter((tool) => tool.function.name !== "run_terminal_command" || workspaceSnapshot.binding.capabilities.terminal)
         : [];
       const tools = getToolsForPermissionMode(initialPermissionSnapshot.permissionMode, workspaceTools).filter((tool) => toolExecutionModes[tool.function.name] !== "disabled");
-      appendToolAvailabilityContext(messages, initialPermissionSnapshot.permissionMode, tools, toolExecutionModes);
+      appendToolAvailabilityContext(
+        messages,
+        initialPermissionSnapshot.permissionMode,
+        tools,
+        toolExecutionModes,
+        workspaceSnapshot,
+      );
       messages = await this.fitRequestContext({
         messages,
         payload,
@@ -725,6 +742,15 @@ export class ChatHandler {
   ): Promise<void> {
     const conversation = await this.historyManager.getById(task.conversationId) ??
       (this.conversationState.getActiveConversationId() === task.conversationId ? this.conversationState.getConversation() : undefined);
+    if (signal.aborted) {
+      this.post({
+        type: "streamDone",
+        generationId,
+        conversationId: task.conversationId,
+        cancelled: true,
+      });
+      return;
+    }
     try {
       const binding = conversation?.workspaceBinding ?? createLegacyWorkspaceBinding(conversation?.workspaceUri ?? "workspace:unknown");
       const workspaceSnapshot = captureWorkspaceRunSnapshot(binding);
@@ -862,6 +888,7 @@ ${payload.text}`
         options.permissionMode,
         options.enabledTools,
         options.toolExecutionModes,
+        options.workspaceSnapshot,
       );
     }
 
@@ -886,6 +913,7 @@ ${payload.text}`
         options.permissionMode,
         options.enabledTools,
         options.toolExecutionModes,
+        options.workspaceSnapshot,
       );
     }
 
@@ -947,7 +975,7 @@ ${payload.text}`
         this.postCommandTurn(
           webviewView,
           payload.text,
-          `Unknown command: /${command.name}\n\nAvailable commands: /status, /context, /review, /goal [text], /tools, /mode chat|read-only|workspace|full-access|auto-approve, /auto-context on|off, /clear-context, /summarize.`,
+          `Unknown command: /${command.name}\n\nAvailable commands: /status, /context, /review, /goal [text], /tools, /mode chat|read-only|full-access|auto-approve, /auto-context on|off, /clear-context, /summarize.`,
         );
         return true;
     }
@@ -971,7 +999,7 @@ ${payload.text}`
   private buildToolsMessage(config: AppConfig): string {
     const allTools = this.toolRegistry.getDefinitionsForAPI();
     const enabledTools = new Set((config.thinkingMode ? this.getEnabledTools(config) : []).map((tool) => tool.function.name));
-    const toolExecutionModes = getEffectiveToolExecutionModes(config.toolExecutionModes, allTools);
+    const toolExecutionModes = getEffectiveToolExecutionModes(config.toolExecutionModes, allTools, config.permissionMode);
     const lines = allTools.map((tool) => {
       const name = tool.function.name;
       const availability = config.thinkingMode ? (enabledTools.has(name) ? toolExecutionModes[name] : "unavailable") : "unavailable (thinking mode required)";
@@ -984,7 +1012,7 @@ ${payload.text}`
   private async handleModeCommand(args: string[], rawText: string, webviewView: vscode.WebviewView): Promise<void> {
     const mode = normalizePermissionMode(args[0]);
     if (!isPermissionMode(mode)) {
-      this.postCommandTurn(webviewView, rawText, "Usage: /mode chat|read|read-only|workspace|full|full-access|auto-approve");
+      this.postCommandTurn(webviewView, rawText, "Usage: /mode chat|read|read-only|full|full-access|auto-approve");
       return;
     }
 
@@ -1074,7 +1102,7 @@ ${payload.text}`
 
   private getEnabledTools(config: AppConfig): ToolDefinition[] {
     const allTools = this.toolRegistry.getDefinitionsForAPI();
-    const toolExecutionModes = getEffectiveToolExecutionModes(config.toolExecutionModes, allTools);
+    const toolExecutionModes = getEffectiveToolExecutionModes(config.toolExecutionModes, allTools, config.permissionMode);
     return getToolsForPermissionMode(config.permissionMode, allTools).filter((tool) => toolExecutionModes[tool.function.name] !== "disabled");
   }
 
@@ -1136,12 +1164,15 @@ ${payload.text}`
   }
 
   private cancelGeneration(generationId: string): void {
-    const record = this.runs.get(generationId);
-    if (!record) {
+    const active = this.coordinator.getActive(generationId);
+    if (!active) {
       return;
     }
-    record.status = "interrupted";
-    record.session.cancel();
+    const record = this.runs.get(generationId);
+    if (record) {
+      record.status = "interrupted";
+      record.session.cancel();
+    }
     this.coordinator.interrupt(generationId);
   }
 
@@ -1210,6 +1241,9 @@ ${payload.text}`
       void this.checkpointRun(record, true);
     } else if (type === "toolCallConfirmationRequired") {
       const toolCalls = Array.isArray(message.toolCalls) ? message.toolCalls as Array<{ id: string; function: { name: string; arguments: string } }> : [];
+      const dangerConfirmation = isDangerConfirmationData(message.dangerConfirmation)
+        ? structuredClone(message.dangerConfirmation)
+        : undefined;
       for (const toolCall of toolCalls) {
         upsertStoredToolCall(record.toolCalls, {
           toolCallId: toolCall.id,
@@ -1217,6 +1251,8 @@ ${payload.text}`
           arguments: toolCall.function.arguments,
           status: "awaiting_confirmation",
           requiresConfirmation: true,
+          dangerLevel: dangerConfirmation?.dangerLevel,
+          dangerConfirmation,
           round: typeof message.round === "number" ? message.round : undefined,
         });
       }
@@ -1242,6 +1278,7 @@ ${payload.text}`
         existing.result = typeof message.result === "string" ? message.result : "";
         existing.isError = message.isError === true;
         existing.requiresConfirmation = false;
+        existing.dangerConfirmation = undefined;
       }
       record.status = "running_tool";
       void this.checkpointRun(record, true);
@@ -1250,6 +1287,7 @@ ${payload.text}`
       if (existing && (message.status === "running" || message.status === "rejected")) {
         existing.status = message.status;
         existing.requiresConfirmation = false;
+        existing.dangerConfirmation = undefined;
       }
       record.status = "running_tool";
       void this.checkpointRun(record, true);
@@ -1458,8 +1496,13 @@ function getErrorMessage(err: unknown): string {
   return err instanceof Error ? err.message : "Unexpected error while connecting to the API";
 }
 
-function getEffectiveToolExecutionModes(savedModes: ToolExecutionModes | undefined, tools: ToolDefinition[]): ToolExecutionModes {
-  return Object.fromEntries(tools.map((tool) => [tool.function.name, savedModes?.[tool.function.name] ?? "enabled"]));
+function getEffectiveToolExecutionModes(
+  savedModes: ToolExecutionModes | undefined,
+  tools: ToolDefinition[],
+  permissionMode: PermissionMode,
+): ToolExecutionModes {
+  const defaultMode = getDefaultToolExecutionMode(permissionMode);
+  return Object.fromEntries(tools.map((tool) => [tool.function.name, savedModes?.[tool.function.name] ?? defaultMode]));
 }
 
 function getToolsForPermissionMode(permissionMode: PermissionMode, tools: ToolDefinition[]): ToolDefinition[] {
@@ -1471,14 +1514,20 @@ function getToolsForPermissionMode(permissionMode: PermissionMode, tools: ToolDe
   return tools.filter((tool) => allowedToolNames.includes(tool.function.name));
 }
 
-function appendToolAvailabilityContext(messages: ChatMessage[], permissionMode: PermissionMode, tools: ToolDefinition[], executionModes: ToolExecutionModes): void {
+function appendToolAvailabilityContext(
+  messages: ChatMessage[],
+  permissionMode: PermissionMode,
+  tools: ToolDefinition[],
+  executionModes: ToolExecutionModes,
+  workspaceSnapshot?: WorkspaceRunSnapshot,
+): void {
   const systemMessage = messages.find((message) => message.role === "system");
   if (!systemMessage) {
     return;
   }
 
   const availableToolNames = tools.map((tool) => tool.function.name);
-  const delegatedTools = permissionMode === "auto-approve"
+  const delegatedTools = permissionMode === "auto-approve" || permissionMode === "full-access"
     ? tools.filter((tool) => executionModes[tool.function.name] !== "disabled").map((tool) => tool.function.name)
     : [];
   const capabilityNotice =
@@ -1489,9 +1538,23 @@ function appendToolAvailabilityContext(messages: ChatMessage[], permissionMode: 
         : "Use only the tools listed below and do not imply that unavailable capabilities can be used.";
 
   const delegationNotice = delegatedTools.length > 0
-    ? `\n- Auto-approved tools: ${delegatedTools.join(", ")}. The user explicitly delegated these approvals. Each call executes immediately, so call them only when necessary, directly aligned with the request, and with the narrowest safe arguments.`
+    ? `\n- Unattended tools: ${delegatedTools.join(", ")}. The user explicitly delegated these approvals. Each call executes immediately, so call them only when necessary, directly aligned with the request, and with the narrowest safe arguments.`
     : "";
-  systemMessage.content = `${systemMessage.content ?? ""}\n\nRuntime permissions:\n- Permission mode: ${permissionMode}\n- Available tools: ${availableToolNames.length > 0 ? availableToolNames.join(", ") : "none"}${delegationNotice}\n- ${capabilityNotice}`;
+  const terminalNotice = availableToolNames.includes("run_terminal_command")
+    ? buildTerminalRuntimeNotice(workspaceSnapshot)
+    : "";
+  systemMessage.content = `${systemMessage.content ?? ""}\n\nRuntime permissions:\n- Permission mode: ${permissionMode}\n- Available tools: ${availableToolNames.length > 0 ? availableToolNames.join(", ") : "none"}${delegationNotice}\n- ${capabilityNotice}${terminalNotice}`;
+}
+
+function buildTerminalRuntimeNotice(workspaceSnapshot?: WorkspaceRunSnapshot): string {
+  const shell = process.platform === "win32"
+    ? (process.env.ComSpec ?? "cmd.exe")
+    : (process.env.SHELL ?? "/bin/sh");
+  const aliases = workspaceSnapshot?.folders.map((folder) => folder.alias) ?? [];
+  const cwdNotice = aliases.length > 1
+    ? `Valid cwd roots: ${aliases.join(", ")}.`
+    : "cwd may be omitted for the single workspace root.";
+  return `\n- Terminal shell: ${shell}. The command is passed to this shell directly; use its syntax and do not add a redundant shell wrapper. ${cwdNotice}`;
 }
 
 function parseSlashCommand(text: string): ParsedSlashCommand | null {
@@ -1508,7 +1571,7 @@ function parseSlashCommand(text: string): ParsedSlashCommand | null {
 }
 
 function isPermissionMode(value: unknown): value is PermissionMode {
-  return value === "chat" || value === "read-only" || value === "workspace" || value === "full-access" || value === "auto-approve";
+  return value === "chat" || value === "read-only" || value === "full-access" || value === "auto-approve";
 }
 
 function normalizePermissionMode(value: string | undefined): string | undefined {

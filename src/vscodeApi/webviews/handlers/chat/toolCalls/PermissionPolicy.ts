@@ -1,4 +1,4 @@
-import { PERMISSION_MODE_ALLOWED_TOOLS } from "@/adapters";
+import { getDefaultToolExecutionMode, PERMISSION_MODE_ALLOWED_TOOLS } from "@/adapters";
 import type { PermissionSnapshot, ToolDefinition, ToolExecutionMode } from "@/adapters";
 
 export function getRunnableToolsForPermissionSnapshot(
@@ -13,5 +13,5 @@ export function getRunnableToolsForPermissionSnapshot(
 }
 
 export function getToolModeForPermissionSnapshot(snapshot: PermissionSnapshot, toolName: string): ToolExecutionMode {
-  return snapshot.toolExecutionModes[toolName] ?? "enabled";
+  return snapshot.toolExecutionModes[toolName] ?? getDefaultToolExecutionMode(snapshot.permissionMode);
 }

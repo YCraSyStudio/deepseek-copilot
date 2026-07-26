@@ -13,6 +13,7 @@ export interface StoredToolCall {
   requiresConfirmation?: boolean;
   dangerLevel?: string;
   dangerConfirmed?: boolean;
+  dangerConfirmation?: DangerConfirmationData;
   status: "pending" | "awaiting_confirmation" | "running" | "completed" | "rejected" | "cancelled" | "error";
 }
 

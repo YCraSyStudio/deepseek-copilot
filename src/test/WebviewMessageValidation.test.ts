@@ -45,6 +45,7 @@ suite("webview message validation", () => {
       { type: "sendMessage", text: "hello", modelId: "model", reasoning: "invalid" },
       { type: "saveConfig", config: { permissionMode: "read-only" } },
       { type: "saveConfig", requestId: "bad-1", config: { permissionMode: "root" } },
+      { type: "saveConfig", requestId: "bad-workspace", config: { permissionMode: "workspace" } },
       { type: "saveConfig", requestId: "bad-2", config: { temperature: Number.NaN } },
       { type: "saveConfig", requestId: "bad-3", config: { maxTokens: 384_001 } },
       { type: "saveConfig", requestId: "bad-4", config: { interfaceLanguage: "fr" } },

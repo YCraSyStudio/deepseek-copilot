@@ -211,6 +211,7 @@ export class ToolCallSession {
       executedToolCalls,
       signal: options.signal,
       autoApproveMode: this.activePermissionSnapshot?.permissionMode === "auto-approve",
+      fullAccessMode: this.activePermissionSnapshot?.permissionMode === "full-access",
       isWorkspaceTrusted: options.isWorkspaceTrusted,
       getToolMode: (toolName: string) => getToolModeForPermissionSnapshot(this.activePermissionSnapshot ?? options.permissionSnapshot, toolName),
       getCurrentRound: () => this.currentRound,
@@ -247,7 +248,9 @@ export class ToolCallSession {
     options.webviewView.webview.postMessage({ type: "toolCallStarted", toolCalls, round });
 
     const snapshot = this.activePermissionSnapshot ?? options.permissionSnapshot;
-    const manualToolCalls = snapshot.permissionMode === "auto-approve" ? [] : toolCalls.filter((toolCall) => getToolModeForPermissionSnapshot(snapshot, toolCall.function.name) === "enabled");
+    const manualToolCalls = snapshot.permissionMode === "auto-approve" || snapshot.permissionMode === "full-access"
+      ? []
+      : toolCalls.filter((toolCall) => getToolModeForPermissionSnapshot(snapshot, toolCall.function.name) === "enabled");
     if (manualToolCalls.length === 0) {
       return;
     }
@@ -356,5 +359,6 @@ function getErrorMessage(err: unknown): string {
 
 function hasAutoApprovedTools(options: ToolCallRunOptions, tools: ToolDefinition[]): boolean {
   return options.permissionSnapshot.permissionMode === "auto-approve" ||
+    options.permissionSnapshot.permissionMode === "full-access" ||
     tools.some((tool) => getToolModeForPermissionSnapshot(options.permissionSnapshot, tool.function.name) === "auto_approve");
 }

@@ -63,6 +63,18 @@
   }
 }
 
+.markdownMessage {
+  min-width: 0;
+
+  > :first-child {
+    margin-top: 0;
+  }
+
+  > :last-child {
+    margin-bottom: 0;
+  }
+}
+
 .reasoning-content {
   color: var(--text-primary);
   white-space: pre-wrap;

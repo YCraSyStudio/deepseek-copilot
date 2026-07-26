@@ -49,6 +49,25 @@ suite("shell execution", () => {
       await rm(sandbox, { recursive: true, force: true });
     }
   });
+
+  test("does not hang when an exited shell leaves inherited output handles open", async function () {
+    this.timeout(10_000);
+    setToolWorkspaceHost(createUnusedWorkspaceHost(process.cwd()));
+    const sandbox = await mkdtemp(path.join(tmpdir(), "deepseek-copilot-output-test-"));
+    const marker = path.join(sandbox, "orphan-survived.txt");
+    const fixture = path.resolve("src/test/fixtures/SpawnInheritedOutputChild.mjs");
+    const startedAt = Date.now();
+
+    try {
+      const result = await executeWorkspaceCommand(`"${process.execPath}" "${fixture}" "${marker}"`, { timeoutMs: 5_000 });
+      assert.ok(Date.now() - startedAt < 4_000, "inherited output handles should not keep the command running");
+      await new Promise((resolve) => setTimeout(resolve, 5_500));
+      assert.strictEqual(existsSync(marker), false, "an inherited-output descendant survived command settlement");
+      assert.strictEqual(result.timedOut, false);
+    } finally {
+      await rm(sandbox, { recursive: true, force: true });
+    }
+  });
 });
 
 function createUnusedWorkspaceHost(rootPath: string): ToolWorkspaceHost {

@@ -98,6 +98,52 @@ suite("auto approve permission mode", () => {
   });
 });
 
+suite("full access permission mode", () => {
+  test("executes terminal commands directly without requesting confirmation", async () => {
+    const toolCall = createToolCall("run_terminal_command", { command: "custom-build-tool --run" });
+    let normalExecutions = 0;
+    let forcedExecutions = 0;
+    let confirmationRequests = 0;
+    const toolExecutor = {
+      execute: async () => {
+        normalExecutions += 1;
+        throw new Error("full access must not run the confirmation-producing handler");
+      },
+      executeForced: async () => {
+        forcedExecutions += 1;
+        return { toolCallId: toolCall.id, toolName: toolCall.function.name, result: "completed", isError: false };
+      },
+    } as unknown as ToolExecutor;
+    const context = createContext(
+      toolExecutor,
+      async () => {
+        confirmationRequests += 1;
+        return { confirmed: false };
+      },
+      { autoApproveMode: false, fullAccessMode: true },
+    );
+
+    assert.strictEqual(await executeToolCall(toolCall, context), "completed");
+    assert.strictEqual(normalExecutions, 0);
+    assert.strictEqual(forcedExecutions, 1);
+    assert.strictEqual(confirmationRequests, 0);
+  });
+
+  test("continues to honor an explicitly disabled tool", async () => {
+    const toolCall = createToolCall("run_terminal_command", { command: "dir" });
+    let executions = 0;
+    const toolExecutor = {
+      execute: async () => { executions += 1; throw new Error("unexpected execution"); },
+      executeForced: async () => { executions += 1; throw new Error("unexpected execution"); },
+    } as unknown as ToolExecutor;
+    const context = createContext(toolExecutor, undefined, { autoApproveMode: false, fullAccessMode: true });
+    context.getToolMode = () => "disabled";
+
+    assert.strictEqual(await executeToolCall(toolCall, context), "Tool call rejected because the tool is disabled");
+    assert.strictEqual(executions, 0);
+  });
+});
+
 function createToolCall(name: string, args: Record<string, unknown>): ToolCall {
   return { id: `call-${name}`, type: "function", function: { name, arguments: JSON.stringify(args) } };
 }
@@ -105,12 +151,16 @@ function createToolCall(name: string, args: Record<string, unknown>): ToolCall {
 function createContext(
   toolExecutor: ToolExecutor,
   requestDangerConfirmation: ToolExecutionContext["requestDangerConfirmation"] = async () => ({ confirmed: false }),
+  modes: Pick<ToolExecutionContext, "autoApproveMode" | "fullAccessMode"> = {
+    autoApproveMode: true,
+    fullAccessMode: false,
+  },
 ): ToolExecutionContext {
   return {
     toolExecutor,
     webviewView: { webview: { postMessage: () => Promise.resolve(true) } } as unknown as vscode.WebviewView,
     executedToolCalls: new Map<string, StoredExecution>(),
-    autoApproveMode: true,
+    ...modes,
     isWorkspaceTrusted: () => true,
     getToolMode: () => "enabled",
     getCurrentRound: () => 1,

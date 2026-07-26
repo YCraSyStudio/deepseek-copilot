@@ -12,7 +12,9 @@
 
 The global `auto-approve` permission mode is an explicit, warned delegation for non-disabled tools. Non-terminal tools may use their forced handlers directly because their schemas and workspace validation remain authoritative. Terminal commands always pass through danger analysis first.
 
-Terminal commands are not protected by an OS sandbox. In every permission mode, an unknown, mutating, dynamic, encoded, chained, redirected, or potentially out-of-workspace command requires explicit confirmation.
+`full-access` is the unattended permission mode. Every non-disabled tool, including terminal commands, executes immediately without a confirmation request. Workspace binding, tool path validation, disabled tools, cancellation, and VS Code Workspace Trust remain enforced. The removed legacy `workspace` mode migrates to `full-access`.
+
+Terminal commands are not protected by an OS sandbox. Outside `full-access`, an unknown, mutating, dynamic, encoded, chained, redirected, or potentially out-of-workspace command requires explicit confirmation.
 
 ## Terminal read-only model
 
@@ -29,7 +31,7 @@ Every flag not explicitly supported requires confirmation. Path operands must re
 
 ## Expected UX and delegated trust
 
-When there is risk:
+When there is risk and the permission mode is not `full-access`:
 
 1. the backend sends `toolCallConfirmationRequired`;
 2. the UI shows the exact command, resolved shell, working directory, arguments, and reason;

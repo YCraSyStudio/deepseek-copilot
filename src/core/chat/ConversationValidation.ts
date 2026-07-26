@@ -1,4 +1,4 @@
-import type { AssistantTimelineEvent, ConversationMessage, StoredToolCall, WorkspaceBinding } from "@/adapters";
+import type { AssistantTimelineEvent, ConversationMessage, DangerConfirmationData, StoredToolCall, WorkspaceBinding } from "@/adapters";
 import type { StoredConversation } from "./ProviderTranscript";
 
 export function isConversation(value: unknown): value is StoredConversation {
@@ -100,8 +100,20 @@ function isStoredToolCall(value: unknown): value is StoredToolCall {
     (value.requiresConfirmation === undefined || typeof value.requiresConfirmation === "boolean") &&
     (value.dangerLevel === undefined || ["safe", "caution", "dangerous", "destructive"].includes(value.dangerLevel as string)) &&
     (value.dangerConfirmed === undefined || typeof value.dangerConfirmed === "boolean") &&
+    (value.dangerConfirmation === undefined || isDangerConfirmationData(value.dangerConfirmation)) &&
     ["pending", "awaiting_confirmation", "running", "completed", "rejected", "cancelled", "error"].includes(value.status as string)
   );
+}
+
+export function isDangerConfirmationData(value: unknown): value is DangerConfirmationData {
+  if (!isRecord(value) || value.requiresConfirmation !== true ||
+    !["safe", "caution", "dangerous", "destructive"].includes(value.dangerLevel as string) ||
+    !isBoundedString(value.warningMessage, 32_768)) {
+    return false;
+  }
+  return ["command", "filePath", "cwd", "shell", "beforeHash"].every((key) =>
+    value[key] === undefined || isBoundedString(value[key], 5 * 1024 * 1024)
+  ) && (value.canTrustForSession === undefined || typeof value.canTrustForSession === "boolean");
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

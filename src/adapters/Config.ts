@@ -1,16 +1,21 @@
 export type ToolExecutionMode = "disabled" | "enabled" | "auto_approve";
 export type ToolExecutionModes = Record<string, ToolExecutionMode>;
-export type PermissionMode = "chat" | "read-only" | "workspace" | "full-access" | "auto-approve";
+export type PermissionMode = "chat" | "read-only" | "full-access" | "auto-approve";
 export type InterfaceLanguage = "auto" | "en" | "es" | "zh";
 export type PermissionModeAllowedTools = readonly string[] | null;
 
 export const PERMISSION_MODE_ALLOWED_TOOLS: Record<PermissionMode, PermissionModeAllowedTools> = {
   chat: [],
   "read-only": ["read_file", "list_directory", "search_content"],
-  workspace: ["read_file", "list_directory", "search_content", "create_file", "edit_file", "apply_patch"],
   "full-access": null,
   "auto-approve": null,
 };
+
+export function getDefaultToolExecutionMode(permissionMode: PermissionMode): ToolExecutionMode {
+  return permissionMode === "full-access" || permissionMode === "auto-approve"
+    ? "auto_approve"
+    : "enabled";
+}
 
 export interface AppConfig {
   interfaceLanguage: InterfaceLanguage;

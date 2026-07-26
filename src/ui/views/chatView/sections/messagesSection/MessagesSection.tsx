@@ -42,6 +42,7 @@ function MessagesSection({
   });
 
   const tools = useToolCallController({
+    conversationId,
     messages: chat.messages,
     isProcessing: chat.isProcessing,
     vscode,
@@ -60,6 +61,7 @@ function MessagesSection({
       setIsCompacting(message.generations.some(
         (generation) => generation.conversationId === conversationId && generation.status === "compacting",
       ));
+      dispatcher.onGenerationSnapshot?.(message);
     },
     onStreamDone: (info) => {
       setIsCompacting(false);
@@ -104,7 +106,7 @@ function MessagesSection({
 
   const emptyStateVisible = messages.length === 0 && !isProcessing;
   return (
-    <>
+    <div className="messagesSection">
       <div className="msgList" ref={listRef} onClick={handleCodeAction} onScroll={handleScroll} aria-busy={isProcessing}>
         {emptyStateVisible ? (
           <ChatEmptyState />
@@ -135,7 +137,6 @@ function MessagesSection({
       {showJumpToLatest ? (
         <button className="jumpToLatest" type="button" onClick={jumpToLatest} aria-label={t("chat.jumpToLatest")}>
           <span className="codicon codicon-arrow-down" aria-hidden="true" />
-          {t("chat.latest")}
         </button>
       ) : null}
       <span className="streamStatus srOnly" role="status" aria-live="polite">
@@ -150,7 +151,7 @@ function MessagesSection({
         disabled={permissionUpdatePending}
       />
       <ToolCallLimitModal limit={tools.toolCallLimit} onDecision={tools.handleLimitDecision} disabled={permissionUpdatePending} />
-    </>
+    </div>
   );
 }
 

@@ -25,7 +25,7 @@ suite("webview internationalization", () => {
     const flatEn = flattenCatalog(en);
     const flatEs = flattenCatalog(es);
     const flatZh = flattenCatalog(zh);
-    assert.strictEqual(Object.keys(flatEn).length, 198);
+    assert.strictEqual(Object.keys(flatEn).length, 188);
     assert.deepStrictEqual(Object.keys(flatEs).sort(), Object.keys(flatEn).sort());
     assert.deepStrictEqual(Object.keys(flatZh).sort(), Object.keys(flatEs).sort());
     for (const [key, translation] of Object.entries(flatEs)) {

@@ -311,6 +311,7 @@ function normalizeToolCall<T extends NonNullable<Conversation["messages"][number
       result: toolCall.result ?? "Interrupted because the extension host stopped.",
       isError: false,
       requiresConfirmation: false,
+      dangerConfirmation: undefined,
     };
   }
   return toolCall;

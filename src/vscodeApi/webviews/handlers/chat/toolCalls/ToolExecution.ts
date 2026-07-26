@@ -25,6 +25,12 @@ export async function executeToolCall(toolCall: ToolCall, ctx: ToolExecutionCont
     return TOOL_DISABLED;
   }
 
+  if (ctx.fullAccessMode) {
+    const result = await ctx.toolExecutor.executeForced(toolCall, { signal: ctx.signal });
+    postToolCallResult(ctx, result);
+    return result.result;
+  }
+
   if (ctx.autoApproveMode && toolCall.function.name !== "run_terminal_command") {
     const result = await ctx.toolExecutor.executeForced(toolCall, { signal: ctx.signal });
     postToolCallResult(ctx, result);
@@ -57,7 +63,7 @@ export async function executeToolCall(toolCall: ToolCall, ctx: ToolExecutionCont
 }
 
 function recordInitialToolCall(toolCall: ToolCall, ctx: ToolExecutionContext): void {
-  const requiresConfirmation = !ctx.autoApproveMode && ctx.getToolMode(toolCall.function.name) === "enabled";
+  const requiresConfirmation = !ctx.autoApproveMode && !ctx.fullAccessMode && ctx.getToolMode(toolCall.function.name) === "enabled";
   ctx.executedToolCalls.set(toolCall.id, {
     toolCallId: toolCall.id,
     toolName: toolCall.function.name,

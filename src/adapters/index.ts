@@ -1,5 +1,5 @@
 export type { AppConfig, InterfaceLanguage, PermissionMode, PermissionSnapshot, ToolExecutionMode, ToolExecutionModes } from "./Config";
-export { PERMISSION_MODE_ALLOWED_TOOLS } from "./Config";
+export { PERMISSION_MODE_ALLOWED_TOOLS, getDefaultToolExecutionMode } from "./Config";
 export type {
   WebviewToHandlerMessage,
   HandlerToWebviewMessage,
@@ -8,6 +8,7 @@ export type {
   ConversationMessage,
   AssistantTimelineEvent,
   StoredToolCall,
+  DangerConfirmationData,
   AvailableToolInfo,
   AvailableToolParameter,
   PathCompletionItem,

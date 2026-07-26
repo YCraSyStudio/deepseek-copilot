@@ -28,7 +28,8 @@ suite("Context budget and compaction", () => {
   test("uses DeepSeek with thinking and tools disabled and extracts literal selected ranges", async () => {
     const provider = new StubProvider();
     const lines = Array.from({ length: 500 }, (_, index) => `literal line ${index + 1}`);
-    const compactor = new ContextCompactor(provider, "deepseek-v4-flash", new AbortController().signal);
+    const signal = new AbortController().signal;
+    const compactor = new ContextCompactor(provider, "deepseek-v4-flash", signal);
     const [file] = await compactor.compactFiles([{
       path: "src/large.ts",
       type: "file",
@@ -39,6 +40,7 @@ suite("Context budget and compaction", () => {
     assert.deepStrictEqual(provider.requests[0].thinking, { type: "disabled" });
     assert.strictEqual(provider.requests[0].tool_choice, "none");
     assert.strictEqual(provider.requests[0].max_tokens, 4096);
+    assert.strictEqual(provider.signals[0], signal);
     assert.ok(file.content?.includes("literal line 10"));
     assert.ok(file.content?.includes("literal line 12"));
     assert.ok(!file.content?.includes("literal line 100"));
@@ -49,13 +51,15 @@ class StubProvider extends BaseProvider {
   readonly name = "stub";
   readonly id = "stub";
   readonly requests: ChatCompletionRequest[] = [];
+  readonly signals: Array<AbortSignal | undefined> = [];
 
   constructor() {
     super({} as AppConfig);
   }
 
-  async chatCompletion(request: ChatCompletionRequest): Promise<ChatCompletionResponse> {
+  async chatCompletion(request: ChatCompletionRequest, signal?: AbortSignal): Promise<ChatCompletionResponse> {
     this.requests.push(request);
+    this.signals.push(signal);
     return {
       id: "response",
       object: "chat.completion",

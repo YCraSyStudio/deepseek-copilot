@@ -29,8 +29,8 @@ export const userManual: PageContent = {
     {
       title: "Permissions and tool states",
       items: [
-        "chat exposes no workspace tools; read-only exposes read_file, list_directory, and search_content; workspace also allows file creation and edits; full-access additionally exposes terminal execution; auto-approve exposes every non-disabled tool and delegates approval to DeepSeek.",
-        "Each tool can be disabled, require manual approval, or use safe-only auto approval. The global Auto approve permission mode treats DeepSeek's tool calls as approval and bypasses heuristic confirmations, so use it only in trusted workspaces.",
+        "chat exposes no workspace tools; read-only exposes read_file, list_directory, and search_content; full-access executes every non-disabled tool immediately without prompts; auto-approve exposes every non-disabled tool but still confirms risky terminal operations.",
+        "Each tool can be disabled, require manual approval, or use safe-only auto approval. Full access is unattended and should only be used in trusted workspaces; workspace binding and VS Code Workspace Trust remain enforced.",
         "Tool calls move through awaiting confirmation, running, and one terminal state: completed, rejected, cancelled, or error.",
         "The extension host acknowledges execute and reject actions before the webview commits the visible state.",
         "Tool calls in a round run sequentially. Identical repeated calls are skipped, and the configurable round limit stops execution loops.",

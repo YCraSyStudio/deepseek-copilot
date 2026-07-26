@@ -29,22 +29,12 @@ export const chat = {
     deepseekIsThinking: "DeepSeek 正在思考...",
     compactingContext: "正在压缩会话上下文...",
     jumpToLatest: "跳到最新响应块",
-    latest: "最新",
     streaming: "DeepSeek 响应正在传输。",
     finished: "响应生成已完成。",
     queueMessage: "消息入队",
     interruptAndGuide: "中断并引导",
     recoveredDrafts: "VS Code 关闭后恢复的草稿：",
     restoreDraft: "恢复",
-    attachContext: "附加上下文文件",
-    openWorkspace: "打开工作区",
-    reassignWorkspace: "重新分配",
-    unavailableCapabilities: "不可用功能",
-    workspaceState: {
-      connected: "已连接",
-      disconnected: "已断开",
-      changed: "已更改",
-      empty: "空"
-    }
+    attachContext: "附加上下文文件"
   }
 } satisfies TranslationCatalog;

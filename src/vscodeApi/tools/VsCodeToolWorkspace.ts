@@ -197,7 +197,8 @@ function formatLogicalPath(snapshot: WorkspaceRunSnapshot, folder: WorkspaceFold
 }
 
 function resolveDefaultLocalFolder(snapshot: WorkspaceRunSnapshot): LogicalPath {
-  const folder = snapshot.folders.find((candidate) => candidate.alias === snapshot.defaultFolderAlias);
+  const folder = snapshot.folders.find((candidate) => candidate.alias === snapshot.defaultFolderAlias) ??
+    (snapshot.folders.length === 1 ? snapshot.folders[0] : undefined);
   if (!folder) {
     throw new Error(`Terminal cwd is required. Choose one of: ${snapshot.folders.map((item) => item.alias).join(", ")}`);
   }

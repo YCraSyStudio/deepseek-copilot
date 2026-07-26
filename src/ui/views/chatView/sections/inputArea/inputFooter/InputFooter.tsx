@@ -3,7 +3,7 @@ import "./InputFooter.css";
 import { MODEL_OPTIONS } from "@/adapters/deepseek/Models";
 import ReferencedFilesChips from "./ReferencedFilesChips";
 import type { ReferencedFile } from "./Types";
-import type { PermissionMode, WorkspaceContextStatus } from "@/adapters";
+import type { PermissionMode } from "@/adapters";
 import { t } from "@webview/i18n";
 import { getVsCodeApi } from "@webview/VsCodeApi";
 
@@ -19,11 +19,10 @@ type Props = {
   referencedFiles?: ReferencedFile[];
   /** Remove a referenced file. */
   onRemoveReferencedFile?: (index: number) => void;
-  workspaceContext?: WorkspaceContextStatus;
   conversationId?: string;
 };
 
-const PERMISSION_MODES: readonly PermissionMode[] = ["chat", "read-only", "workspace", "full-access", "auto-approve"];
+const PERMISSION_MODES: readonly PermissionMode[] = ["chat", "read-only", "auto-approve", "full-access"];
 
 function parsePermissionMode(value: string): PermissionMode | undefined {
   return PERMISSION_MODES.find((mode) => mode === value);
@@ -39,7 +38,6 @@ function InputFooter({
   onPermissionModeChange,
   referencedFiles = [],
   onRemoveReferencedFile,
-  workspaceContext,
   conversationId,
 }: Props) {
   const reasoningOptions = useMemo(() => {
@@ -56,9 +54,8 @@ function InputFooter({
   const permissionOptions: Array<{ value: PermissionMode; label: string }> = [
     { value: "chat", label: t("tools.chat") },
     { value: "read-only", label: t("tools.readOnly") },
-    { value: "workspace", label: t("tools.workspace") },
-    { value: "full-access", label: t("tools.fullAccess") },
     { value: "auto-approve", label: t("tools.autoApprove") },
+    { value: "full-access", label: t("tools.fullAccess") },
   ];
 
   return (
@@ -66,39 +63,6 @@ function InputFooter({
       <ReferencedFilesChips files={referencedFiles} onRemove={onRemoveReferencedFile ?? (() => undefined)} />
       <div className="inputFooterControls">
         <div className="inputFooterPrimaryControls">
-          <button
-            type="button"
-            className="workspaceAttachButton"
-            aria-label={t("chat.attachContext")}
-            data-tooltip={t("chat.attachContext")}
-            onClick={() => getVsCodeApi()?.postMessage({ type: "selectContextFiles", conversationId })}
-          >
-            <span className="codicon codicon-attach" aria-hidden="true" />
-          </button>
-          {workspaceContext ? (
-            <span
-              className={`workspaceBadge ${workspaceContext.state}`}
-              data-tooltip={workspaceTooltip(workspaceContext)}
-            >
-              <span className="codicon codicon-root-folder" aria-hidden="true" />
-              {workspaceContext.binding.name}
-              {workspaceContext.state !== "connected" ? ` · ${t(`chat.workspaceState.${workspaceContext.state}`)}` : ""}
-            </span>
-          ) : null}
-          {conversationId && workspaceContext?.state === "disconnected" ? (
-            <button type="button" onClick={() => getVsCodeApi()?.postMessage({ type: "openConversationWorkspace", conversationId })}>
-              {t("chat.openWorkspace")}
-            </button>
-          ) : null}
-          {conversationId && workspaceContext && workspaceContext.state !== "connected" && workspaceContext.state !== "empty" ? (
-            <button type="button" onClick={() => getVsCodeApi()?.postMessage({
-              type: "rebindConversationWorkspace",
-              conversationId,
-              workspaceRevision: workspaceContext.binding.revision,
-            })}>
-              {t("chat.reassignWorkspace")}
-            </button>
-          ) : null}
           <span className="selectTooltipWrapper" data-tooltip={t("chat.modelSelector")}>
             <select name="ModelSelector" id="ModelSelector" aria-label={t("chat.modelSelector")} value={selectedModel} onChange={(event) => onModelChange(event.target.value)}>
             {modelOptions.map((option) => (
@@ -113,6 +77,15 @@ function InputFooter({
             ))}
             </select>
           </span>
+          <button
+            type="button"
+            className="workspaceAttachButton"
+            aria-label={t("chat.attachContext")}
+            data-tooltip={t("chat.attachContext")}
+            onClick={() => getVsCodeApi()?.postMessage({ type: "selectContextFiles", conversationId })}
+          >
+            <span className="codicon codicon-attach" aria-hidden="true" />
+          </button>
         </div>
         <span className="selectTooltipWrapper" data-tooltip={t("tools.permissionMode")}>
           <select
@@ -124,9 +97,7 @@ function InputFooter({
             value={permissionMode}
             onChange={(event) => {
               const nextPermissionMode = parsePermissionMode(event.target.value);
-              if (nextPermissionMode) {
-                onPermissionModeChange(nextPermissionMode);
-              }
+              if (nextPermissionMode) { onPermissionModeChange(nextPermissionMode); }
             }}
           >
             {permissionOptions.map((option) => (
@@ -137,15 +108,6 @@ function InputFooter({
       </div>
     </div>
   );
-}
-
-function workspaceTooltip(context: WorkspaceContextStatus): string {
-  const roots = context.binding.folders.map((folder) => `${folder.alias}: ${folder.name}`).join("\n");
-  const unavailable = Object.entries(context.binding.capabilities)
-    .filter(([, available]) => !available)
-    .map(([name]) => name)
-    .join(", ");
-  return [roots, unavailable ? `${t("chat.unavailableCapabilities")}: ${unavailable}` : ""].filter(Boolean).join("\n");
 }
 
 export default InputFooter;

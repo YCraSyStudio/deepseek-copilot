@@ -32,7 +32,7 @@ function DangerConfirmation({ toolCallId, dangerConfirmation, onConfirm, onCance
           : t("confirmations.sessionTrustDescription")}
       </p>
 
-      <div className="toolCallDecisionRow">
+      <div className="toolCallDecisionRow dangerDecisionRow">
         <button
           type="button"
           className="toolCallDecisionOption primary dangerPrimaryAction dangerConfirmBtn"

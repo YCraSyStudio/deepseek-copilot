@@ -62,7 +62,7 @@ export class GenerationCheckpointStore {
       }
       const filePath = path.join(directory, entry.name);
       try {
-        const parsed = JSON.parse(await readFile(filePath, "utf8")) as unknown;
+        const parsed = migrateLegacyPermissionMode(JSON.parse(await readFile(filePath, "utf8")) as unknown);
         if (!isGenerationCheckpoint(parsed)) {
           throw new Error("Invalid generation checkpoint");
         }
@@ -114,10 +114,25 @@ function isPermissionSnapshot(value: unknown): value is PermissionSnapshot {
   return Number.isSafeInteger(snapshot.revision) &&
     typeof snapshot.workspaceTrusted === "boolean" &&
     typeof snapshot.fingerprint === "string" &&
-    (snapshot.permissionMode === "chat" || snapshot.permissionMode === "read-only" || snapshot.permissionMode === "workspace" ||
+    (snapshot.permissionMode === "chat" || snapshot.permissionMode === "read-only" ||
       snapshot.permissionMode === "full-access" || snapshot.permissionMode === "auto-approve") &&
     !!snapshot.toolExecutionModes &&
     typeof snapshot.toolExecutionModes === "object";
+}
+
+function migrateLegacyPermissionMode(value: unknown): unknown {
+  if (!value || typeof value !== "object") {return value;}
+  const checkpoint = value as {
+    config?: { permissionMode?: unknown };
+    permissionSnapshot?: { permissionMode?: unknown };
+  };
+  if (checkpoint.config?.permissionMode === "workspace") {
+    checkpoint.config.permissionMode = "full-access";
+  }
+  if (checkpoint.permissionSnapshot?.permissionMode === "workspace") {
+    checkpoint.permissionSnapshot.permissionMode = "full-access";
+  }
+  return value;
 }
 
 function safeFileName(value: string): string {

@@ -26,7 +26,7 @@ type ChatCommandMessage =
   | { type: "addReferencedFiles"; files: ReferencedFile[] }
   | { type: "setDraft"; text: string }
   | { type: "activeConversationChanged"; id: string }
-  | { type: "generationAccepted"; generationId: string; conversationId: string }
+  | { type: "generationAccepted"; generationId: string; conversationId: string; clientRequestId: string }
   | { type: "streamDone"; generationId?: string; conversationId?: string }
   | { type: "streamError"; generationId?: string; conversationId?: string }
   | { type: "workspaceContextChanged"; context: WorkspaceContextStatus }
@@ -58,8 +58,19 @@ function ChatView({ loadedConversation }: ChatViewProps) {
   const [recoveredDrafts, setRecoveredDrafts] = useState<Array<{ clientRequestId: string; text: string }>>([]);
   const [workspaceContext, setWorkspaceContext] = useState<WorkspaceContextStatus>();
   const lastSubmittedPromptRef = useRef("");
+  const conversationIdRef = useRef(conversationId);
+  const activeGenerationIdRef = useRef(activeGenerationId);
+  const pendingClientRequestIdsRef = useRef(new Set<string>());
 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  useEffect(() => {
+    conversationIdRef.current = conversationId;
+  }, [conversationId]);
+
+  useEffect(() => {
+    activeGenerationIdRef.current = activeGenerationId;
+  }, [activeGenerationId]);
 
   const {
     selectedModel,
@@ -94,8 +105,9 @@ function ChatView({ loadedConversation }: ChatViewProps) {
     textareaRef.current?.focus();
   };
 
-  const handleSend = (text: string) => {
+  const handleSend = (text: string, clientRequestId: string) => {
     lastSubmittedPromptRef.current = text;
+    pendingClientRequestIdsRef.current.add(clientRequestId);
     setReferencedFiles([]);
   };
 
@@ -156,6 +168,7 @@ function ChatView({ loadedConversation }: ChatViewProps) {
         requestAnimationFrame(focusInput);
       }
       if (message.type === "activeConversationChanged") {
+        conversationIdRef.current = message.id;
         setConversationId(message.id);
       }
       if (message.type === "workspaceContextChanged") {
@@ -170,15 +183,29 @@ function ChatView({ loadedConversation }: ChatViewProps) {
         setReferencedFiles([]);
         setWorkspaceContext(message.context);
       }
-      if (message.type === "generationAccepted" && message.conversationId === conversationId) {
-        setActiveGenerationId(message.generationId);
+      if (message.type === "generationAccepted") {
+        const wasSubmittedHere = pendingClientRequestIdsRef.current.delete(message.clientRequestId);
+        if (wasSubmittedHere || message.conversationId === conversationIdRef.current) {
+          conversationIdRef.current = message.conversationId;
+          activeGenerationIdRef.current = message.generationId;
+          setConversationId(message.conversationId);
+          setActiveGenerationId(message.generationId);
+        }
       }
-      if ((message.type === "streamDone" || message.type === "streamError") && message.generationId === activeGenerationId) {
+      if (
+        (message.type === "streamDone" || message.type === "streamError") &&
+        message.generationId === activeGenerationIdRef.current
+      ) {
+        activeGenerationIdRef.current = undefined;
         setActiveGenerationId(undefined);
       }
       if (message.type === "generationSnapshot") {
-        const active = conversationId ? message.generations.find((generation) => generation.conversationId === conversationId) : undefined;
+        const currentConversationId = conversationIdRef.current;
+        const active = currentConversationId
+          ? message.generations.find((generation) => generation.conversationId === currentConversationId)
+          : undefined;
         if (active) {
+          activeGenerationIdRef.current = active.generationId;
           setActiveGenerationId(active.generationId);
           setIsProcessing(true);
           setMessages((current) => {
@@ -196,7 +223,9 @@ function ChatView({ loadedConversation }: ChatViewProps) {
             }];
           });
         }
-        const recovered = conversationId ? message.recoveredDrafts.find((entry) => entry.conversationId === conversationId) : undefined;
+        const recovered = currentConversationId
+          ? message.recoveredDrafts.find((entry) => entry.conversationId === currentConversationId)
+          : undefined;
         if (recovered?.messages.length) {
           setRecoveredDrafts(recovered.messages);
         }
@@ -207,7 +236,7 @@ function ChatView({ loadedConversation }: ChatViewProps) {
     return () => {
       window.removeEventListener("message", handleMessage);
     };
-  }, [appendReferencedFiles, conversationId, activeGenerationId]);
+  }, [appendReferencedFiles]);
 
   return (
     <div className="chatView">
@@ -279,7 +308,6 @@ function ChatView({ loadedConversation }: ChatViewProps) {
           onPermissionModeChange={handlePermissionModeChange}
           referencedFiles={referencedFiles}
           onRemoveReferencedFile={removeFile}
-          workspaceContext={workspaceContext}
           conversationId={conversationId}
         />
       </div>

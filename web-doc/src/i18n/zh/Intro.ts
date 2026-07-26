@@ -11,7 +11,7 @@ export const intro: PageContent = {
       items: [
         "侧边栏聊天会以时间顺序流式呈现响应、推理和工具调用。",
         "Thinking mode 可以开启或关闭，而不会禁用工具。",
-        "chat、read-only、workspace、full-access 和 auto-approve 权限控制读取、搜索、编辑、patch、终端工具和委托批准。",
+        "chat、read-only、full-access 和 auto-approve 权限控制读取、搜索、编辑、patch、终端工具和委托批准。",
         "仅输入 ./ 才会显示安全路径自动补全；自动上下文、Git、指令、终端和工具都使用同一个不可变逻辑工作区快照。",
         "设置和全局历史记录保存在 ~/.yrs-dpsk-copilot/ 下，支持可配置保留期、原生删除确认和撤销。",
       ],

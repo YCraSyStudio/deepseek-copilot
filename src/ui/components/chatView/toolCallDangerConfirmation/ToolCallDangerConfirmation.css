@@ -18,9 +18,30 @@
 
   .dangerRememberBtn {
     min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    line-height: 1.25;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}
+
+.dangerDecisionRow {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.45fr) minmax(0, 1fr);
+  align-items: stretch;
+  display: grid;
+
+  .toolCallDecisionOption {
+    width: auto;
+    min-width: 0;
+    height: 100%;
+    text-align: center;
+    line-height: 1.25;
+    white-space: normal;
+  }
+}
+
+@media (max-width: 440px) {
+  .dangerDecisionRow {
+    grid-template-columns: 1fr;
   }
 }
 
