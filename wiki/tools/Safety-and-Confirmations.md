@@ -10,11 +10,14 @@
 - `enabled`: execute with normal rules.
 - `auto_approve`: allow without confirmation only when the tool proves the operation is safe.
 
-The global `auto-approve` permission mode is an explicit, warned delegation for non-disabled tools. Non-terminal tools may use their forced handlers directly because their schemas and workspace validation remain authoritative. Terminal commands always pass through danger analysis first.
+`default`, `read-only`, `auto-approve`, and `full-access` are predefined starting points. Editing any individual tool copies the selected preset into `custom` automatically, where each tool can be disabled, require confirmation, or be auto approved.
 
-`full-access` is the unattended permission mode. Every non-disabled tool, including terminal commands, executes immediately without a confirmation request. Workspace binding, tool path validation, disabled tools, cancellation, and VS Code Workspace Trust remain enforced. The removed legacy `workspace` mode migrates to `full-access`.
+- `default` exposes every tool and asks before execution.
+- `read-only` auto approves read, list, and search; file mutations and terminal commands remain enabled but ask before execution.
+- `auto-approve` executes tools automatically when their paths and terminal operations are contained in the workspace. An external path or command requires explicit confirmation.
+- `full-access` removes workspace containment and confirmation prompts. Enabling it displays a global warning because tools may read, modify, or delete data anywhere on the computer.
 
-Terminal commands are not protected by an OS sandbox. Outside `full-access`, an unknown, mutating, dynamic, encoded, chained, redirected, or potentially out-of-workspace command requires explicit confirmation.
+Terminal commands are not protected by an OS sandbox. Under `auto-approve`, package operations, builds, tests, and other mutations may run automatically when their command syntax and paths are workspace-contained. Dynamic, elevated, remote, or external operations still require confirmation.
 
 ## Terminal read-only model
 

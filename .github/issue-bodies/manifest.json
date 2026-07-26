@@ -2,22 +2,6 @@
   "repository": "YarCrasy/deepseek-copilot",
   "issues": [
     {
-      "id": "004",
-      "priority": "P0",
-      "title": "[P0] Make terminal auto-approval fail closed and scope session trust",
-      "bodyFile": ".github/issue-bodies/004-p0-harden-terminal-execution.md",
-      "labels": ["BUG", "IMPROVEMENT", "INTEGRATION"],
-      "dependsOn": ["005"]
-    },
-    {
-      "id": "005",
-      "priority": "P0",
-      "title": "[P0] Make elevated permissions workspace-scoped and transactional",
-      "bodyFile": ".github/issue-bodies/005-p0-transactional-permission-updates.md",
-      "labels": ["BUG", "INTEGRATION", "FRONTEND"],
-      "dependsOn": []
-    },
-    {
       "id": "007",
       "priority": "P0",
       "title": "[P0] Keep API credentials host-side and bind them to secure origins",
@@ -79,7 +63,7 @@
       "title": "[P1] Version and synchronize the webview-host protocol",
       "bodyFile": ".github/issue-bodies/014-p1-version-webview-host-protocol.md",
       "labels": ["BUG", "INTEGRATION", "FRONTEND"],
-      "dependsOn": ["005", "008"]
+      "dependsOn": ["008"]
     },
     {
       "id": "015",

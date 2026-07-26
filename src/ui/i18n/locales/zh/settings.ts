@@ -77,8 +77,10 @@ export const settings = {
       label: "模型"
     },
     limits: {
-      maxTokens: "最大 Token 数",
+      maxTokens: "最大输出 Token 数",
+      maxTokensDescription: "每次请求的输出预留。DeepSeek V4 的总上下文为 1M Token，最大输出为 384K；保守的默认值 8,192 有助于限制 API 用量和成本。",
       maxToolRounds: "最大工具轮数",
+      maxToolRoundsDescription: "安全检查间隔。Auto-approve 和 full-access 由 DeepSeek 重新评估；其他模式会询问是否继续。",
       maxConcurrentGenerations: "并发生成数"
     }
   }

@@ -141,7 +141,7 @@ export const createFileDefinition: ToolDefinition = {
       properties: {
         path: {
           type: "string",
-          description: "Relative path of the file to create, for example src/utils/helper.ts.",
+          description: "Workspace-relative path of the file to create. Use an absolute path only for explicitly requested external access.",
         },
         content: {
           type: "string",

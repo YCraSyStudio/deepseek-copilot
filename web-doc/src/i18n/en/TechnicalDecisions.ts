@@ -37,7 +37,7 @@ export const technicalDecisions: PageContent = {
       title: "Tools and terminal",
       items: [
         "Tool state has one native lifecycle ending in completed, rejected, cancelled, or error; rejection is not encoded as an execution error.",
-        "Calls within a tool round execute sequentially and duplicate name-and-argument calls are blocked. Across concurrent generations, read-only tools may overlap while workspace mutations are serialized per workspace.",
+        "Calls within a tool round execute sequentially and duplicate name-and-argument calls are blocked. At a round checkpoint, unattended modes inject a DeepSeek reassessment instruction while attended modes request a user decision. Across concurrent generations, read-only tools may overlap while workspace mutations are serialized per workspace.",
         "Terminal uses spawn with process-tree cancellation, structured results, bounded head-and-tail output, and non-zero exit detection.",
         "Each conversation stores a revisioned logical-workspace binding. Every run captures its folders, aliases, capabilities, and active-editor root once; no operation falls back to the current editor or first folder.",
         "Path authorization accepts ./ workspace paths, rejects parent traversal, absolute paths and URIs, and resolves real paths and existing ancestors to prevent symlink or junction escapes.",
@@ -51,6 +51,7 @@ export const technicalDecisions: PageContent = {
         "SSE supports comments, CRLF, data fields with or without spaces, multiline events, decoder finalization, malformed JSON diagnostics, and reader cancellation.",
         "DeepSeek requests use normalized URLs, a 60-second per-attempt timeout, and at most three retries for transient failures while respecting Retry-After.",
         "Settings, schema-v2 conversation history, and generation checkpoints live under ~/.yrs-dpsk-copilot/. Checkpoints never contain the API key, and malformed history or checkpoint files are isolated.",
+        "DeepSeek V4 models are budgeted against their documented 1M-token total context and 384K maximum output. The configured output allowance defaults to 65,536 and reduces the input budget alongside a safety margin.",
         "Context has aggregate budgets, binary detection, staged and unstaged Git data, bounded AGENTS.md sources, and explicit untrusted-data delimiters.",
       ],
     },

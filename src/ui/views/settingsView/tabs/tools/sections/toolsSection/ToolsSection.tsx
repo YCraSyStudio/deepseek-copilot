@@ -1,14 +1,15 @@
-import { getDefaultToolExecutionMode, PERMISSION_MODE_ALLOWED_TOOLS } from "@/adapters";
+import { resolveToolExecutionMode } from "@/adapters";
 import type { PermissionMode, ToolExecutionMode, ToolExecutionModes } from "@/adapters";
 import type { ToolsSectionProps } from "..";
 import "./ToolsSection.css";
 import { t } from "@webview/i18n";
 
 const PERMISSION_MODE_OPTIONS: Array<{ value: PermissionMode; label: string; description: string }> = [
-  { value: "chat", label: t("tools.chat"), description: t("tools.noToolsTheModelCanOnlyAnswerInChat") },
+  { value: "default", label: t("tools.default"), description: t("tools.defaultDescription") },
   { value: "read-only", label: t("tools.readOnly"), description: t("tools.readOnlyDescription") },
   { value: "auto-approve", label: t("tools.autoApprove"), description: t("tools.autoApproveModeDescription") },
   { value: "full-access", label: t("tools.fullAccess"), description: t("tools.fullAccessDescription") },
+  { value: "custom", label: t("tools.custom"), description: t("tools.customDescription") },
 ];
 
 const TOOL_MODE_OPTIONS: Array<{ value: ToolExecutionMode; label: string }> = [
@@ -26,13 +27,27 @@ function ToolsSection({ config, tools, updateConfig, saveOnBlur, permissionUpdat
   };
 
   const updateToolMode = (toolName: string, mode: ToolExecutionMode) => {
+    const baseModes = config.permissionMode === "custom"
+      ? config.toolExecutionModes
+      : Object.fromEntries(
+          tools.map((tool) => [
+            tool.name,
+            resolveToolExecutionMode(config.permissionMode, tool.name, config.toolExecutionModes),
+          ]),
+        );
     const nextModes: ToolExecutionModes = {
-      ...config.toolExecutionModes,
+      ...baseModes,
       [toolName]: mode,
     };
 
+    if (config.permissionMode !== "custom") {
+      updateConfig("permissionMode", "custom");
+    }
     updateConfig("toolExecutionModes", nextModes);
-    saveOnBlur("toolExecutionModes", nextModes);
+    saveOnBlur({
+      permissionMode: "custom",
+      toolExecutionModes: nextModes,
+    });
   };
 
   return (
@@ -63,28 +78,33 @@ function ToolsSection({ config, tools, updateConfig, saveOnBlur, permissionUpdat
           ))}
         </select>
         <small id="permissionModeDescription" className="permissionModeDescription">{selectedPermission.description}</small>
-        <small id="permissionModeScope" className="permissionModeScope">{t("tools.savedGloballyForAllWorkspaces")}</small>
       </div>
 
       <div className="toolsList" aria-label={t("tools.toolPermissions")}>
         {tools.length === 0 ? <div className="toolsEmptyState" role="status">{t("tools.noToolsAreAvailable")}</div> : null}
         {tools.map((tool) => {
-          const mode = config.toolExecutionModes[tool.name] ?? getDefaultToolExecutionMode(config.permissionMode);
-          const isAllowed = isToolAllowedByPermissionMode(config.permissionMode, tool.name);
+          const mode = resolveToolExecutionMode(config.permissionMode, tool.name, config.toolExecutionModes);
           return (
             <div className="toolSettingRow" key={tool.name}>
               <span className="toolSettingInfo">
-                <span className="toolSettingName" data-tooltip={tool.description} data-tooltip-position="bottom" data-tooltip-align="start" aria-label={`${tool.name}: ${tool.description}`}>
-                  {tool.name}
+                <span
+                  className="toolSettingTooltip"
+                  tabIndex={0}
+                  data-tooltip={tool.description}
+                  data-tooltip-position="bottom"
+                  data-tooltip-align="start"
+                  aria-label={`${tool.name}: ${tool.description}`}
+                >
+                  <span className="toolSettingName">{tool.name}</span>
+                  <span className="codicon codicon-question" aria-hidden="true" />
                 </span>
-                {!isAllowed ? <small className="toolBlockedReason">{t("tools.blockedByModePermissionMode", { mode: selectedPermission.label })}</small> : null}
               </span>
 
               <select
                 className="toolModeSelect"
                 aria-label={t("tools.nameMode", { name: tool.name })}
-                aria-disabled={!isAllowed}
-                disabled={!isAllowed || permissionUpdatePending}
+                aria-disabled={permissionUpdatePending}
+                disabled={permissionUpdatePending}
                 value={mode}
                 onChange={(event) => {
                   const toolMode = parseToolExecutionMode(event.target.value);
@@ -106,11 +126,6 @@ function ToolsSection({ config, tools, updateConfig, saveOnBlur, permissionUpdat
 }
 
 export default ToolsSection;
-
-function isToolAllowedByPermissionMode(permissionMode: PermissionMode, toolName: string): boolean {
-  const allowedToolNames = PERMISSION_MODE_ALLOWED_TOOLS[permissionMode];
-  return allowedToolNames === null || allowedToolNames.includes(toolName);
-}
 
 function parsePermissionMode(value: string): PermissionMode | undefined {
   return PERMISSION_MODE_OPTIONS.find((option) => option.value === value)?.value;

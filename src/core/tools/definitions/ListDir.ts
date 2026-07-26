@@ -43,7 +43,7 @@ export const listDirDefinition: ToolDefinition = {
       properties: {
         path: {
           type: "string",
-          description: "Path relative to the workspace. Defaults to the root.",
+          description: "Workspace-relative path. Defaults to the root. Use an absolute path only for explicitly requested external access.",
         },
         showHidden: {
           type: "boolean",

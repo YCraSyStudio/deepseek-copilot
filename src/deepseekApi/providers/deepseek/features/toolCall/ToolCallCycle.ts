@@ -4,7 +4,12 @@ import { chatCompletion } from "../Chat";
 import { createToolResultMessage, validateToolCall } from "./ToolCallMessages";
 import { buildToolCallRequest } from "./ToolCallRequest";
 import { streamToolCallRound } from "./ToolCallStreaming";
-import type { RunToolCallCycleOptions, ToolCallCycleOptions, ToolCallCycleResult } from "./ToolCallTypes";
+import type {
+  RunToolCallCycleOptions,
+  ToolCallCycleOptions,
+  ToolCallCycleResult,
+  ToolRoundLimitDecision,
+} from "./ToolCallTypes";
 
 export async function runToolCallCycle(options: RunToolCallCycleOptions): Promise<ToolCallCycleResult> {
   const { initialMessages, tools, model, apiKey, baseUrl, executeToolCall, cycleOptions = {} } = options;
@@ -123,6 +128,9 @@ export async function runToolCallCycle(options: RunToolCallCycleOptions): Promis
           transcript,
         };
       }
+      if (decision === "delegate") {
+        messages[0] = withToolRoundCheckpointInstruction(messages[0], completedRounds);
+      }
     }
   }
 }
@@ -141,8 +149,28 @@ export async function requestToolRoundLimitDecision(
   onLimitReached: ToolCallCycleOptions["onLimitReached"],
   completedRounds: number,
   batchSize: number,
-): Promise<"continue" | "stop"> {
+): Promise<ToolRoundLimitDecision> {
   return onLimitReached ? onLimitReached(completedRounds, batchSize) : "stop";
+}
+
+function withToolRoundCheckpointInstruction(
+  systemMessage: ChatMessage,
+  completedRounds: number,
+): ChatMessage {
+  const contentWithoutPreviousCheckpoint = (systemMessage.content ?? "").replace(
+    /\n\n<tool_round_checkpoint>[\s\S]*?<\/tool_round_checkpoint>/g,
+    "",
+  );
+  const checkpointInstruction =
+    `\n\n<tool_round_checkpoint>Tool-round checkpoint: ${completedRounds} tool rounds have completed. ` +
+    "Before doing anything else, reassess the user's goal and the tool results. " +
+    "Continue with tool calls only if concrete, necessary work remains and there is a clear next action. " +
+    "If progress requires missing information or a material user choice, do not call another tool; ask the user for the needed instructions. " +
+    "If the goal is complete, further progress is unlikely, or another call would only repeat or verify successful work, stop using tools and provide the best final response.</tool_round_checkpoint>";
+  return {
+    ...systemMessage,
+    content: `${contentWithoutPreviousCheckpoint}${checkpointInstruction}`,
+  };
 }
 
 function withToolFreeFinalInstruction(messages: ChatMessage[]): ChatMessage[] {

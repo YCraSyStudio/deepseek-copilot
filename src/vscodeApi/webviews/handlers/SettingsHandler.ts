@@ -45,9 +45,9 @@ export class SettingsHandler {
 
   private async _saveConfig(requestId: string, config: Partial<AppConfig>, webviewView: vscode.WebviewView): Promise<void> {
     if (
-      config.permissionMode === "auto-approve" &&
-      SettingsManager.load().permissionMode !== "auto-approve" &&
-      !await confirmGlobalAutoApprove()
+      config.permissionMode === "full-access" &&
+      SettingsManager.load().permissionMode !== "full-access" &&
+      !await confirmGlobalFullAccess()
     ) {
       await this._postUpdateResult(webviewView, requestId, "save", "cancelled");
       return;
@@ -152,16 +152,16 @@ export class SettingsHandler {
 
 }
 
-async function confirmGlobalAutoApprove(): Promise<boolean> {
+async function confirmGlobalFullAccess(): Promise<boolean> {
   const accepted = await vscode.window.showWarningMessage(
-    "Enable global auto-approve?",
+    "Enable global full access?",
     {
       modal: true,
-      detail: "This setting applies to every trusted workspace. Terminal commands are not OS-sandboxed; commands that are not proven read-only and workspace-contained still require confirmation.",
+      detail: "This setting applies globally. Tools may read, modify, or delete files anywhere on this computer without confirmation. Terminal commands are not OS-sandboxed.",
     },
-    "Enable auto-approve",
+    "Enable full access",
   );
-  return accepted === "Enable auto-approve";
+  return accepted === "Enable full access";
 }
 
 function getErrorMessage(err: unknown): string {

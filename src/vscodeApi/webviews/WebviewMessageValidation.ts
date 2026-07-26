@@ -194,7 +194,7 @@ function isAppConfigPatch(value: unknown): value is Partial<AppConfig> {
     (value.maxTokens === undefined || (Number.isSafeInteger(value.maxTokens) && (value.maxTokens as number) >= 1 && (value.maxTokens as number) <= MAX_OUTPUT_TOKENS)) &&
     (value.maxToolRounds === undefined || (Number.isSafeInteger(value.maxToolRounds) && (value.maxToolRounds as number) >= 1 && (value.maxToolRounds as number) <= 20)) &&
     (value.maxConcurrentGenerations === undefined || (Number.isSafeInteger(value.maxConcurrentGenerations) && (value.maxConcurrentGenerations as number) >= 1 && (value.maxConcurrentGenerations as number) <= 16)) &&
-    (value.permissionMode === undefined || ["chat", "read-only", "full-access", "auto-approve"].includes(value.permissionMode as string)) &&
+    (value.permissionMode === undefined || ["default", "read-only", "auto-approve", "full-access", "custom"].includes(value.permissionMode as string)) &&
     (value.toolExecutionModes === undefined || isToolExecutionModes(value.toolExecutionModes)) &&
     isOptionalBoolean(value.autoContext) &&
     isOptionalBoolean(value.historyEnabled) &&

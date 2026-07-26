@@ -14,7 +14,7 @@ The extension is DeepSeek-only by design.
 - Streaming responses from DeepSeek with native `think -> tool -> think -> response` ordering.
 - Optional thinking mode with separate reasoning events for every tool round.
 - Workspace-scoped conversation history with retention, lazy loading, deletion confirmation, and Undo.
-- Type `./` or `../` in the chat input to autocomplete workspace paths.
+- Type `./` in the chat input to autocomplete workspace paths.
 - Explorer and editor commands for attaching files, folders, and exact selections.
 - Tools for reading, listing, searching, creating, editing, patching, and running terminal commands.
 - Structured, non-interactive terminal execution with timeout, bounded output, and process-tree cancellation.
@@ -69,10 +69,11 @@ The API key is never written to this file. It remains in VS Code Secret Storage.
 
 Yar's DeepSeek Copilot can execute workspace tools when enabled. Tool access is controlled first by permission mode:
 
-- `chat`: no tools.
-- `read-only`: read, list, and search workspace files.
-- `full-access`: all non-disabled tools execute immediately, including terminal commands, without confirmation prompts.
-- `auto-approve`: all non-disabled tools. Non-terminal tools execute directly; terminal commands execute automatically only when the strict parser proves they are read-only and workspace-contained.
+- `default`: all tools are available and request confirmation before execution.
+- `read-only`: read, list, and search execute automatically; writing and terminal tools remain available but require confirmation.
+- `custom`: configure every tool as disabled, confirmation required, or auto approved.
+- `auto-approve`: all tools, including workspace-contained terminal commands, execute automatically. External filesystem access and commands that cannot be proven workspace-contained still require confirmation.
+- `full-access`: unrestricted unattended access. Tools and terminal commands may operate anywhere on the computer without confirmation.
 
 Tool execution is then controlled per tool:
 
@@ -80,9 +81,11 @@ Tool execution is then controlled per tool:
 - `enabled`: execute with normal safety checks.
 - `auto_approve`: execute without confirmation only when the operation is not considered dangerous.
 
-Outside `full-access`, dangerous operations such as overwriting files or running risky terminal commands require confirmation. Terminal commands are not OS-sandboxed: `auto-approve` does not bypass confirmation for unknown, mutating, dynamic, or out-of-workspace shell forms. `full-access` is an explicit unattended mode and bypasses those prompts, while workspace binding, path validation, disabled tools, and VS Code Workspace Trust remain enforced. Legacy `workspace` settings migrate to `full-access`.
+Changing an individual tool while a preset is selected copies that preset into `custom` automatically. Terminal commands are not OS-sandboxed. `auto-approve` delegates operations proven to remain in the workspace and asks before external access. Enabling `full-access` shows a global danger warning because it removes workspace containment and confirmation prompts. VS Code Workspace Trust and cancellation remain enforced. Legacy `chat` and transitional `enabled` settings migrate to `default`; legacy `workspace` migrates to `full-access`.
 
-Tool calls have one visible lifecycle: awaiting confirmation, running, then completed, rejected, cancelled, or error. Calls within a round execute sequentially, identical repeated calls are skipped, and the configured round limit stops loops.
+Tool calls have one visible lifecycle: awaiting confirmation, running, then completed, rejected, cancelled, or error. Calls within a round execute sequentially and identical repeated calls are skipped. The configured tool-round value is a safety-checkpoint interval: auto-approve and full-access ask DeepSeek to reassess whether to continue, request instructions, or stop; other modes ask the user whether to continue.
+
+DeepSeek V4 provides a 1M-token total context and supports up to 384K output tokens. `maxTokens` controls only the per-request output allowance; it defaults to 65,536, leaving the rest of the context budget for input, tools, history, and a safety margin.
 
 Terminal commands are non-interactive. Results include stdout, stderr, exit code, signal, timeout and cancellation state, effective working directory, shell, and truncation state. Stopping generation cancels the complete spawned process tree.
 
@@ -103,7 +106,7 @@ Context is budgeted before every API request, including system prompts, tool sch
 Available slash commands:
 
 - `/status`, `/context`, `/tools`
-- `/mode chat|read-only|full-access|auto-approve`
+- `/mode default|read-only|auto-approve|full-access|custom`
 - `/auto-context on|off`
 - `/review`, `/goal [text]`
 - `/summarize`, `/clear-context`

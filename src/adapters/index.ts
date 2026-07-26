@@ -1,5 +1,5 @@
 export type { AppConfig, InterfaceLanguage, PermissionMode, PermissionSnapshot, ToolExecutionMode, ToolExecutionModes } from "./Config";
-export { PERMISSION_MODE_ALLOWED_TOOLS, getDefaultToolExecutionMode } from "./Config";
+export { resolveToolExecutionMode } from "./Config";
 export type {
   WebviewToHandlerMessage,
   HandlerToWebviewMessage,

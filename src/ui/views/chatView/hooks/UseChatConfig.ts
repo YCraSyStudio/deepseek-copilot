@@ -21,7 +21,7 @@ export function useChatConfig() {
 
   const [reasoning, setReasoning] = useState<string>("high");
   const [selectedModel, setSelectedModel] = useState<string>(MODEL_OPTIONS[0]?.value ?? "");
-  const [permissionMode, setPermissionMode] = useState<PermissionMode>("read-only");
+  const [permissionMode, setPermissionMode] = useState<PermissionMode>("default");
   const [isPermissionUpdatePending, setPermissionUpdatePending] = useState(false);
   const [configUpdateError, setConfigUpdateError] = useState<string | null>(null);
 

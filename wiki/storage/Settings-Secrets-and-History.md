@@ -10,12 +10,14 @@ It must handle:
 
 - DeepSeek-only defaults.
 - normalization of `toolExecutionModes`.
+- `maxTokens`, clamped to 1–384,000 with a default of 65,536. This is the output allowance, not the 1M-token V4 context window.
+- `maxToolRounds`, clamped to 1–20 with a default checkpoint interval of 6.
 - `maxConcurrentGenerations`, clamped to 1–16 with a default of 8.
 - ignoring old configuration that no longer applies.
 - never persisting `apiKey`.
 - serializing writes and publishing a new monotonic revision only after durable persistence succeeds.
 - retaining the last confirmed value and revision when persistence fails.
-- returning immutable permission snapshots after pending writes settle. Untrusted workspaces receive an effective `read-only` snapshot with no per-tool auto-approval while the saved global choice remains unchanged.
+- returning immutable permission snapshots after pending writes settle. Untrusted workspaces receive an effective `default` snapshot with no per-tool auto-approval while the saved global choice remains unchanged.
 
 ## `SecretsManager`
 

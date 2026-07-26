@@ -1,26 +1,14 @@
 # Change Log
 
-## [0.1.3-unreleased]
-
-- **Added the legacy-history migration period: activation atomically upgrades valid unversioned and partially migrated conversations. Compatibility has no automatic date cutoff and remains available until the scheduled cleanup tracked by [issue #61](https://github.com/YarCrasy/deepseek-copilot/issues/61), currently targeted for 2026-08-25.**
-
-- Added isolated concurrent generations across conversations, configurable from 1 to 16 with a default of 8, while keeping one active generation per conversation.
-- Added per-conversation FIFO queues, targeted Stop and Interrupt and guide actions, and generation-bound stream, tool, and confirmation events.
-- Added atomic generation checkpoints, coordinated extension shutdown, interrupted partial-response recovery, cancelled unfinished tools, and recoverable drafts for queued prompts after restart.
-- Added conversation schema v2 with deterministic generation ownership and terminal `completed`, `interrupted`, or `error` outcomes.
-- Bound every conversation and generation to an immutable logical workspace, with deterministic multi-root aliases, revision checks, disconnected-history reassignment, and no active-editor or first-root fallback.
-- Restricted path autocomplete and tools to `./` workspace paths, rejecting `../`, absolute paths, URIs, and symlink or junction escapes; terminal defaults to the captured editor root.
-- Added native context-file attachment. Explicitly selected external files are bounded, non-persistent read-only snapshots and never grant tool access outside the workspace.
-- Isolated tool sessions per generation and serialized mutating tools per workspace while allowing concurrent read-only operations.
-- Secured workspace content search with literal matching, sensitive-path filtering, traversal protection, file and output limits, cancellation, and timeouts.
-- Updated the English, Spanish, and Chinese web documentation, generated static site, and technical wiki for the new generation, recovery, and migration flows.
-- Hardened terminal execution with shell-specific read-only allowlists, workspace-contained path checks, mandatory confirmation for unknown syntax even under global auto-approve, and conversation/workspace/configuration-scoped trust.
-- Simplified permission modes by removing the redundant `workspace` option, migrating it to `full-access`, and making `full-access` execute every enabled tool without confirmation prompts.
-- Simplified the chat footer by removing the workspace badge and reassignment controls, and replaced the ambiguous “Latest” control with a solid down-arrow anchored to the bottom center of the message area.
-- Fixed exaggerated Markdown spacing between headings, tables, lists, and other adjacent blocks in assistant responses.
-- Made global permission updates host-authoritative and revisioned, with durable rollback, stale-acknowledgement protection, Restricted Mode enforcement, and immutable permission snapshots at reasoning/tool-round boundaries.
-- Preserved protocol-valid DeepSeek tool transcripts independently from the visible timeline, including hidden reasoning, exact tool-call ordering, valid JSON arguments, checkpoints, and safe replay after reload.
-- Replaced field-level history truncation with a total request budget that counts prompts, tool schemas, history, references, output allowance, and safety margin; older atomic generations are summarized and oversized files are reduced to literal model-selected line ranges with a deterministic local fallback.
+## [0.1.3] - 2026-07-27
+- > **Inproved history storage format, legacy-history migration period: activation atomically upgrades valid unversioned and partially migrated conversations. Compatibility remains available until the scheduled cleanup tracked by [issue #61](https://github.com/YarCrasy/deepseek-copilot/issues/61), currently targeted for 2026-08-25.**
+- Added concurrent generations across conversations, per-conversation queues, targeted interruption, and atomic checkpoint recovery after restart.
+- Bound conversations and tool execution to immutable logical workspaces, with safe multi-root paths, external read-only attachments, and hardened content search.
+- Redesigned permissions around `default`, `read-only`, `auto-approve`, `full-access`, and editable `custom` profiles, with revisioned host-authoritative updates.
+- Hardened terminal and filesystem execution with workspace containment, external-access confirmation, shell-aware danger analysis, and serialized mutations.
+- Auto context compacting in large chat sessions.
+- Turned the tool-round limit into a checkpoint where unattended modes ask DeepSeek whether to continue, request instructions, or stop.
+- Improved css designs making the extension more responsive.
 
 ## [0.1.2] - 2026-07-23
 

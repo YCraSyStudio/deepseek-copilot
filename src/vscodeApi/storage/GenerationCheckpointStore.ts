@@ -114,7 +114,7 @@ function isPermissionSnapshot(value: unknown): value is PermissionSnapshot {
   return Number.isSafeInteger(snapshot.revision) &&
     typeof snapshot.workspaceTrusted === "boolean" &&
     typeof snapshot.fingerprint === "string" &&
-    (snapshot.permissionMode === "chat" || snapshot.permissionMode === "read-only" ||
+    (snapshot.permissionMode === "default" || snapshot.permissionMode === "read-only" || snapshot.permissionMode === "custom" ||
       snapshot.permissionMode === "full-access" || snapshot.permissionMode === "auto-approve") &&
     !!snapshot.toolExecutionModes &&
     typeof snapshot.toolExecutionModes === "object";
@@ -128,9 +128,16 @@ function migrateLegacyPermissionMode(value: unknown): unknown {
   };
   if (checkpoint.config?.permissionMode === "workspace") {
     checkpoint.config.permissionMode = "full-access";
+  } else if (checkpoint.config?.permissionMode === "chat" || checkpoint.config?.permissionMode === "enabled") {
+    checkpoint.config.permissionMode = "default";
   }
   if (checkpoint.permissionSnapshot?.permissionMode === "workspace") {
     checkpoint.permissionSnapshot.permissionMode = "full-access";
+  } else if (
+    checkpoint.permissionSnapshot?.permissionMode === "chat" ||
+    checkpoint.permissionSnapshot?.permissionMode === "enabled"
+  ) {
+    checkpoint.permissionSnapshot.permissionMode = "default";
   }
   return value;
 }

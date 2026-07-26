@@ -51,7 +51,7 @@ export const terminalCommandDefinition: ToolDefinition = {
   function: {
     name: "run_terminal_command",
     description:
-      "Run one finite, non-interactive shell command in the workspace. Never detach or leave background processes running. For temporary servers, start, verify, and stop them in the same command with guaranteed cleanup. The structured result is authoritative; do not add verification-only reads unless output is ambiguous or verification was requested. Commands cannot answer prompts or use a TTY.",
+      "Run one finite, non-interactive shell command. Stay inside the workspace unless the user explicitly requests external computer access and the active permission mode allows it. Never detach or leave background processes running. For temporary servers, start, verify, and stop them in the same command with guaranteed cleanup. The structured result is authoritative; do not add verification-only reads unless output is ambiguous or verification was requested. Commands cannot answer prompts or use a TTY.",
     strict: true,
     parameters: {
       type: "object",
@@ -62,7 +62,7 @@ export const terminalCommandDefinition: ToolDefinition = {
         },
         cwd: {
           type: "string",
-          description: "Working directory relative to the workspace. Use this instead of cd. A single-root workspace defaults to its root; multi-root workspaces require an alias unless the captured active editor selects a root.",
+          description: "Working directory relative to the workspace. Use an absolute path only for explicitly requested external access. Prefer this argument over cd.",
         },
         timeoutMs: {
           type: "integer",

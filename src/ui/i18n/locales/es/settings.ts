@@ -77,8 +77,10 @@ export const settings = {
       label: "Modelo"
     },
     limits: {
-      maxTokens: "Tokens máximos",
+      maxTokens: "Tokens máximos de salida",
+      maxTokensDescription: "Reserva de salida por petición. DeepSeek V4 tiene 1M tokens de contexto total y admite hasta 384K de salida; el valor conservador predeterminado de 8.192 ayuda a limitar consumo y coste de la API.",
       maxToolRounds: "Máximo de rondas de herramientas",
+      maxToolRoundsDescription: "Intervalo del control de seguridad. Auto-approve y full-access piden a DeepSeek que reevalúe; los demás modos te preguntan si debe continuar.",
       maxConcurrentGenerations: "Generaciones simultáneas"
     }
   }

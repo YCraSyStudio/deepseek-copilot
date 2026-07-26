@@ -22,9 +22,9 @@ function GeneralTab({ config, updateConfig, saveOnBlur, modelOptions, reasoningE
         saveOnBlur={saveOnBlur}
         modelOptions={modelOptions}
         reasoningEffortOptions={reasoningEffortOptions}
-      />
-
-      <AdvancedSection config={config} updateConfig={updateConfig} saveOnBlur={saveOnBlur} />
+      >
+        <AdvancedSection config={config} updateConfig={updateConfig} saveOnBlur={saveOnBlur} />
+      </ApiSection>
     </>
   );
 }

@@ -1,6 +1,7 @@
 import type { UpdateConfigFn, SaveOnBlurFn } from "./SettingsType";
 import type { AppConfig, AvailableToolInfo } from "@/adapters";
 import type { TranslationKey } from "@webview/i18n/I18n";
+import type { ReactNode } from "react";
 
 export type ApiSectionProps = {
   config: Pick<AppConfig, "apiKey" | "model" | "baseUrl" | "thinkingMode" | "reasoningEffort">;
@@ -8,6 +9,7 @@ export type ApiSectionProps = {
   saveOnBlur: SaveOnBlurFn;
   modelOptions: Array<{ value: string; label: string }>;
   reasoningEffortOptions: ReadonlyArray<{ value: NonNullable<AppConfig["reasoningEffort"]>; label: TranslationKey }>;
+  children?: ReactNode;
 };
 
 export type AdvancedSectionProps = {

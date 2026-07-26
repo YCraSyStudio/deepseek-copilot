@@ -9,6 +9,9 @@ export const changelog: PageContent = {
     {
       title: "0.1.3-unreleased seguridad del workspace y coordinación de generaciones",
       items: [
+        "Elevada la reserva de salida predeterminada de DeepSeek de 8.192 a 65.536 tokens, conservando el máximo de 384K y documentando su relación con el contexto de 1M tokens.",
+        "Convertido el límite de rondas en un checkpoint: los modos desatendidos preguntan a DeepSeek si debe continuar, pedir instrucciones o parar, y los modos atendidos conservan la decisión del usuario.",
+        "Mejorada la adaptación a anchos extremos en Settings, permisos de herramientas, compositor/footer del chat e Historial, incluidos los paneles laterales más estrechos de VS Code.",
         "Añadida una generación activa por conversación con concurrencia configurable entre conversaciones de 1 a 16 y valor predeterminado 8.",
         "Añadidos los controles Queue message e Interrupt and guide, cancelación dirigida y eventos de streaming y herramientas vinculados a su generación.",
         "Añadidos checkpoints atómicos que recuperan salida parcial, cancelan herramientas sin finalizar y exponen prompts encolados como borradores tras reiniciar.",

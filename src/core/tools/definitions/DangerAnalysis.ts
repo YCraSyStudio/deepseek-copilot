@@ -51,21 +51,22 @@ const UNKNOWN_MESSAGE = "Unknown or unsupported shell syntax requires explicit c
 export async function analyzeDangerLevel(command: string, context: TerminalAnalysisContext): Promise<TerminalDangerAnalysis> {
   const shellFamily = identifyShellFamily(context.shell);
   const matched = PATTERNS.find((item) => item.pattern.test(command));
+  const likelyWorkspaceContained = isLikelyWorkspaceContained(command, matched?.reasonCode);
   if (matched && matched.level === "destructive") {
-    return result(matched.level, matched.message, matched.reasonCode, shellFamily);
+    return result(matched.level, matched.message, matched.reasonCode, shellFamily, undefined, likelyWorkspaceContained);
   }
   if (shellFamily === "unknown") {
-    return result(matched?.level ?? "caution", matched?.message ?? "The resolved shell is not supported by the read-only allowlist.", "unknown-shell", shellFamily);
+    return result(matched?.level ?? "caution", matched?.message ?? "The resolved shell is not supported by the read-only allowlist.", "unknown-shell", shellFamily, undefined, likelyWorkspaceContained);
   }
 
   const parsed = tokenize(command, shellFamily);
   if (!parsed) {
-    return result(matched?.level ?? classifyUnsupportedSyntax(command), matched?.message ?? UNKNOWN_MESSAGE, "unsupported-syntax", shellFamily);
+    return result(matched?.level ?? classifyUnsupportedSyntax(command), matched?.message ?? UNKNOWN_MESSAGE, "unsupported-syntax", shellFamily, undefined, likelyWorkspaceContained);
   }
 
   const form = classifyReadOnlyForm(parsed.tokens, shellFamily);
   if (!form) {
-    return result(matched?.level ?? "caution", matched?.message ?? "This command form is not in the read-only allowlist.", matched?.reasonCode ?? "not-allowlisted", shellFamily, parsed.normalizedCommand);
+    return result(matched?.level ?? "caution", matched?.message ?? "This command form is not in the read-only allowlist.", matched?.reasonCode ?? "not-allowlisted", shellFamily, parsed.normalizedCommand, likelyWorkspaceContained);
   }
 
   for (const operand of form.pathOperands) {
@@ -300,12 +301,32 @@ function classifyUnsupportedSyntax(command: string): DangerLevel {
   return "caution";
 }
 
+function isLikelyWorkspaceContained(command: string, reasonCode?: string): boolean {
+  if (reasonCode && new Set([
+    "destructive-disk",
+    "download-execute",
+    "publish",
+    "deployment",
+    "remote-mutation",
+    "elevation",
+  ]).has(reasonCode)) {
+    return false;
+  }
+  return !(
+    /(?:^|[\s"'=])(?:[a-zA-Z]:[\\/]|\\\\|\/(?![/?]))/.test(command) ||
+    /(?:^|[\s"'\\/])\.\.(?:$|[\s"'\\/])/.test(command) ||
+    /(?:^|[\s"'=])~(?:$|[\\/])/.test(command) ||
+    /\$\(|`|%[^%]+%|\$(?:env:)?[A-Za-z_{]|![A-Za-z_][A-Za-z0-9_]*!|file:\/\//i.test(command)
+  );
+}
+
 function result(
   level: DangerLevel,
   message: string,
   reasonCode: string,
   shellFamily: ShellFamily,
   normalizedCommand?: string,
+  workspaceContained = false,
 ): TerminalDangerAnalysis {
-  return { level, message, reasonCode, normalizedCommand, workspaceContained: false, shellFamily };
+  return { level, message, reasonCode, normalizedCommand, workspaceContained, shellFamily };
 }

@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { randomUUID } from "node:crypto";
-import { getDefaultToolExecutionMode, PERMISSION_MODE_ALLOWED_TOOLS } from "@/adapters";
+import { resolveToolExecutionMode } from "@/adapters";
 import { createDeepSeekProvider } from "@/deepseekApi/ProviderFactory";
 import { appendProjectInstructionsToSystemPrompt, loadProjectInstructions } from "@/vscodeApi/configuration/ProjectInstructions";
 import { GenerationCheckpointStore, HistoryManager, SettingsManager, SecretsManager } from "@/vscodeApi/storage";
@@ -504,9 +504,9 @@ export class ChatHandler {
     task: GenerationTask<SendMessagePayload>,
     signal: AbortSignal,
     workspaceSnapshot: WorkspaceRunSnapshot,
+    initialPermissionSnapshot: PermissionSnapshot,
   ): Promise<void> {
     const payload = task.payload;
-    const initialPermissionSnapshot = await SettingsManager.capturePermissionSnapshot(vscode.workspace.isTrusted);
     const config = SettingsManager.load();
     const sourceConversation = await this.historyManager.getById(task.conversationId) ??
       (this.conversationState.getActiveConversationId() === task.conversationId ? this.conversationState.getConversation() : undefined);
@@ -596,7 +596,7 @@ export class ChatHandler {
       const workspaceTools = workspaceSnapshot.binding.capabilities.files
         ? allTools.filter((tool) => tool.function.name !== "run_terminal_command" || workspaceSnapshot.binding.capabilities.terminal)
         : [];
-      const tools = getToolsForPermissionMode(initialPermissionSnapshot.permissionMode, workspaceTools).filter((tool) => toolExecutionModes[tool.function.name] !== "disabled");
+      const tools = workspaceTools.filter((tool) => toolExecutionModes[tool.function.name] !== "disabled");
       appendToolAvailabilityContext(
         messages,
         initialPermissionSnapshot.permissionMode,
@@ -754,8 +754,15 @@ export class ChatHandler {
     try {
       const binding = conversation?.workspaceBinding ?? createLegacyWorkspaceBinding(conversation?.workspaceUri ?? "workspace:unknown");
       const workspaceSnapshot = captureWorkspaceRunSnapshot(binding);
-      const workspace = createVsCodeToolWorkspace(workspaceSnapshot);
-      await runWithToolWorkspaceHost(workspace, () => this.executeGeneration(generationId, task, signal, workspaceSnapshot));
+      const permissionSnapshot = await SettingsManager.capturePermissionSnapshot(vscode.workspace.isTrusted);
+      const workspace = createVsCodeToolWorkspace(workspaceSnapshot, {
+        allowOutsideWorkspace: true,
+        unrestricted: permissionSnapshot.permissionMode === "full-access",
+      });
+      await runWithToolWorkspaceHost(
+        workspace,
+        () => this.executeGeneration(generationId, task, signal, workspaceSnapshot, permissionSnapshot),
+      );
     } catch (error: unknown) {
       const record = this.runs.get(generationId);
       if (record) {
@@ -975,7 +982,7 @@ ${payload.text}`
         this.postCommandTurn(
           webviewView,
           payload.text,
-          `Unknown command: /${command.name}\n\nAvailable commands: /status, /context, /review, /goal [text], /tools, /mode chat|read-only|full-access|auto-approve, /auto-context on|off, /clear-context, /summarize.`,
+          `Unknown command: /${command.name}\n\nAvailable commands: /status, /context, /review, /goal [text], /tools, /mode default|read-only|auto-approve|full-access|custom, /auto-context on|off, /clear-context, /summarize.`,
         );
         return true;
     }
@@ -1012,20 +1019,20 @@ ${payload.text}`
   private async handleModeCommand(args: string[], rawText: string, webviewView: vscode.WebviewView): Promise<void> {
     const mode = normalizePermissionMode(args[0]);
     if (!isPermissionMode(mode)) {
-      this.postCommandTurn(webviewView, rawText, "Usage: /mode chat|read|read-only|full|full-access|auto-approve");
+      this.postCommandTurn(webviewView, rawText, "Usage: /mode default|read|read-only|auto-approve|full|full-access|custom");
       return;
     }
 
-    if (mode === "auto-approve") {
+    if (mode === "full-access") {
       const accepted = await vscode.window.showWarningMessage(
-        "Enable global auto-approve?",
+        "Enable global full access?",
         {
           modal: true,
-          detail: "Non-terminal tools may execute immediately. Terminal commands are not OS-sandboxed; commands that are not proven read-only and workspace-contained will still require confirmation.",
+          detail: "Tools may read, modify, or delete files anywhere on this computer without confirmation. Terminal commands are not OS-sandboxed.",
         },
-        "Enable auto-approve",
+        "Enable full access",
       );
-      if (accepted !== "Enable auto-approve") {
+      if (accepted !== "Enable full access") {
         this.postCommandTurn(webviewView, rawText, "Permission mode was not changed.");
         return;
       }
@@ -1103,7 +1110,7 @@ ${payload.text}`
   private getEnabledTools(config: AppConfig): ToolDefinition[] {
     const allTools = this.toolRegistry.getDefinitionsForAPI();
     const toolExecutionModes = getEffectiveToolExecutionModes(config.toolExecutionModes, allTools, config.permissionMode);
-    return getToolsForPermissionMode(config.permissionMode, allTools).filter((tool) => toolExecutionModes[tool.function.name] !== "disabled");
+    return allTools.filter((tool) => toolExecutionModes[tool.function.name] !== "disabled");
   }
 
   private async saveAssistantResult({
@@ -1501,17 +1508,12 @@ function getEffectiveToolExecutionModes(
   tools: ToolDefinition[],
   permissionMode: PermissionMode,
 ): ToolExecutionModes {
-  const defaultMode = getDefaultToolExecutionMode(permissionMode);
-  return Object.fromEntries(tools.map((tool) => [tool.function.name, savedModes?.[tool.function.name] ?? defaultMode]));
-}
-
-function getToolsForPermissionMode(permissionMode: PermissionMode, tools: ToolDefinition[]): ToolDefinition[] {
-  const allowedToolNames = PERMISSION_MODE_ALLOWED_TOOLS[permissionMode];
-  if (allowedToolNames === null) {
-    return tools;
-  }
-
-  return tools.filter((tool) => allowedToolNames.includes(tool.function.name));
+  return Object.fromEntries(
+    tools.map((tool) => [
+      tool.function.name,
+      resolveToolExecutionMode(permissionMode, tool.function.name, savedModes ?? {}),
+    ]),
+  );
 }
 
 function appendToolAvailabilityContext(
@@ -1530,12 +1532,13 @@ function appendToolAvailabilityContext(
   const delegatedTools = permissionMode === "auto-approve" || permissionMode === "full-access"
     ? tools.filter((tool) => executionModes[tool.function.name] !== "disabled").map((tool) => tool.function.name)
     : [];
-  const capabilityNotice =
-    permissionMode === "read-only"
-      ? "This mode cannot create or modify files and cannot execute terminal commands. If the request requires those capabilities, explain the limitation immediately. Do not inspect the workspace first unless that inspection directly helps answer the request."
-      : permissionMode === "chat"
-        ? "No workspace tools are available. If the request requires workspace access or changes, explain the limitation immediately."
-        : "Use only the tools listed below and do not imply that unavailable capabilities can be used.";
+  const capabilityNotice = permissionMode === "full-access"
+    ? "The user enabled unrestricted computer access. Use external paths only when the request requires them, and prefer the narrowest operation."
+    : permissionMode === "auto-approve"
+      ? "Workspace operations are delegated. Access outside the workspace still requires explicit confirmation."
+      : permissionMode === "read-only"
+        ? "Read, list, and search tools are delegated. Mutating and terminal tools remain available but require confirmation."
+      : "Use only the tools listed below and do not imply that unavailable capabilities can be used.";
 
   const delegationNotice = delegatedTools.length > 0
     ? `\n- Unattended tools: ${delegatedTools.join(", ")}. The user explicitly delegated these approvals. Each call executes immediately, so call them only when necessary, directly aligned with the request, and with the narrowest safe arguments.`
@@ -1571,7 +1574,8 @@ function parseSlashCommand(text: string): ParsedSlashCommand | null {
 }
 
 function isPermissionMode(value: unknown): value is PermissionMode {
-  return value === "chat" || value === "read-only" || value === "full-access" || value === "auto-approve";
+  return value === "default" || value === "read-only" || value === "custom" ||
+    value === "auto-approve" || value === "full-access";
 }
 
 function normalizePermissionMode(value: string | undefined): string | undefined {

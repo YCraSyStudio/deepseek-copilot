@@ -19,7 +19,7 @@ The shared contract lives in `src/adapters/messages/Webview.ts`. The UI must not
 - `loadConversation`: loads a conversation by id.
 - `deleteConversation`: deletes a conversation.
 - `executeToolCall`: approves, executes, or rejects a pending tool call owned by a named generation.
-- `toolCallLimitDecision`: continues or stops the named generation after its tool-round limit.
+- `toolCallLimitDecision`: continues or stops the named generation after a tool-round checkpoint in attended modes. Auto-approve and full-access resolve the checkpoint host-side by asking DeepSeek to reassess, so they do not display this prompt.
 - `getWorkspaceContext`: resolves the conversation binding and its connected, disconnected, changed, or empty state.
 - `rebindConversationWorkspace`: confirms and reassigns an existing conversation to the current logical workspace.
 - `openConversationWorkspace`: opens the stored folder or `.code-workspace` in another window.

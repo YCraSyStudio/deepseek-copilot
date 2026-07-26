@@ -4,7 +4,7 @@ import { Toggle } from "@webview/components/settingsView";
 import { useApiConnectionState } from "./UseApiConnectionState";
 import { t } from "@webview/i18n";
 
-function ApiSection({ config, updateConfig, saveOnBlur, modelOptions, reasoningEffortOptions }: ApiSectionProps) {
+function ApiSection({ config, updateConfig, saveOnBlur, modelOptions, reasoningEffortOptions, children }: ApiSectionProps) {
   const { apiKeyPreview, apiKeyStatusClass, handleApiKeyBlur, handleApiKeyChange, handleTestConnection, isTesting, showApiKey, toggleShowApiKey } =
     useApiConnectionState({ config, updateConfig, saveOnBlur });
 
@@ -91,6 +91,8 @@ function ApiSection({ config, updateConfig, saveOnBlur, modelOptions, reasoningE
           </select>
         </div>
       )}
+
+      {children}
     </section>
   );
 }

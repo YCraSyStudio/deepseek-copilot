@@ -4,7 +4,7 @@ import "@vscode/codicons/dist/codicon.css";
 import "./SettingsView.css";
 import { GeneralTab, ToolsTab } from "./tabs";
 import { getVsCodeApi } from "../../VsCodeApi";
-import { DEFAULT_CONFIG, MODEL_OPTIONS, REASONING_EFFORT_OPTIONS, type SettingsConfig } from "./settingsDataModels";
+import { DEFAULT_CONFIG, MODEL_OPTIONS, REASONING_EFFORT_OPTIONS, type SaveOnBlurFn, type SettingsConfig } from "./settingsDataModels";
 import type { AvailableToolInfo, HandlerToWebviewMessage, ToolExecutionModes } from "@/adapters";
 import { setInterfaceLanguage, t } from "@webview/i18n";
 import { shouldApplyConfigRevision } from "@webview/config/ConfigRevision";
@@ -40,17 +40,23 @@ function SettingsView() {
     setConfig((current) => ({ ...current, [key]: value }));
   }, []);
 
-  const saveOnBlur = useCallback(
-    <K extends keyof SettingsConfig>(key: K, value: SettingsConfig[K]) => {
+  const saveOnBlur = useCallback((
+    keyOrPatch: keyof SettingsConfig | Partial<SettingsConfig>,
+    value?: SettingsConfig[keyof SettingsConfig],
+  ) => {
+      const patch = typeof keyOrPatch === "string" ? { [keyOrPatch]: value } : keyOrPatch;
       const requestId = crypto.randomUUID();
-      if (key === "permissionMode" || key === "toolExecutionModes") {
+      if (
+        Object.prototype.hasOwnProperty.call(patch, "permissionMode") ||
+        Object.prototype.hasOwnProperty.call(patch, "toolExecutionModes")
+      ) {
         pendingSecurityRequestsRef.current.add(requestId);
         setPermissionUpdatePending(true);
       }
-      vscode?.postMessage({ type: "saveConfig", requestId, config: { [key]: value } });
+      vscode?.postMessage({ type: "saveConfig", requestId, config: patch });
     },
     [vscode],
-  );
+  ) as SaveOnBlurFn;
 
   const requestConfig = useCallback(() => {
     setLoadError(null);

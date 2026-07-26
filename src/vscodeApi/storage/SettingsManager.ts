@@ -44,7 +44,12 @@ export class SettingsManager {
     if (existsSync(getSettingsFilePath())) {
       const storedSettings = readStoredSettings();
       const normalizedConfig = normalizeConfig(storedSettings);
-      if (isRecord(storedSettings) && storedSettings.permissionMode === "workspace") {
+      if (
+        isRecord(storedSettings) &&
+        (storedSettings.permissionMode === "workspace" ||
+          storedSettings.permissionMode === "chat" ||
+          storedSettings.permissionMode === "enabled")
+      ) {
         await SettingsManager.enqueueWrite(() => SettingsManager.persistSettings(toStoredSettings(normalizedConfig)));
       }
       SettingsManager.currentConfig = normalizedConfig;
@@ -76,7 +81,7 @@ export class SettingsManager {
   static async capturePermissionSnapshot(workspaceTrusted: boolean): Promise<PermissionSnapshot> {
     await SettingsManager.waitForPendingWrites();
     const config = SettingsManager.load();
-    const permissionMode = workspaceTrusted ? config.permissionMode : "read-only";
+    const permissionMode = workspaceTrusted ? config.permissionMode : "default";
     const toolExecutionModes = Object.fromEntries(
       Object.entries(config.toolExecutionModes).map(([toolName, mode]) => [
         toolName,
@@ -267,7 +272,11 @@ function clampInteger(value: unknown, min: number, max: number, fallback: number
 function normalizePermissionMode(value: unknown): PermissionMode {
   if (value === "approve-for-me") {return "auto-approve";}
   if (value === "workspace") {return "full-access";}
-  return value === "chat" || value === "read-only" || value === "full-access" || value === "auto-approve" ? value : DEEPSEEK_DEFAULTS.permissionMode;
+  if (value === "chat" || value === "enabled") {return "default";}
+  return value === "default" || value === "read-only" || value === "custom" ||
+    value === "full-access" || value === "auto-approve"
+    ? value
+    : DEEPSEEK_DEFAULTS.permissionMode;
 }
 
 function normalizeToolExecutionModes(value: unknown): ToolExecutionModes {

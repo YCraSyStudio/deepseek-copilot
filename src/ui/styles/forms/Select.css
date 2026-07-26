@@ -22,3 +22,9 @@ select {
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--input-focus-border) 22%, transparent);
   }
 }
+
+@media (max-width: 320px) {
+  select {
+    min-width: 0;
+  }
+}

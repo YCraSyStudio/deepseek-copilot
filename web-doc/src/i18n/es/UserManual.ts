@@ -10,7 +10,7 @@ export const userManual: PageContent = {
       title: "Primeros pasos",
       items: [
         "Abre Yar's DeepSeek Copilot desde la Activity Bar e introduce la API key en Settings. La clave se guarda en VS Code Secret Storage.",
-        "Elige el modelo, thinking mode, reasoning effort, límite de respuesta, máximo de rondas de herramientas y límite de generaciones concurrentes. La concurrencia predeterminada es 8 y admite valores entre 1 y 16.",
+        "Elige el modelo, thinking mode, reasoning effort, reserva de salida, intervalo de control de rondas y límite de generaciones concurrentes. DeepSeek V4 tiene 1M tokens de contexto total y un máximo de salida de 384K; la extensión reserva 65.536 tokens de salida de forma predeterminada. La concurrencia predeterminada es 8 y admite valores entre 1 y 16.",
         "Escribe ./ para autocompletar rutas seguras del workspace. El recorrido a padres con ../ nunca se acepta. En multi-root, las rutas comienzan por un alias estable como ./frontend/src/App.tsx.",
         "Usa el botón de adjuntar o los comandos del explorador/editor para aportar contexto explícito. Los archivos externos se convierten en snapshots acotados y de solo lectura; nunca conceden acceso de herramientas a su carpeta.",
         "Usa Stop generation para interrumpir la petición actual y cualquier árbol de procesos de terminal activo. El prompt y la respuesta parcial disponible permanecen en el historial como un turno interrumpido.",
@@ -29,11 +29,11 @@ export const userManual: PageContent = {
     {
       title: "Permisos y estados de herramientas",
       items: [
-        "chat no expone herramientas; read-only permite read_file, list_directory y search_content; full-access ejecuta inmediatamente todas las herramientas no deshabilitadas sin confirmaciones; auto-approve conserva la confirmación para operaciones de terminal arriesgadas.",
+        "default confirma cada herramienta; read-only autoaprueba lectura/listado/búsqueda y mantiene las mutaciones con confirmación; auto-approve delega operaciones dentro del workspace; full-access permite acceso sin límites tras una alerta global. custom configura cada herramienta.",
         "Cada herramienta puede deshabilitarse, requerir aprobación manual o usar aprobación automática solo para operaciones seguras. Full access es un modo desatendido y solo debe usarse en workspaces de confianza; el binding y Workspace Trust de VS Code siguen aplicándose.",
         "Las tool calls pasan por awaiting confirmation, running y un único estado final: completed, rejected, cancelled o error.",
         "El host de la extensión confirma las acciones de ejecutar y rechazar antes de que la webview fije el estado visible.",
-        "Las tool calls de una ronda se ejecutan secuencialmente. Las llamadas idénticas repetidas se omiten y el límite configurable de rondas detiene los bucles.",
+        "Las tool calls de una ronda se ejecutan secuencialmente y las llamadas idénticas repetidas se omiten. En cada control de rondas configurado, auto-approve y full-access hacen que DeepSeek reevalúe si debe continuar con herramientas, pedir instrucciones o parar; los demás modos preguntan al usuario si concede otro bloque.",
         "Las herramientas de solo lectura pueden ejecutarse entre conversaciones concurrentes, mientras que las mutaciones de archivos y terminal se serializan dentro del mismo workspace.",
       ],
     },

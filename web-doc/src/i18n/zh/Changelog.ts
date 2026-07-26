@@ -9,6 +9,9 @@ export const changelog: PageContent = {
     {
       title: "0.1.3-unreleased 工作区安全与生成任务协调",
       items: [
+        "将 DeepSeek 默认输出预留从 8,192 提高到 65,536 Token，保留 384K 上限，并说明其与 1M Token 上下文窗口的关系。",
+        "将工具轮次上限改为检查点：无人值守模式由 DeepSeek 判断继续、请求指示或停止；有人值守模式保留用户决定。",
+        "改进 Settings、工具权限、聊天输入区/底栏和历史记录在极窄宽度下的响应式布局，包括 VS Code 最窄的侧边栏。",
         "每个会话最多运行一个生成任务，不同会话的并发数可配置为 1 到 16，默认值为 8。",
         "新增 Queue message 和 Interrupt and guide 控件、定向取消，以及绑定到生成任务的流式和工具事件。",
         "新增原子生成 checkpoint；重启后可恢复部分输出、取消未完成工具，并将排队提示作为草稿提供。",

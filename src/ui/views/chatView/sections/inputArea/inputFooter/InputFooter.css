@@ -79,6 +79,8 @@
   display: flex;
 }
 .inputFooterPrimaryControls {
+  min-width: 0;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   display: flex;
@@ -91,5 +93,56 @@
   padding: 3px 5px;
 }
 .selectTooltipWrapper {
+  min-width: 0;
   display: inline-flex;
+  select {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 360px) {
+  .inputFooterControls {
+    align-items: stretch;
+    gap: 6px;
+  }
+
+  .inputFooterPrimaryControls {
+    flex: 1 1 100%;
+    width: 100%;
+    gap: 5px;
+
+    .selectTooltipWrapper {
+      flex: 1 1 110px;
+    }
+  }
+
+  .inputFooterControls > .selectTooltipWrapper {
+    flex: 1 1 120px;
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 260px) {
+  .inputFooterPrimaryControls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+
+    .selectTooltipWrapper:first-child {
+      grid-column: 1 / -1;
+    }
+
+    .selectTooltipWrapper:nth-child(2) {
+      grid-column: 1;
+      width: 100%;
+    }
+
+    .workspaceAttachButton {
+      grid-column: 2;
+      justify-self: end;
+    }
+  }
+
+  .inputFooterControls > .selectTooltipWrapper {
+    width: 100%;
+  }
 }

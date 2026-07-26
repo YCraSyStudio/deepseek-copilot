@@ -5,6 +5,7 @@ import type { ExecutionResult } from "@/core/tools/Types";
 import type { HandleExecutionResultOptions, StoredExecution, ToolExecutionContext } from "./Types";
 
 const DANGER_CANCELLED = "Tool call cancelled by user (dangerous operation)";
+const EXTERNAL_ACCESS_CANCELLED = "Tool call cancelled because access outside the workspace was not approved";
 const USER_REJECTED = "Tool call rejected by user";
 const CYCLE_UNAVAILABLE = "Tool call cycle not available";
 const TOOL_DISABLED = "Tool call rejected because the tool is disabled";
@@ -31,14 +32,41 @@ export async function executeToolCall(toolCall: ToolCall, ctx: ToolExecutionCont
     return result.result;
   }
 
-  if (ctx.autoApproveMode && toolCall.function.name !== "run_terminal_command") {
+  if (ctx.autoApproveMode || mode === "auto_approve") {
+    const externalAccess = await getExternalAccessConfirmation(toolCall);
+    if (externalAccess) {
+      if (ctx.isDangerTrusted(toolCall, externalAccess)) {
+        return executeForcedAfterTrust(toolCall, ctx, externalAccess);
+      }
+      updateStoredToolCall(ctx, toolCall.id, { status: "awaiting_confirmation" });
+      const decision = await ctx.requestDangerConfirmation(toolCall, externalAccess, {
+        announceStarted: true,
+        round: ctx.getCurrentRound(),
+      });
+      if (!decision.confirmed) {
+        postToolCallResult(ctx, createRejectedResult(toolCall, EXTERNAL_ACCESS_CANCELLED));
+        return EXTERNAL_ACCESS_CANCELLED;
+      }
+      if (decision.trustForSession) {
+        ctx.trustDangerForSession(toolCall, externalAccess);
+      }
+      updateStoredToolCall(ctx, toolCall.id, { status: "running" });
+      return executeForcedAfterTrust(toolCall, ctx, externalAccess);
+    }
+  }
+
+  if ((ctx.autoApproveMode || mode === "auto_approve") && toolCall.function.name !== "run_terminal_command") {
     const result = await ctx.toolExecutor.executeForced(toolCall, { signal: ctx.signal });
     postToolCallResult(ctx, result);
     return result.result;
   }
 
-  if (ctx.autoApproveMode) {
+  if (ctx.autoApproveMode || mode === "auto_approve") {
     const result = await ctx.toolExecutor.execute(toolCall, { signal: ctx.signal });
+    const confirmation = ToolExecutor.isConfirmationRequired(result.result);
+    if (confirmation?.workspaceContained === true) {
+      return executeForcedAfterTrust(toolCall, ctx, confirmation);
+    }
     return handleExecutionResult({
       toolCall,
       result,
@@ -60,6 +88,41 @@ export async function executeToolCall(toolCall: ToolCall, ctx: ToolExecutionCont
     announceStarted: true,
     round: ctx.getCurrentRound(),
   });
+}
+
+async function getExternalAccessConfirmation(
+  toolCall: ToolCall,
+): Promise<import("@/core/tools/Types").ConfirmationRequiredResult | undefined> {
+  const pathArgument = getPathArgument(toolCall);
+  if (!pathArgument) {
+    return undefined;
+  }
+  const workspace = getToolWorkspaceHost();
+  if (!workspace.isPathInsideWorkspace || await workspace.isPathInsideWorkspace(pathArgument)) {
+    return undefined;
+  }
+  return {
+    requiresConfirmation: true,
+    dangerLevel: "dangerous",
+    warningMessage: "This operation accesses a path outside the active workspace.",
+    filePath: pathArgument,
+    reasonCode: "outside-workspace",
+    workspaceContained: false,
+  };
+}
+
+function getPathArgument(toolCall: ToolCall): string | undefined {
+  const pathTools = new Set(["read_file", "list_directory", "create_file", "edit_file", "apply_patch"]);
+  if (!pathTools.has(toolCall.function.name) && toolCall.function.name !== "run_terminal_command") {
+    return undefined;
+  }
+  try {
+    const args = JSON.parse(toolCall.function.arguments) as Record<string, unknown>;
+    const value = toolCall.function.name === "run_terminal_command" ? args.cwd : args.path;
+    return typeof value === "string" && value.trim() ? value : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function recordInitialToolCall(toolCall: ToolCall, ctx: ToolExecutionContext): void {

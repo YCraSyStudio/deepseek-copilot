@@ -75,3 +75,31 @@
     }
   }
 }
+
+@media (max-width: 220px) {
+  .historyListItem {
+    gap: 2px;
+    padding-inline: 2px;
+
+    .openConversationBtn {
+      padding-inline: 2px;
+    }
+
+    .title {
+      white-space: normal;
+      display: -webkit-box;
+      overflow: hidden;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+    }
+
+    .metadata {
+      overflow-wrap: anywhere;
+    }
+
+    .deleteConversationBtn {
+      width: 24px;
+      height: 24px;
+    }
+  }
+}

@@ -19,6 +19,7 @@ export interface ToolWorkspaceHost {
   getWorkspaceId?(): string;
   getAvailableRootAliases?(): string[];
   getDefaultRootAlias?(): string | undefined;
+  isPathInsideWorkspace?(path: string): Promise<boolean>;
   resolvePath?(path: string, allowSensitive: boolean): Promise<string>;
   resolveLocalPath?(path?: string): Promise<ResolvedWorkspacePath>;
   realPath?(absolutePath: string): Promise<string>;
@@ -141,6 +142,7 @@ function createValidatingWorkspaceHost(host: ToolWorkspaceHost): ToolWorkspaceHo
     getWorkspaceId: host.getWorkspaceId?.bind(host),
     getAvailableRootAliases: host.getAvailableRootAliases?.bind(host),
     getDefaultRootAlias: host.getDefaultRootAlias?.bind(host),
+    isPathInsideWorkspace: host.isPathInsideWorkspace?.bind(host),
     resolvePath: host.resolvePath?.bind(host),
     resolveLocalPath: host.resolveLocalPath?.bind(host),
     realPath: host.realPath?.bind(host),

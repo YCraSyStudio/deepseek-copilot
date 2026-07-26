@@ -9,6 +9,9 @@ export const changelog: PageContent = {
     {
       title: "0.1.3-unreleased workspace safety and generation coordination",
       items: [
+        "Raised the default DeepSeek output allowance from 8,192 to 65,536 tokens, retaining the 384K maximum and documenting its relationship to the 1M-token context window.",
+        "Turned the tool-round limit into a checkpoint: unattended modes ask DeepSeek whether to continue, request instructions, or stop, while attended modes retain the user decision.",
+        "Improved extreme-width responsiveness across Settings, tool permissions, the chat composer/footer, and History, including VS Code's narrowest sidebar layouts.",
         "Added one active generation per conversation with configurable cross-conversation concurrency from 1 to 16, defaulting to 8.",
         "Added Queue message and Interrupt and guide controls, targeted cancellation, and generation-bound stream and tool events.",
         "Added atomic generation checkpoints that recover partial output, cancel unfinished tools, and expose queued prompts as drafts after restart.",

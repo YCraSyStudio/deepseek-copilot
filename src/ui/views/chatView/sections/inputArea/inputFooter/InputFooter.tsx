@@ -22,7 +22,7 @@ type Props = {
   conversationId?: string;
 };
 
-const PERMISSION_MODES: readonly PermissionMode[] = ["chat", "read-only", "auto-approve", "full-access"];
+const PERMISSION_MODES: readonly PermissionMode[] = ["default", "read-only", "auto-approve", "full-access", "custom"];
 
 function parsePermissionMode(value: string): PermissionMode | undefined {
   return PERMISSION_MODES.find((mode) => mode === value);
@@ -52,10 +52,11 @@ function InputFooter({
   }, [selectedModel]);
 
   const permissionOptions: Array<{ value: PermissionMode; label: string }> = [
-    { value: "chat", label: t("tools.chat") },
+    { value: "default", label: t("tools.default") },
     { value: "read-only", label: t("tools.readOnly") },
     { value: "auto-approve", label: t("tools.autoApprove") },
     { value: "full-access", label: t("tools.fullAccess") },
+    { value: "custom", label: t("tools.custom") },
   ];
 
   return (

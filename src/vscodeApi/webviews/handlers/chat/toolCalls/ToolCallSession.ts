@@ -98,7 +98,10 @@ export class ToolCallSession {
               options.providerConfig.maxTokens,
             );
           },
-          onLimitReached: (completedRounds, batchSize) => this.requestLimitDecision(options.webviewView, completedRounds, batchSize),
+          onLimitReached: (completedRounds, batchSize) =>
+            this.shouldDelegateLimitDecision()
+              ? "delegate"
+              : this.requestLimitDecision(options.webviewView, completedRounds, batchSize),
         },
       });
 
@@ -202,6 +205,11 @@ export class ToolCallSession {
     return new Promise((resolve) => {
       this.pendingLimitDecision = resolve;
     });
+  }
+
+  private shouldDelegateLimitDecision(): boolean {
+    return this.activePermissionSnapshot?.permissionMode === "auto-approve" ||
+      this.activePermissionSnapshot?.permissionMode === "full-access";
   }
 
   private createExecutionContext(options: ToolCallRunOptions, executedToolCalls: Map<string, StoredExecution>) {

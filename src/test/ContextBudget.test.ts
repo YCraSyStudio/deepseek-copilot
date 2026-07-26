@@ -1,5 +1,6 @@
 import * as assert from "assert";
 import type { AppConfig, ChatCompletionRequest, ChatCompletionResponse, StreamChunk } from "@/adapters";
+import { DEFAULT_CONFIG } from "@/adapters/Config";
 import { ContextCompactor } from "@/core/context/ContextCompaction";
 import {
   assertRequestFitsContext,
@@ -23,6 +24,14 @@ suite("Context budget and compaction", () => {
     }]);
     assert.ok(withTools > withoutTools);
     assert.doesNotThrow(() => assertRequestFitsContext(messages, [], "deepseek-v4-flash", 8_192));
+  });
+
+  test("uses the documented V4 limits with a conservative default output allowance", () => {
+    assert.strictEqual(DEFAULT_CONFIG.maxTokens, 8_192);
+    const budget = getContextBudget(DEFAULT_CONFIG.model, DEFAULT_CONFIG.maxTokens);
+    assert.strictEqual(budget.contextTokens, 1_000_000);
+    assert.strictEqual(budget.outputTokens, 8_192);
+    assert.strictEqual(budget.inputTokens, 971_808);
   });
 
   test("uses DeepSeek with thinking and tools disabled and extracts literal selected ranges", async () => {

@@ -10,7 +10,7 @@ export const userManual: PageContent = {
       title: "Getting started",
       items: [
         "Open Yar's DeepSeek Copilot from the Activity Bar and enter the API key in Settings. The key is stored in VS Code Secret Storage.",
-        "Choose the model, thinking mode, reasoning effort, response limit, maximum tool rounds, and concurrent generation limit. Concurrency defaults to 8 and accepts values from 1 to 16.",
+        "Choose the model, thinking mode, reasoning effort, output allowance, tool-round checkpoint interval, and concurrent generation limit. DeepSeek V4 has a 1M-token total context and a 384K maximum output; the extension reserves 65,536 output tokens by default. Concurrency defaults to 8 and accepts values from 1 to 16.",
         "Type ./ to autocomplete safe workspace paths. Parent traversal with ../ is never accepted. In multi-root workspaces, paths begin with a stable alias such as ./frontend/src/App.tsx.",
         "Use the attachment button or Explorer/editor commands for explicit context. Files outside the workspace become bounded, read-only snapshots; they never grant tools access to the surrounding folder.",
         "Use Stop generation to interrupt the current request and any running terminal process tree. The prompt and available partial response remain in history as an interrupted turn.",
@@ -29,11 +29,11 @@ export const userManual: PageContent = {
     {
       title: "Permissions and tool states",
       items: [
-        "chat exposes no workspace tools; read-only exposes read_file, list_directory, and search_content; full-access executes every non-disabled tool immediately without prompts; auto-approve exposes every non-disabled tool but still confirms risky terminal operations.",
+        "default asks before every tool; read-only auto approves read/list/search while keeping mutations available with confirmation; auto-approve delegates workspace-contained operations; full-access permits unrestricted computer access after a global warning. custom controls each tool.",
         "Each tool can be disabled, require manual approval, or use safe-only auto approval. Full access is unattended and should only be used in trusted workspaces; workspace binding and VS Code Workspace Trust remain enforced.",
         "Tool calls move through awaiting confirmation, running, and one terminal state: completed, rejected, cancelled, or error.",
         "The extension host acknowledges execute and reject actions before the webview commits the visible state.",
-        "Tool calls in a round run sequentially. Identical repeated calls are skipped, and the configurable round limit stops execution loops.",
+        "Tool calls in a round run sequentially and identical repeated calls are skipped. At each configured round checkpoint, auto-approve and full-access have DeepSeek reassess whether to continue with tools, ask for instructions, or stop; other modes ask the user whether to grant another batch.",
         "Read-only tools may run across concurrent conversations, while file and terminal mutations are serialized within the same workspace.",
       ],
     },

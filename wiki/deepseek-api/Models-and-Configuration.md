@@ -18,6 +18,20 @@ and do not use VS Code configuration contributions.
 
 `maxConcurrentGenerations` controls cross-conversation concurrency. It defaults to 8 and is normalized to an integer from 1 to 16; each conversation still permits only one active generation.
 
+`maxTokens` is the output allowance sent as `max_tokens`; it is not the model's
+context-window size. DeepSeek documents a 1,000,000-token total context and a
+384,000-token maximum output for both V4 models. The extension defaults to
+65,536 output tokens and accepts values from 1 to 384,000. The request budget
+subtracts this output allowance and a safety margin from the total context
+before admitting input, tool schemas, and the canonical tool transcript.
+
+`maxToolRounds` is a safety-checkpoint interval, not an unconditional lifetime
+cap. It defaults to 6 and accepts values from 1 to 20. At each checkpoint,
+`auto-approve` and `full-access` send DeepSeek an explicit reassessment
+instruction: call another tool only for concrete remaining work, ask the user
+for missing instructions or a material choice, or stop with the best final
+answer. Other permission modes pause for the user's continue/stop decision.
+
 ## Streaming behavior
 
 Chat responses always use SSE streaming and are rendered progressively in the webview. This is a fixed product behavior, not a public setting.
@@ -37,10 +51,12 @@ The product does not expose `provider`. DeepSeek is the only supported integrati
 ## API fidelity notes
 
 - Current official models: `deepseek-v4-flash` and `deepseek-v4-pro`.
+- Both current V4 models have a documented 1M-token context and 384K maximum output.
 - `deepseek-chat` and `deepseek-reasoner` are compatibility names with a deprecation announced by DeepSeek.
 - `thinking.type` accepts `enabled` or `disabled`; DeepSeek treats it as enabled by default.
 - `reasoning_effort` accepts `high` or `max`.
 - In thinking mode, `temperature` and `top_p` do not affect output according to the official guide.
+- Tool-call assistant messages in thinking mode must retain their complete `reasoning_content` in subsequent API requests.
 - FIM beta requires base URL `https://api.deepseek.com/beta`; do not mix it with the normal endpoint without an explicit decision.
 
 [Back](INDEX.md)

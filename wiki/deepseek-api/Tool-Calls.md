@@ -23,14 +23,16 @@ Official reference:
 4. Danger and execution mode are evaluated.
 5. If confirmation is required, the UI decides.
 6. The tool result goes back into the DeepSeek cycle.
-7. Every assistant and tool message is appended to a hidden canonical provider transcript.
-8. The final answer is shown and persisted separately from that transcript.
+7. At each configured round checkpoint, unattended modes ask DeepSeek to reassess whether to continue, request instructions, or stop; attended modes ask the user whether to continue.
+8. Every assistant and tool message is appended to a hidden canonical provider transcript.
+9. The final answer is shown and persisted separately from that transcript.
 
 ## Rules
 
 - Tool definitions live in `core`.
 - Concrete execution uses `ToolWorkspace`.
 - Each generation owns its own `ToolCallSession`; approvals and round-limit decisions include `generationId`.
+- `maxToolRounds` is the size of a checkpoint batch. It prevents silent loops without imposing a hard cap on delegated `auto-approve` or `full-access` work.
 - Destructive or ambiguous operations must require confirmation.
 - The UI should show structured results when available.
 

@@ -1,16 +1,12 @@
 import * as assert from "assert";
 import type * as vscode from "vscode";
-import { PERMISSION_MODE_ALLOWED_TOOLS, type ToolCall } from "@/adapters";
+import type { ToolCall } from "@/adapters";
 import type { ToolExecutor } from "@/core/tools/ToolExecutor";
 import { setToolWorkspaceHost } from "@/core/tools/ToolWorkspace";
 import { executeToolCall } from "@/vscodeApi/webviews/handlers/chat/toolCalls/ToolExecution";
 import type { StoredExecution, ToolExecutionContext } from "@/vscodeApi/webviews/handlers/chat/toolCalls/Types";
 
 suite("auto approve permission mode", () => {
-  test("is a global permission mode with access to every non-disabled tool", () => {
-    assert.strictEqual(PERMISSION_MODE_ALLOWED_TOOLS["auto-approve"], null);
-  });
-
   test("runs terminal analysis and confirms a non-safe command", async () => {
     setToolWorkspaceHost({
       getRootPath: () => process.cwd(),
@@ -77,6 +73,7 @@ suite("auto approve permission mode", () => {
   });
 
   test("retains direct delegation for non-terminal tools", async () => {
+    setWorkspacePathContainment(true);
     const toolCall = createToolCall("create_file", { path: "file.txt", content: "value" });
     let normalExecutions = 0;
     let forcedExecutions = 0;
@@ -128,7 +125,72 @@ suite("full access permission mode", () => {
     assert.strictEqual(forcedExecutions, 1);
     assert.strictEqual(confirmationRequests, 0);
   });
+});
 
+suite("auto approve workspace boundary", () => {
+  test("executes a mutating terminal command automatically when it is contained in the workspace", async () => {
+    const toolCall = createToolCall("run_terminal_command", { command: "npm install" });
+    let forcedExecutions = 0;
+    let confirmationRequests = 0;
+    const toolExecutor = {
+      execute: async () => ({
+        toolCallId: toolCall.id,
+        toolName: toolCall.function.name,
+        result: JSON.stringify({
+          requiresConfirmation: true,
+          dangerLevel: "caution",
+          warningMessage: "Package manager command",
+          workspaceContained: true,
+        }),
+        isError: false,
+      }),
+      executeForced: async () => {
+        forcedExecutions += 1;
+        return { toolCallId: toolCall.id, toolName: toolCall.function.name, result: "completed", isError: false };
+      },
+    } as unknown as ToolExecutor;
+    const context = createContext(toolExecutor, async () => {
+      confirmationRequests += 1;
+      return { confirmed: false };
+    });
+
+    assert.strictEqual(await executeToolCall(toolCall, context), "completed");
+    assert.strictEqual(forcedExecutions, 1);
+    assert.strictEqual(confirmationRequests, 0);
+  });
+
+  test("requires confirmation before an automatically approved tool accesses an external path", async () => {
+    setToolWorkspaceHost({
+      getRootPath: () => process.cwd(),
+      isPathInsideWorkspace: async () => false,
+      readFile: async () => new Uint8Array(),
+      writeFile: async () => undefined,
+      stat: async () => ({ type: "file", size: 0 }),
+      createParentDirectory: async () => undefined,
+      readDirectory: async () => [],
+    });
+    const toolCall = createToolCall("read_file", { path: "C:\\outside\\secret.txt" });
+    let executions = 0;
+    let confirmationRequests = 0;
+    const toolExecutor = {
+      execute: async () => { executions += 1; throw new Error("unexpected execution"); },
+      executeForced: async () => { executions += 1; throw new Error("unexpected execution"); },
+    } as unknown as ToolExecutor;
+    const context = createContext(toolExecutor, async () => {
+      confirmationRequests += 1;
+      return { confirmed: false };
+    });
+
+    assert.strictEqual(
+      await executeToolCall(toolCall, context),
+      "Tool call cancelled because access outside the workspace was not approved",
+    );
+    assert.strictEqual(executions, 0);
+    assert.strictEqual(confirmationRequests, 1);
+  });
+});
+
+suite("full access policy enforcement", () => {
   test("continues to honor an explicitly disabled tool", async () => {
     const toolCall = createToolCall("run_terminal_command", { command: "dir" });
     let executions = 0;
@@ -144,8 +206,45 @@ suite("full access permission mode", () => {
   });
 });
 
+suite("custom permission mode", () => {
+  test("auto approves only the individually delegated non-terminal tool", async () => {
+    setWorkspacePathContainment(true);
+    const toolCall = createToolCall("create_file", { path: "file.txt", content: "value" });
+    let normalExecutions = 0;
+    let forcedExecutions = 0;
+    const toolExecutor = {
+      execute: async () => {
+        normalExecutions += 1;
+        throw new Error("custom auto approval should use the forced handler");
+      },
+      executeForced: async () => {
+        forcedExecutions += 1;
+        return { toolCallId: toolCall.id, toolName: toolCall.function.name, result: "completed", isError: false };
+      },
+    } as unknown as ToolExecutor;
+    const context = createContext(toolExecutor, undefined, { autoApproveMode: false, fullAccessMode: false });
+    context.getToolMode = () => "auto_approve";
+
+    assert.strictEqual(await executeToolCall(toolCall, context), "completed");
+    assert.strictEqual(normalExecutions, 0);
+    assert.strictEqual(forcedExecutions, 1);
+  });
+});
+
 function createToolCall(name: string, args: Record<string, unknown>): ToolCall {
   return { id: `call-${name}`, type: "function", function: { name, arguments: JSON.stringify(args) } };
+}
+
+function setWorkspacePathContainment(contained: boolean): void {
+  setToolWorkspaceHost({
+    getRootPath: () => process.cwd(),
+    isPathInsideWorkspace: async () => contained,
+    readFile: async () => new Uint8Array(),
+    writeFile: async () => undefined,
+    stat: async () => ({ type: "file", size: 0 }),
+    createParentDirectory: async () => undefined,
+    readDirectory: async () => [],
+  });
 }
 
 function createContext(

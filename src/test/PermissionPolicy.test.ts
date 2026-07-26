@@ -11,22 +11,64 @@ const tools = ["read_file", "create_file", "run_terminal_command"].map((name) =>
 })) as ToolDefinition[];
 
 suite("permission policy snapshots", () => {
-  test("applies a downgrade before a tool round", () => {
-    const snapshot = createSnapshot("read-only");
-    assert.deepStrictEqual(getRunnableToolsForPermissionSnapshot(tools, snapshot).map((tool) => tool.function.name), ["read_file"]);
+  test("keeps the default preset fixed and requires confirmation for every tool", () => {
+    const snapshot = createSnapshot("default", { read_file: "disabled", create_file: "auto_approve" });
+    assert.deepStrictEqual(
+      getRunnableToolsForPermissionSnapshot(tools, snapshot).map((tool) => tool.function.name),
+      ["read_file", "create_file", "run_terminal_command"],
+    );
+    assert.strictEqual(getToolModeForPermissionSnapshot(snapshot, "read_file"), "enabled");
+    assert.strictEqual(getToolModeForPermissionSnapshot(snapshot, "create_file"), "enabled");
   });
 
-  test("keeps global full access while honoring disabled tools", () => {
+  test("auto approves read tools in read only while keeping mutations enabled", () => {
+    const snapshot = createSnapshot("read-only", { read_file: "disabled", create_file: "auto_approve" });
+    assert.deepStrictEqual(
+      getRunnableToolsForPermissionSnapshot(tools, snapshot).map((tool) => tool.function.name),
+      ["read_file", "create_file", "run_terminal_command"],
+    );
+    assert.strictEqual(getToolModeForPermissionSnapshot(snapshot, "read_file"), "auto_approve");
+    assert.strictEqual(getToolModeForPermissionSnapshot(snapshot, "create_file"), "enabled");
+    assert.strictEqual(getToolModeForPermissionSnapshot(snapshot, "run_terminal_command"), "enabled");
+  });
+
+  test("keeps auto approve fixed even when custom settings disable tools", () => {
+    const snapshot = createSnapshot("auto-approve", { create_file: "disabled" });
+    assert.deepStrictEqual(
+      getRunnableToolsForPermissionSnapshot(tools, snapshot).map((tool) => tool.function.name),
+      ["read_file", "create_file", "run_terminal_command"],
+    );
+    assert.strictEqual(getToolModeForPermissionSnapshot(snapshot, "create_file"), "auto_approve");
+  });
+
+  test("keeps full access fixed even when custom settings contain a disabled tool", () => {
     const snapshot = createSnapshot("full-access", { run_terminal_command: "disabled" });
-    assert.deepStrictEqual(getRunnableToolsForPermissionSnapshot(tools, snapshot).map((tool) => tool.function.name), ["read_file", "create_file"]);
+    assert.deepStrictEqual(
+      getRunnableToolsForPermissionSnapshot(tools, snapshot).map((tool) => tool.function.name),
+      ["read_file", "create_file", "run_terminal_command"],
+    );
   });
 
-  test("full access defaults tools to automatic execution while retaining explicit configuration", () => {
+  test("full access always uses automatic execution", () => {
     assert.strictEqual(getToolModeForPermissionSnapshot(createSnapshot("full-access"), "run_terminal_command"), "auto_approve");
     assert.strictEqual(
       getToolModeForPermissionSnapshot(createSnapshot("full-access", { run_terminal_command: "enabled" }), "run_terminal_command"),
-      "enabled",
+      "auto_approve",
     );
+  });
+
+  test("uses individual tool settings only in custom mode", () => {
+    const snapshot = createSnapshot("custom", {
+      read_file: "auto_approve",
+      create_file: "disabled",
+      run_terminal_command: "enabled",
+    });
+    assert.deepStrictEqual(
+      getRunnableToolsForPermissionSnapshot(tools, snapshot).map((tool) => tool.function.name),
+      ["read_file", "run_terminal_command"],
+    );
+    assert.strictEqual(getToolModeForPermissionSnapshot(snapshot, "read_file"), "auto_approve");
+    assert.strictEqual(getToolModeForPermissionSnapshot(snapshot, "run_terminal_command"), "enabled");
   });
 });
 

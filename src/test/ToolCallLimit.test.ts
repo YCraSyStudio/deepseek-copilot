@@ -17,4 +17,11 @@ suite("tool call round limit", () => {
     assert.strictEqual(await requestToolRoundLimitDecision(undefined, 6, 6), "stop");
     assert.strictEqual(await requestToolRoundLimitDecision(() => "stop", 12, 6), "stop");
   });
+
+  test("allows DeepSeek to reassess an unattended cycle", async () => {
+    assert.strictEqual(
+      await requestToolRoundLimitDecision(() => "delegate", 6, 6),
+      "delegate",
+    );
+  });
 });

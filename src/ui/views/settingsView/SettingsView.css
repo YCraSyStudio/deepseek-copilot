@@ -108,3 +108,32 @@
     }
   }
 }
+
+@media (max-width: 300px) {
+  .settingsView {
+    gap: 6px;
+    padding: 5px;
+
+    .settingsContainer,
+    .settingsSection {
+      border-radius: 10px;
+      padding: 10px;
+    }
+
+    .settingsTabs {
+      gap: 2px;
+      padding: 3px;
+    }
+
+    .settingsTab {
+      min-width: 0;
+      padding-inline: 4px;
+      overflow-wrap: anywhere;
+    }
+
+    > .btn-secondary {
+      width: 100%;
+      white-space: normal;
+    }
+  }
+}

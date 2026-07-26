@@ -89,3 +89,39 @@
     }
   }
 }
+
+@media (max-width: 300px) {
+  .historyView {
+    .historyToolbar {
+      flex-wrap: wrap;
+      padding: 6px;
+
+      .searchBar {
+        flex-basis: 100%;
+      }
+
+      .sortBy {
+        flex: 1 1 0;
+        max-width: none;
+        min-width: 0;
+      }
+
+      .clearBtn {
+        flex: 0 0 auto;
+      }
+    }
+
+    .historyList {
+      padding-top: 4px;
+    }
+
+    .historyPagination {
+      flex-wrap: wrap;
+
+      span {
+        flex: 1 1 100%;
+        order: -1;
+      }
+    }
+  }
+}

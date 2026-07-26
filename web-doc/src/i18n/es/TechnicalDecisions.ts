@@ -37,7 +37,7 @@ export const technicalDecisions: PageContent = {
       title: "Herramientas y terminal",
       items: [
         "El estado de herramientas tiene un único ciclo nativo que termina en completed, rejected, cancelled o error; un rechazo no se codifica como error de ejecución.",
-        "Las llamadas de una ronda se ejecutan secuencialmente y el orquestador bloquea duplicados con el mismo nombre y argumentos. Entre generaciones concurrentes, las herramientas de lectura pueden solaparse y las mutaciones se serializan por workspace.",
+        "Las llamadas de una ronda se ejecutan secuencialmente y el orquestador bloquea duplicados con el mismo nombre y argumentos. En un control de rondas, los modos desatendidos inyectan una instrucción de reevaluación para DeepSeek y los modos atendidos solicitan una decisión al usuario. Entre generaciones concurrentes, las herramientas de lectura pueden solaparse y las mutaciones se serializan por workspace.",
         "El terminal usa spawn, cancelación del árbol de procesos, resultados estructurados, salida acotada por principio y final, y detección de códigos de salida distintos de cero.",
         "Cada conversación guarda un binding versionado del workspace lógico. Cada ejecución captura una sola vez carpetas, aliases, capacidades y raíz del editor activo; ninguna operación usa el editor actual ni la primera carpeta como fallback.",
         "La autorización acepta rutas ./ del workspace, rechaza padres, rutas absolutas y URI, y resuelve rutas reales y ancestros existentes para impedir escapes por symlinks o junctions.",
@@ -51,6 +51,7 @@ export const technicalDecisions: PageContent = {
         "SSE admite comentarios, CRLF, campos data con o sin espacios, eventos multilínea, finalización del decoder, diagnósticos de JSON inválido y cancelación del reader.",
         "Las peticiones a DeepSeek normalizan URLs, usan un timeout de 60 segundos por intento y un máximo de tres intentos para fallos transitorios, respetando Retry-After.",
         "Los ajustes, el historial de conversaciones con esquema v2 y los checkpoints viven bajo ~/.yrs-dpsk-copilot/. Los checkpoints nunca contienen la API key y los historiales o checkpoints inválidos se aíslan.",
+        "El presupuesto de los modelos DeepSeek V4 usa su contexto total documentado de 1M tokens y un máximo de salida de 384K. La reserva de salida configurada es 65.536 de forma predeterminada y reduce el presupuesto de entrada junto con un margen de seguridad.",
         "El contexto tiene presupuestos agregados, detección de binarios, datos Git staged y unstaged, fuentes AGENTS.md acotadas y delimitadores explícitos de datos no confiables.",
       ],
     },

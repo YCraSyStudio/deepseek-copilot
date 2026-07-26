@@ -23,12 +23,12 @@ suite("transactional settings", () => {
   });
 
   test("keeps an authoritative resident copy instead of rereading disk", async () => {
-    await SettingsManager.save({ permissionMode: "read-only" });
+    await SettingsManager.save({ permissionMode: "default" });
     const revision = SettingsManager.getRevision();
     const disk = JSON.parse(readFileSync(getSettingsFilePath(), "utf8")) as Record<string, unknown>;
     writeFileSync(getSettingsFilePath(), JSON.stringify({ ...disk, permissionMode: "auto-approve" }));
 
-    assert.strictEqual(SettingsManager.load().permissionMode, "read-only");
+    assert.strictEqual(SettingsManager.load().permissionMode, "default");
     assert.strictEqual(SettingsManager.getRevision(), revision);
   });
 
@@ -54,7 +54,7 @@ suite("transactional settings", () => {
     });
 
     const snapshot = await SettingsManager.capturePermissionSnapshot(false);
-    assert.strictEqual(snapshot.permissionMode, "read-only");
+    assert.strictEqual(snapshot.permissionMode, "default");
     assert.strictEqual(snapshot.toolExecutionModes.read_file, "enabled");
     assert.strictEqual(snapshot.toolExecutionModes.run_terminal_command, "enabled");
     assert.strictEqual(snapshot.workspaceTrusted, false);
@@ -66,7 +66,7 @@ suite("transactional settings", () => {
     const writeGate = new Promise<void>((resolve) => {releaseWrite = resolve;});
     SettingsManager.setPersistenceForTests(() => writeGate);
 
-    const save = SettingsManager.save({ permissionMode: "read-only" });
+    const save = SettingsManager.save({ permissionMode: "default" });
     const capture = SettingsManager.capturePermissionSnapshot(true);
     let captured = false;
     void capture.then(() => {captured = true;});
@@ -78,7 +78,7 @@ suite("transactional settings", () => {
 
     releaseWrite?.();
     await save;
-    assert.strictEqual((await capture).permissionMode, "read-only");
+    assert.strictEqual((await capture).permissionMode, "default");
     SettingsManager.setPersistenceForTests();
   });
 });

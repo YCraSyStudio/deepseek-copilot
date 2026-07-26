@@ -6,6 +6,9 @@ suite("webview message validation", () => {
     const messages = [
       { type: "getConfig" },
       { type: "saveConfig", requestId: "config-1", config: { interfaceLanguage: "es", permissionMode: "auto-approve", temperature: 1, maxTokens: 384_000, toolExecutionModes: { read_file: "auto_approve" } } },
+      { type: "saveConfig", requestId: "config-custom", config: { permissionMode: "custom", toolExecutionModes: { read_file: "enabled", create_file: "disabled" } } },
+      { type: "saveConfig", requestId: "config-default", config: { permissionMode: "default" } },
+      { type: "saveConfig", requestId: "config-read-only", config: { permissionMode: "read-only" } },
       { type: "resetConfig", requestId: "config-2" },
       { type: "testConnection", apiKey: "secret", baseUrl: "https://api.deepseek.com", model: "deepseek-v4-flash" },
       { type: "sendMessage", clientRequestId: "request-1", text: "hello", modelId: "deepseek-v4-flash", reasoning: "high", conversationId: "conversation-1", referencedFiles: [{ path: "README.md", content: "text", type: "file" }] },
@@ -43,7 +46,7 @@ suite("webview message validation", () => {
       { type: "resetConfig" },
       { type: "sendMessage", text: "", modelId: "model", reasoning: "high" },
       { type: "sendMessage", text: "hello", modelId: "model", reasoning: "invalid" },
-      { type: "saveConfig", config: { permissionMode: "read-only" } },
+      { type: "saveConfig", requestId: "legacy-enabled", config: { permissionMode: "enabled" } },
       { type: "saveConfig", requestId: "bad-1", config: { permissionMode: "root" } },
       { type: "saveConfig", requestId: "bad-workspace", config: { permissionMode: "workspace" } },
       { type: "saveConfig", requestId: "bad-2", config: { temperature: Number.NaN } },

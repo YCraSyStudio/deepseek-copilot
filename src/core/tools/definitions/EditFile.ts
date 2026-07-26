@@ -174,7 +174,7 @@ export const editFileDefinition: ToolDefinition = {
       properties: {
         path: {
           type: "string",
-          description: "Path relative to the workspace, for example src/Main.ts or README.md.",
+          description: "Workspace-relative path. Use an absolute path only for explicitly requested external access.",
         },
         search: {
           type: "string",

@@ -1,20 +1,25 @@
 export type ToolExecutionMode = "disabled" | "enabled" | "auto_approve";
 export type ToolExecutionModes = Record<string, ToolExecutionMode>;
-export type PermissionMode = "chat" | "read-only" | "full-access" | "auto-approve";
+export type PermissionMode = "default" | "read-only" | "custom" | "auto-approve" | "full-access";
 export type InterfaceLanguage = "auto" | "en" | "es" | "zh";
-export type PermissionModeAllowedTools = readonly string[] | null;
 
-export const PERMISSION_MODE_ALLOWED_TOOLS: Record<PermissionMode, PermissionModeAllowedTools> = {
-  chat: [],
-  "read-only": ["read_file", "list_directory", "search_content"],
-  "full-access": null,
-  "auto-approve": null,
-};
-
-export function getDefaultToolExecutionMode(permissionMode: PermissionMode): ToolExecutionMode {
-  return permissionMode === "full-access" || permissionMode === "auto-approve"
-    ? "auto_approve"
-    : "enabled";
+export function resolveToolExecutionMode(
+  permissionMode: PermissionMode,
+  toolName: string,
+  customModes: ToolExecutionModes,
+): ToolExecutionMode {
+  if (permissionMode === "custom") {
+    return customModes[toolName] ?? "enabled";
+  }
+  if (permissionMode === "default") {
+    return "enabled";
+  }
+  if (permissionMode === "read-only") {
+    return ["read_file", "list_directory", "search_content"].includes(toolName)
+      ? "auto_approve"
+      : "enabled";
+  }
+  return "auto_approve";
 }
 
 export interface AppConfig {
@@ -65,7 +70,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   maxTokens: 8192,
   maxToolRounds: 6,
   maxConcurrentGenerations: 8,
-  permissionMode: "read-only",
+  permissionMode: "default",
   toolExecutionModes: {},
   autoContext: false,
   historyEnabled: true,

@@ -77,6 +77,18 @@ suite("Extension integration", () => {
     assert.strictEqual((await host.resolveLocalPath!()).workspaceRoot, workspaceFolder.uri.fsPath);
   });
 
+  test("exposes external paths only through an explicitly permissive generation host", async () => {
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    assert.ok(workspaceRoot);
+    const externalPath = path.dirname(workspaceRoot);
+    const restrictedHost = createVsCodeToolWorkspace();
+    const permissiveHost = createVsCodeToolWorkspace(undefined, { allowOutsideWorkspace: true });
+
+    await assert.rejects(restrictedHost.resolvePath!(externalPath, false), /relative to the selected workspace/);
+    assert.strictEqual(await permissiveHost.resolvePath!(externalPath, false), path.resolve(externalPath));
+    assert.strictEqual(await permissiveHost.isPathInsideWorkspace!(externalPath), false);
+  });
+
   test("searches literal workspace content through the VS Code filesystem without exposing sensitive files", async () => {
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     assert.ok(workspaceFolder, "The integration test must run with the repository open as a workspace.");

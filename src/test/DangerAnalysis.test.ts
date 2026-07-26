@@ -99,6 +99,14 @@ suite("terminal danger analysis", () => {
     assert.strictEqual((await analyzeDangerLevel("ls", context("custom-shell"))).level, "caution");
   });
 
+  test("distinguishes workspace-contained mutations from external computer access", async () => {
+    assert.strictEqual((await analyzeDangerLevel("npm install", context("/bin/bash"))).workspaceContained, true);
+    assert.strictEqual((await analyzeDangerLevel("rm -rf node_modules", context("/bin/bash"))).workspaceContained, true);
+    assert.strictEqual((await analyzeDangerLevel("rm -rf ../outside", context("/bin/bash"))).workspaceContained, false);
+    assert.strictEqual((await analyzeDangerLevel("Remove-Item C:\\outside\\file.txt", context("pwsh.exe"))).workspaceContained, false);
+    assert.strictEqual((await analyzeDangerLevel("git push", context("/bin/bash"))).workspaceContained, false);
+  });
+
   test("does not trust an executable merely because its basename is allowlisted", async () => {
     for (const [command, shell] of [["/tmp/ls", "/bin/bash"], ["C:\\tools\\dir.exe", "cmd.exe"], [".\\Get-Content.exe package.json", "pwsh.exe"]]) {
       assert.notStrictEqual((await analyzeDangerLevel(command!, context(shell!))).level, "safe");

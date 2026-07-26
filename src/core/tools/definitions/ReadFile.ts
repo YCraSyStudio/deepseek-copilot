@@ -51,7 +51,7 @@ export const readFileDefinition: ToolDefinition = {
       properties: {
         path: {
           type: "string",
-          description: "Path relative to the workspace, for example src/Main.ts or README.md.",
+          description: "Workspace-relative path, for example src/Main.ts. Use an absolute path only when the user explicitly requests access outside the workspace and the active permission mode allows it.",
         },
       },
       required: ["path"],

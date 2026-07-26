@@ -14,8 +14,6 @@ Each Markdown file contains only the issue body. Titles, suggested existing labe
 
 | ID | Priority | Title | Body file | Suggested labels | Depends on |
 | --- | --- | --- | --- | --- | --- |
-| 004 | P0 | Make terminal auto-approval fail closed and scope session trust | `004-p0-harden-terminal-execution.md` | BUG, IMPROVEMENT, INTEGRATION | 005 |
-| 005 | P0 | Make elevated permissions workspace-scoped and transactional | `005-p0-transactional-permission-updates.md` | BUG, INTEGRATION, FRONTEND | — |
 | 007 | P0 | Keep API credentials host-side and bind them to secure origins | `007-p0-protect-api-credentials.md` | BUG, INTEGRATION, FRONTEND | — |
 | 008 | P0 | Make disabled history truly ephemeral | `008-p0-make-disabled-history-ephemeral.md` | BUG, INTEGRATION, FRONTEND | — |
 | 009 | P1 | Guarantee tool-call identity, terminal states, and auditability | `009-p1-tool-call-integrity-and-audit.md` | BUG, INTEGRATION, FRONTEND | — |
@@ -23,7 +21,7 @@ Each Markdown file contains only the issue body. Titles, suggested existing labe
 | 011 | P1 | Make settings and history storage concurrency-safe | `011-p1-make-storage-concurrency-safe.md` | BUG, INTEGRATION | — |
 | 012 | P1 | Harden streaming timeouts, bounds, and partial-response recovery | `012-p1-harden-streaming-resilience.md` | BUG, INTEGRATION, FRONTEND | — |
 | 013 | P1 | Guarantee child-process shutdown on timeout and cancellation | `013-p1-guarantee-process-shutdown.md` | BUG, INTEGRATION | — |
-| 014 | P1 | Version and synchronize the webview-host protocol | `014-p1-version-webview-host-protocol.md` | BUG, INTEGRATION, FRONTEND | 005, 008 |
+| 014 | P1 | Version and synchronize the webview-host protocol | `014-p1-version-webview-host-protocol.md` | BUG, INTEGRATION, FRONTEND | 008 |
 | 015 | P1 | Align DeepSeek provider options with the documented API contract | `015-p1-align-deepseek-provider-contract.md` | BUG, INTEGRATION | — |
 | 016 | P1 | Add production CI, E2E coverage, and packaged-VSIX release gates | `016-p1-add-production-ci-and-e2e-gates.md` | IMPROVEMENT, INTEGRATION | — |
 | 017 | P2 | Align the extension manifest, VSIX contents, and release metadata | `017-p2-fix-package-manifest-and-vsix.md` | BUG, INTEGRATION, DOCUMENTATION | 016 |
@@ -46,20 +44,20 @@ $issueManifest.issues | Format-Table id, priority, title, bodyFile
 Review every body before creating the corresponding issue:
 
 ```powershell
-Get-Content -LiteralPath ".github/issue-bodies/004-p0-harden-terminal-execution.md"
+Get-Content -LiteralPath ".github/issue-bodies/007-p0-protect-api-credentials.md"
 ```
 
 ## Create one issue with GitHub CLI
 
-Example for issue 004:
+Example for issue 007:
 
 ```powershell
 gh issue create `
   --repo "YarCrasy/deepseek-copilot" `
-  --title "[P0] Make terminal auto-approval fail closed and scope session trust" `
+  --title "[P0] Keep API credentials host-side and bind them to secure origins" `
   --label "BUG" `
   --label "INTEGRATION" `
-  --body-file ".github/issue-bodies/004-p0-harden-terminal-execution.md"
+  --body-file ".github/issue-bodies/007-p0-protect-api-credentials.md"
 ```
 
 The repository currently has these relevant labels:

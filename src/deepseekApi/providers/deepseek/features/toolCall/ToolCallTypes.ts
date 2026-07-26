@@ -24,8 +24,11 @@ export interface ToolCallCycleOptions {
   reasoningEffort?: "high" | "max";
   maxTokens?: number;
   userId?: string;
-  onLimitReached?: (completedRounds: number, batchSize: number) => Promise<"continue" | "stop"> | "continue" | "stop";
+  onLimitReached?: (completedRounds: number, batchSize: number) =>
+    Promise<ToolRoundLimitDecision> | ToolRoundLimitDecision;
 }
+
+export type ToolRoundLimitDecision = "continue" | "delegate" | "stop";
 
 export interface ToolCallCycleResult {
   finalMessage: ChatMessage;

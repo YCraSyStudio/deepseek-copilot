@@ -32,3 +32,25 @@ header {
     margin-left: auto;
   }
 }
+
+@media (max-width: 220px) {
+  header {
+    padding-inline: 2px;
+
+    .leftTooling,
+    .center,
+    .rightTooling {
+      gap: 2px;
+    }
+
+    .leftTooling {
+      min-width: 28px;
+    }
+  }
+}
+
+@media (max-width: 150px) {
+  header .center {
+    display: none;
+  }
+}

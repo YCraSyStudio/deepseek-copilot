@@ -37,7 +37,7 @@ export const technicalDecisions: PageContent = {
       title: "工具和终端",
       items: [
         "工具状态使用单一原生生命周期，最终进入 completed、rejected、cancelled 或 error；拒绝不会被编码为执行错误。",
-        "同一工具轮次中的调用按顺序执行，编排器会阻止名称和参数完全相同的重复调用。在并发生成任务之间，只读工具可以重叠运行，而工作区变更按工作区串行执行。",
+        "同一工具轮次中的调用按顺序执行，编排器会阻止名称和参数完全相同的重复调用。在轮次检查点，无人值守模式会注入 DeepSeek 重新评估指令，而有人值守模式会请求用户决定。在并发生成任务之间，只读工具可以重叠运行，而工作区变更按工作区串行执行。",
         "终端使用 spawn、进程树取消、结构化结果、保留首尾的有界输出，以及非零退出码检测。",
         "每个会话保存带修订号的逻辑工作区绑定。每次运行只捕获一次文件夹、别名、能力和活动编辑器根；操作不会回退到当前编辑器或第一个文件夹。",
         "路径授权仅接受工作区 ./ 路径，拒绝父目录遍历、绝对路径和 URI，并解析真实路径与现有祖先以防止 symlink 或 junction 越界。",
@@ -51,6 +51,7 @@ export const technicalDecisions: PageContent = {
         "SSE 支持注释、CRLF、带或不带空格的 data 字段、多行事件、解码器收尾、异常 JSON 诊断和 reader 取消。",
         "DeepSeek 请求使用规范化 URL，每次尝试超时 60 秒；对临时故障最多尝试三次，并遵守 Retry-After。",
         "设置、schema-v2 会话历史和生成 checkpoint 都保存在 ~/.yrs-dpsk-copilot/ 下。checkpoint 绝不包含 API key，异常的历史或 checkpoint 文件会被隔离。",
+        "DeepSeek V4 模型按官方的 1M Token 总上下文和 384K 最大输出进行预算。配置的输出预留默认为 65,536，并与安全余量一起减少输入预算。",
         "上下文具有总预算、二进制检测、Git staged 和 unstaged 数据、受限的 AGENTS.md 来源，以及明确的不受信任数据分隔符。",
       ],
     },

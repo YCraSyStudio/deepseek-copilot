@@ -77,8 +77,10 @@ export const settings = {
       label: "Model"
     },
     limits: {
-      maxTokens: "Max Tokens",
+      maxTokens: "Max output tokens",
+      maxTokensDescription: "Output allowance per request. DeepSeek V4 has a 1M-token total context and supports up to 384K output; the conservative 8,192 default helps limit API usage and cost.",
       maxToolRounds: "Max tool rounds",
+      maxToolRoundsDescription: "Safety checkpoint interval. Auto-approve and full-access ask DeepSeek to reassess; other modes ask you whether to continue.",
       maxConcurrentGenerations: "Concurrent generations"
     }
   }
