@@ -1,5 +1,9 @@
 # Change Log
 
+## [0.1.5] - 2026-07-30
+
+- Packaging hotfix: excluded `*.log` files from VSIX artifacts.
+
 ## [0.1.4] - 2026-07-30
 
 - Protected DeepSeek credentials per API origin in VS Code Secret Storage, including automatic migration of the legacy key, explicit confirmation before changing credential destinations, same-origin redirect enforcement, redacted errors, and a masked placeholder preview that never places the stored key in webview configuration.

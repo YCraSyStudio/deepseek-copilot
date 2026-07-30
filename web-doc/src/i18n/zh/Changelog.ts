@@ -4,8 +4,14 @@ export const changelog: PageContent = {
   navTitle: "更新日志",
   title: "更新日志",
   description: "重要变更和预览状态。",
-  lead: "0.1.4 预览版保护 API 凭据，为 auto-approve 增加上下文化命令审查，并让工具活动更紧凑、更易检查。",
+  lead: "0.1.5 是一个打包热修复，可防止本地诊断日志进入 VSIX 和 Marketplace 构件。",
   sections: [
+    {
+      title: "0.1.5 打包热修复",
+      items: [
+        "在 VSIX 打包规则中显式排除 *.log，避免分发 debug.log 等本地文件。",
+      ],
+    },
     {
       title: "0.1.4 预览版：凭据安全、命令审查和聚焦的工具界面",
       items: [

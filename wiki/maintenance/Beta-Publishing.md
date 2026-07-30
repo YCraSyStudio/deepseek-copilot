@@ -4,7 +4,7 @@
 
 ## Target release
 
-The current target is `0.1.4` pre-release. Use the version declared in
+The current target is `0.1.5` pre-release. Use the version declared in
 `package.json` and keep the root lockfile aligned.
 
 ## Marketplace metadata

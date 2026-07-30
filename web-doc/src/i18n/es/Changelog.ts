@@ -4,8 +4,14 @@ export const changelog: PageContent = {
   navTitle: "Changelog",
   title: "Changelog",
   description: "Cambios relevantes y estado preview.",
-  lead: "La versión preview 0.1.4 protege las credenciales de API, añade revisión contextual de comandos para auto-approve y hace la actividad de herramientas más compacta e inspeccionable.",
+  lead: "La versión 0.1.5 es un hotfix de empaquetado que impide incluir logs de diagnóstico locales en los artefactos VSIX y Marketplace.",
   sections: [
+    {
+      title: "0.1.5 hotfix de empaquetado",
+      items: [
+        "Añadida una exclusión explícita para *.log en las reglas del paquete VSIX, evitando distribuir archivos locales como debug.log.",
+      ],
+    },
     {
       title: "0.1.4 preview: credenciales, revisión de comandos y UI enfocada en herramientas",
       items: [
