@@ -128,7 +128,7 @@
     "lint": "eslint src",
     "test": "npm run test:unit && npm run test:integration",
     "test:unit": "node scripts/run-unit-tests.mjs",
-    "test:integration": "npm run build && node ./node_modules/esbuild/bin/esbuild src/test/Extension.test.ts --bundle --platform=node --format=cjs --external:vscode --outfile=out/test/Extension.test.js && vscode-test"
+    "test:integration": "npm run build && node ./node_modules/esbuild/bin/esbuild src/test/integration/Extension.test.ts --bundle --platform=node --format=cjs --external:vscode --outfile=out/test/Extension.test.js && vscode-test"
   },
   "dependencies": {
     "@vscode/codicons": "^0.0.45",

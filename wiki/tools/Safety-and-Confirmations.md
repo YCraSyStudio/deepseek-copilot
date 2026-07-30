@@ -21,7 +21,8 @@ Terminal commands are not protected by an OS sandbox. Under `auto-approve`, pack
 
 ## Terminal read-only model
 
-Logic lives in `src/core/tools/definitions/DangerAnalysis.ts`.
+Logic lives in `src/core/tools/builtins/terminal/DangerAnalysis.ts`; the old
+`definitions` path remains a compatibility export.
 
 The analyzer resolves the actual shell and working directory, tokenizes only a conservative subset of that shell's syntax, and accepts a small allowlist of read-only forms:
 
@@ -42,5 +43,11 @@ When there is risk and the permission mode is not `full-access`:
 4. the backend accepts the response only for the pending `generationId` and `toolCallId`.
 
 Non-destructive trust may be reused by an exact normalized operation in later generations of the same conversation. Its key also contains workspace URI, resolved execution context, and the relevant configuration fingerprint. It is cleared on conversation, workspace, configuration, or permission-mode changes. Destructive operations are never delegated and require separate confirmation every time.
+
+The remote reviewer lives in `src/deepseekApi/security/commandReview`. It
+receives the initial user request and bounded read-only context for affected
+files. A locally uncertain operation is executed automatically only when the
+review reaches the configured accepted confidence; unresolved doubt falls back
+to the manual confirmation above.
 
 [Back](INDEX.md)

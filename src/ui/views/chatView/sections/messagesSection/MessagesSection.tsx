@@ -6,7 +6,7 @@ import { useMessageHandler } from "../../hooks";
 import { ChatEmptyState, ChatMessages, ToolCallConfirmationModal, ToolCallTimeline } from "@webview/components/chatView";
 import { useChatMessagesController, useCodeActionHandler, useToolCallController } from "../../../../hooks/chat";
 import { t } from "@webview/i18n";
-import ToolCallLimitModal from "@webview/components/chatView/toolCallLimitModal/ToolCallLimitModal";
+import ToolCallLimitModal from "@webview/components/chatView/tools/confirmations/ToolCallLimitModal";
 
 function MessagesSection({
   conversationId,
@@ -106,42 +106,45 @@ function MessagesSection({
 
   const emptyStateVisible = messages.length === 0 && !isProcessing;
   return (
-    <div className="messagesSection">
-      <div className="msgList" ref={listRef} onClick={handleCodeAction} onScroll={handleScroll} aria-busy={isProcessing}>
-        {emptyStateVisible ? (
-          <ChatEmptyState />
-        ) : (
-          <>
-            <ChatMessages
-              messages={messages}
-              activeToolCallGroups={tools.activeTimelineGroups}
-              renderToolCallGroups={(groups) => (
-                <ToolCallTimeline
-                  groups={groups}
-                  vscode={vscode}
-                />
-              )}
-            />
-          </>
-        )}
+    <>
+      <div className="messagesSection">
+        <div className="msgList" ref={listRef} onClick={handleCodeAction} onScroll={handleScroll} aria-busy={isProcessing}>
+          {emptyStateVisible ? (
+            <ChatEmptyState />
+          ) : (
+            <>
+              <ChatMessages
+                messages={messages}
+                activeToolCallGroups={tools.activeTimelineGroups}
+                renderToolCallGroups={(groups) => (
+                  <ToolCallTimeline
+                    groups={groups}
+                    vscode={vscode}
+                    conversationId={conversationId}
+                  />
+                )}
+              />
+            </>
+          )}
 
-        {isProcessing ? (
-          <div className="typingIndicator" role="status" aria-live="polite">
-            <div className="typingDots">
-              <span /> <span /> <span />
+          {isProcessing ? (
+            <div className="typingIndicator" role="status" aria-live="polite">
+              <div className="typingDots">
+                <span /> <span /> <span />
+              </div>
+              <span className="typingLabel">{t(isCompacting ? "chat.compactingContext" : "chat.deepseekIsThinking")}</span>
             </div>
-            <span className="typingLabel">{t(isCompacting ? "chat.compactingContext" : "chat.deepseekIsThinking")}</span>
-          </div>
+          ) : null}
+        </div>
+        {showJumpToLatest ? (
+          <button className="jumpToLatest" type="button" onClick={jumpToLatest} aria-label={t("chat.jumpToLatest")}>
+            <span className="codicon codicon-arrow-down" aria-hidden="true" />
+          </button>
         ) : null}
+        <span className="streamStatus srOnly" role="status" aria-live="polite">
+          {isProcessing ? t("chat.streaming") : t("chat.finished")}
+        </span>
       </div>
-      {showJumpToLatest ? (
-        <button className="jumpToLatest" type="button" onClick={jumpToLatest} aria-label={t("chat.jumpToLatest")}>
-          <span className="codicon codicon-arrow-down" aria-hidden="true" />
-        </button>
-      ) : null}
-      <span className="streamStatus srOnly" role="status" aria-live="polite">
-        {isProcessing ? t("chat.streaming") : t("chat.finished")}
-      </span>
       <ToolCallConfirmationModal
         pendingToolCalls={tools.pendingToolCalls}
         onExecute={tools.handleExecute}
@@ -151,7 +154,7 @@ function MessagesSection({
         disabled={permissionUpdatePending}
       />
       <ToolCallLimitModal limit={tools.toolCallLimit} onDecision={tools.handleLimitDecision} disabled={permissionUpdatePending} />
-    </div>
+    </>
   );
 }
 

@@ -43,6 +43,7 @@ export interface ConfirmationRequiredResult {
   command?: string;
   filePath?: string;
   cwd?: string;
+  workspaceRoot?: string;
   shell?: string;
   beforeHash?: string;
   reasonCode?: string;

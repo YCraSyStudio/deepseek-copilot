@@ -1,6 +1,7 @@
 import type { ToolCall } from "@/adapters";
 import { ToolExecutor } from "@/core/tools/ToolExecutor";
 import { getToolWorkspaceHost } from "@/core/tools/ToolWorkspace";
+import { isAutomaticConfidence } from "@/deepseekApi/security/commandReview";
 import type { ExecutionResult } from "@/core/tools/Types";
 import type { HandleExecutionResultOptions, StoredExecution, ToolExecutionContext } from "./Types";
 
@@ -11,6 +12,18 @@ const CYCLE_UNAVAILABLE = "Tool call cycle not available";
 const TOOL_DISABLED = "Tool call rejected because the tool is disabled";
 const UNTRUSTED_WORKSPACE = "Tool call rejected because the workspace is not trusted";
 const MUTATING_TOOLS = new Set(["create_file", "edit_file", "apply_patch", "run_terminal_command"]);
+const NON_DELEGABLE_REASON_CODES = new Set([
+  "outside-workspace",
+  "destructive-delete",
+  "destructive-git",
+  "destructive-disk",
+  "download-execute",
+  "publish",
+  "deployment",
+  "remote-mutation",
+  "elevation",
+  "process-termination",
+]);
 
 export async function executeToolCall(toolCall: ToolCall, ctx: ToolExecutionContext): Promise<string> {
   recordInitialToolCall(toolCall, ctx);
@@ -64,8 +77,47 @@ export async function executeToolCall(toolCall: ToolCall, ctx: ToolExecutionCont
   if (ctx.autoApproveMode || mode === "auto_approve") {
     const result = await ctx.toolExecutor.execute(toolCall, { signal: ctx.signal });
     const confirmation = ToolExecutor.isConfirmationRequired(result.result);
-    if (confirmation?.workspaceContained === true) {
-      return executeForcedAfterTrust(toolCall, ctx, confirmation);
+    if (confirmation) {
+      if (ctx.isDangerTrusted(toolCall, confirmation)) {
+        return executeForcedAfterTrust(toolCall, ctx, confirmation);
+      }
+      const localRevisionGuidance = getLocalRevisionGuidance(confirmation);
+      if (localRevisionGuidance) {
+        return rejectCommandForRevision(toolCall, localRevisionGuidance, ctx);
+      }
+      if (isDeepSeekReviewEligible(confirmation)) {
+        const review = await reviewDangerousCommandFailClosed(toolCall, confirmation, ctx);
+        if (
+          review.decision === "approve" &&
+          isAutomaticConfidence(review.confidence) &&
+          confirmation.workspaceContained === true
+        ) {
+          return executeForcedAfterTrust(toolCall, ctx, confirmation);
+        }
+        const reviewForConfirmation =
+          review.decision === "approve" && isAutomaticConfidence(review.confidence)
+            ? {
+                ...review,
+                reason: [
+                  review.reason,
+                  "The local analyzer did not prove that every filesystem effect stays inside the active workspace.",
+                ].join(" "),
+              }
+            : review;
+        if (review.decision === "revise" && isAutomaticConfidence(review.confidence)) {
+          return rejectCommandForRevision(toolCall, review.reason, ctx);
+        }
+        return handleExecutionResult({
+          toolCall,
+          result,
+          ctx,
+          announceStarted: true,
+          round: ctx.getCurrentRound(),
+        }, {
+          ...confirmation,
+          warningMessage: `${confirmation.warningMessage} DeepSeek review: ${reviewForConfirmation.reason}`,
+        });
+      }
     }
     return handleExecutionResult({
       toolCall,
@@ -160,9 +212,12 @@ async function executeManualToolCall(toolCall: ToolCall, ctx: ToolExecutionConte
   });
 }
 
-async function handleExecutionResult(options: HandleExecutionResultOptions): Promise<string> {
+async function handleExecutionResult(
+  options: HandleExecutionResultOptions,
+  dangerOverride?: import("@/core/tools/Types").ConfirmationRequiredResult,
+): Promise<string> {
   const { toolCall, result, ctx, announceStarted, round } = options;
-  const dangerInfo = ToolExecutor.isConfirmationRequired(result.result);
+  const dangerInfo = dangerOverride ?? ToolExecutor.isConfirmationRequired(result.result);
   updateStoredToolCall(ctx, toolCall.id, {
     result: result.result,
     isError: result.isError,
@@ -192,6 +247,71 @@ async function handleExecutionResult(options: HandleExecutionResultOptions): Pro
 
   updateStoredToolCall(ctx, toolCall.id, { status: "running" });
   return executeForcedAfterTrust(toolCall, ctx, dangerInfo);
+}
+
+async function reviewDangerousCommandFailClosed(
+  toolCall: ToolCall,
+  confirmation: import("@/core/tools/Types").ConfirmationRequiredResult,
+  ctx: ToolExecutionContext,
+): ReturnType<ToolExecutionContext["reviewDangerousCommand"]> {
+  try {
+    return await ctx.reviewDangerousCommand(toolCall, confirmation);
+  } catch {
+    return {
+      decision: "manual_confirmation",
+      confidence: "very_low",
+      reason: "DeepSeek safety review failed, so manual confirmation is required.",
+    };
+  }
+}
+
+function isDeepSeekReviewEligible(confirmation: import("@/core/tools/Types").ConfirmationRequiredResult): boolean {
+  if (confirmation.dangerLevel === "destructive") {
+    return false;
+  }
+  return !confirmation.reasonCode || !NON_DELEGABLE_REASON_CODES.has(confirmation.reasonCode);
+}
+
+function getLocalRevisionGuidance(
+  confirmation: import("@/core/tools/Types").ConfirmationRequiredResult,
+): string | undefined {
+  const command = confirmation.command ?? "";
+  const startsDetachedProcess =
+    /\bstart\s+\/B\b/i.test(command) ||
+    /\bStart-Process\b(?![^\r\n;]*-Wait\b)/i.test(command);
+  const startsDevelopmentServer =
+    /\bdotnet\s+run\b/i.test(command) ||
+    /\b(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?(?:dev|start)\b/i.test(command) ||
+    /\bastro\s+dev\b/i.test(command);
+  if (startsDetachedProcess && startsDevelopmentServer) {
+    return [
+      "Do not leave a detached development server running from a finite terminal tool call.",
+      "A successful normal build is sufficient unless the user explicitly requested a runtime or HTTP check.",
+      "If runtime verification is required, re-plan with a process-scoped harness that waits for readiness and guarantees cleanup of only the child process it started.",
+    ].join(" ");
+  }
+  if (
+    confirmation.reasonCode === "process-termination" &&
+    /\bstart\s+\/B\b/i.test(command) &&
+    /\btaskkill\b[^\r\n]*\/IM\s+(?:dotnet|node)(?:\.exe)?\b/i.test(command)
+  ) {
+    return [
+      "Do not start a detached development server and then terminate every matching runtime process.",
+      "A successful backend and frontend build is sufficient unless the user explicitly requested a runtime or HTTP check.",
+      "If runtime verification is required, re-plan with a process-scoped harness that records and terminates only the child process it started.",
+    ].join(" ");
+  }
+  return undefined;
+}
+
+function rejectCommandForRevision(toolCall: ToolCall, guidance: string, ctx: ToolExecutionContext): string {
+  const result = [
+    "Security reviewer rejected this command. Do not repeat it or bypass the safety controls.",
+    "Re-plan the operation and continue with a safer tool or a more narrowly scoped command.",
+    `Reviewer guidance: ${guidance}`,
+  ].join(" ");
+  postToolCallResult(ctx, createRejectedResult(toolCall, result));
+  return result;
 }
 
 function clearFileDiffPreview(): void {

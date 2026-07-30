@@ -1,6 +1,6 @@
 import type { ToolCall } from "@/adapters";
 import { ToolRegistry } from "./ToolRegistry";
-import { FORCED_HANDLERS } from "./definitions";
+import { FORCED_HANDLERS } from "./builtins";
 import type { DangerLevel, ExecutionResult, ConfirmationRequiredResult, ToolHandlerContext } from "./Types";
 import { getToolWorkspaceHost } from "./ToolWorkspace";
 
@@ -55,6 +55,7 @@ export class ToolExecutor {
           command: parsedResult.command,
           filePath: parsedResult.filePath,
           cwd: parsedResult.cwd,
+          workspaceRoot: parsedResult.workspaceRoot,
           shell: parsedResult.shell,
           beforeHash: parsedResult.beforeHash,
           reasonCode: parsedResult.reasonCode,

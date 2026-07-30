@@ -35,6 +35,15 @@
 - concurrent generation limit.
 - tool modes.
 
+Settings code is intentionally shallow:
+
+- `views/settingsView/model`: UI-only settings types and defaults.
+- `views/settingsView/sections`: API, general, advanced, and tools sections.
+- `views/settingsView/tabs`: composition of the two public tabs.
+
+The API key draft is transient state owned by `SettingsView`; it is not part of
+the `WebviewConfig` received from the extension.
+
 ## Shared components
 
 - `Header`
@@ -43,6 +52,15 @@
 - `NumInput`
 - global VS Code-like tooltips in `src/ui/App.css` through `data-tooltip`.
 - base styles in `src/ui/styles`.
+
+Chat rendering is grouped by feature:
+
+- `components/chatView/messages`: message shell, Markdown rendering, activity,
+  and tool-call reconciliation.
+- `components/chatView/tools/confirmations`: attended confirmations.
+- `components/chatView/tools/timeline`: activity grouping and tool timeline.
+- `components/chatView/tools/results`: file, diff, search, terminal, and argument
+  result renderers.
 
 ## Narrow layouts
 
@@ -55,9 +73,5 @@ beside the compact attachment action; below 220 px, history items reduce action
 spacing. Selects must be allowed to shrink with `min-width: 0`
 inside these layouts. No view should require horizontal scrolling at the
 narrowest VS Code sidebar width.
-
-## Naming note
-
-A `tabs/providers` folder may still exist from the migration. Its content must represent DeepSeek-only configuration, not a provider selector.
 
 [Back](INDEX.md)

@@ -18,7 +18,8 @@ The UI uses `src/ui/VsCodeApi.ts` and `postMessage`.
 
 - Do not access the filesystem directly from React.
 - Do not store API keys in localStorage.
-- Avoid duplicating contracts outside `src/adapters/messages/Webview.ts`.
+- Avoid duplicating contracts outside `src/adapters/messages/WebviewModels.ts`,
+  `WebviewRequests.ts`, and `WebviewEvents.ts`.
 - Backend errors should be shown without blocking the whole UI.
 - Local state should be rebuildable from `configLoaded`, `history`, `conversationLoaded`, and `generationSnapshot`.
 - Chat state remains mounted while switching between Chat, History, and Settings so pending generation and tool confirmations are not lost.

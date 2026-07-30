@@ -10,7 +10,9 @@ Run:
 npm run compile
 npm run lint
 npm run build
-npm test
+npm run test:unit
+npm run test:integration
+git diff --check
 ```
 
 ## Web documentation
@@ -42,6 +44,21 @@ In Extension Development Host:
 - open a file from preview.
 - delete a conversation with active or queued work and verify its run, queue, and checkpoint are removed first.
 - run mutating tools from concurrent conversations and verify mutations remain serialized within the same workspace.
+- verify the API-key preview appears as the input placeholder on first open.
+- verify auto-approve performs local analysis, remote review, rejection guidance,
+  and manual fallback without losing a generation round.
+- verify grouped activity remains compact until expanded.
+- verify “Open file” opens the affected file and a file mutation opens the
+  specific change diff.
+- verify confirmation panels fit narrow sidebars and use the available width in
+  wide views.
+
+## Test layout
+
+Unit tests are grouped under `src/test/chat`, `deepseek`, `tools`, `security`,
+`storage`, `webview`, and `architecture`. The unit runner discovers tests
+recursively and explicitly excludes `src/test/integration`; VS Code integration
+tests use their own build and runner.
 
 ## API validation
 

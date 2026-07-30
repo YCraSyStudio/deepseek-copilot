@@ -2,6 +2,7 @@ import type * as vscode from "vscode";
 import type { PermissionSnapshot, ToolCall, ToolDefinition } from "@/adapters";
 import { runToolCallCycle } from "@/deepseekApi/providers/deepseek/features/toolCall";
 import { logWarning } from "@/shared/logging/Logger";
+import { redactSensitiveText } from "@/shared/security/Redaction";
 import type { ToolExecutor } from "@/core/tools/ToolExecutor";
 import type { ConfirmationRequiredResult } from "@/core/tools/Types";
 import { requestDangerConfirmation } from "./DangerConfirmation";
@@ -23,6 +24,8 @@ import { DangerTrustStore, type DangerTrustScope } from "./DangerTrustStore";
 import { getRunnableToolsForPermissionSnapshot, getToolModeForPermissionSnapshot } from "./PermissionPolicy";
 import { createProviderTranscript } from "@/core/chat/ProviderTranscript";
 import { assertRequestFitsContext } from "@/core/context/ContextBudget";
+import { getToolWorkspaceHost } from "@/core/tools/ToolWorkspace";
+import { reviewCommandSafety } from "@/deepseekApi/security/commandReview";
 
 export class ToolCallSession {
   private pendingToolCallCycle: PendingToolCallCycle | null = null;
@@ -244,6 +247,15 @@ export class ToolCallSession {
           },
           ...dangerOptions,
         }),
+      reviewDangerousCommand: (toolCall: ToolCall, confirmationResult: ConfirmationRequiredResult) =>
+        reviewCommandSafety({
+          toolCall,
+          localAnalysis: confirmationResult,
+          providerConfig: options.providerConfig,
+          originalUserRequest: getOriginalUserRequest(options.messages),
+          workspaceRoot: confirmationResult.workspaceRoot ?? getToolWorkspaceHost().getRootPath?.(),
+          signal: options.signal,
+        }),
     };
   }
 
@@ -362,7 +374,16 @@ function isCancellationError(err: unknown): boolean {
 }
 
 function getErrorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
+  return redactSensitiveText(err);
+}
+
+function getOriginalUserRequest(messages: import("@/adapters").ChatMessage[]): string | undefined {
+  for (const message of messages) {
+    if (message.role === "user" && typeof message.content === "string" && message.content.trim()) {
+      return message.content;
+    }
+  }
+  return undefined;
 }
 
 function hasAutoApprovedTools(options: ToolCallRunOptions, tools: ToolDefinition[]): boolean {

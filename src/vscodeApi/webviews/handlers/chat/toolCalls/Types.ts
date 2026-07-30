@@ -6,6 +6,7 @@ import type { ConfirmationRequiredResult, ExecutionResult } from "@/core/tools/T
 import type { StreamEventEmitter } from "../StreamEventEmitter";
 import type { DangerTrustScope } from "./DangerTrustStore";
 import type { ProviderTranscript } from "@/core/chat/ProviderTranscript";
+import type { CommandSafetyReview } from "@/deepseekApi/security/commandReview";
 
 export interface PendingToolCallCycle {
   toolCalls: Map<string, ToolCall>;
@@ -89,6 +90,10 @@ export interface ToolExecutionContext {
     confirmationResult: ConfirmationRequiredResult,
     options?: { announceStarted?: boolean; round?: number },
   ) => Promise<DangerConfirmationDecision>;
+  reviewDangerousCommand: (
+    toolCall: ToolCall,
+    confirmationResult: ConfirmationRequiredResult,
+  ) => Promise<CommandSafetyReview>;
   isDangerTrusted: (toolCall: ToolCall, confirmationResult: ConfirmationRequiredResult) => boolean;
   trustDangerForSession: (toolCall: ToolCall, confirmationResult: ConfirmationRequiredResult) => void;
 }

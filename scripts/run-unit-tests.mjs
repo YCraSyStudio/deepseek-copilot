@@ -1,13 +1,13 @@
 import { readdirSync, rmSync } from "node:fs";
-import { resolve } from "node:path";
+import { join, relative, resolve } from "node:path";
 import * as esbuild from "esbuild";
 import Mocha from "mocha";
 
 const outDir = resolve(".tmp/unit-tests");
 const testDir = resolve("src/test");
-const entryPoints = readdirSync(testDir)
-  .filter((fileName) => fileName.endsWith(".test.ts") && fileName !== "Extension.test.ts")
-  .map((fileName) => resolve(testDir, fileName));
+const integrationDir = resolve(testDir, "integration");
+const entryPoints = collectTests(testDir)
+  .filter((fileName) => !fileName.startsWith(`${integrationDir}\\`) && !fileName.startsWith(`${integrationDir}/`));
 
 rmSync(outDir, { recursive: true, force: true });
 
@@ -29,10 +29,8 @@ const mocha = new Mocha({
 });
 
 for (const entryPoint of entryPoints) {
-  const fileName = entryPoint.split(/[\\/]/).pop()?.replace(/\.ts$/, ".mjs");
-  if (fileName) {
-    mocha.addFile(resolve(outDir, fileName));
-  }
+  const outputPath = relative(testDir, entryPoint).replace(/\.ts$/, ".mjs");
+  mocha.addFile(resolve(outDir, outputPath));
 }
 
 await mocha.loadFilesAsync();
@@ -43,4 +41,14 @@ const failures = await new Promise((resolveRun) => {
 
 if (failures) {
   process.exitCode = 1;
+}
+
+function collectTests(directory) {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) {
+      return collectTests(path);
+    }
+    return entry.isFile() && entry.name.endsWith(".test.ts") ? [resolve(path)] : [];
+  });
 }

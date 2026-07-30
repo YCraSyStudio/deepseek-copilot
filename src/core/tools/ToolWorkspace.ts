@@ -14,6 +14,12 @@ export interface ToolWorkspaceFindOptions {
   signal?: AbortSignal;
 }
 
+export interface ToolWorkspaceFilePreview {
+  head: Uint8Array;
+  tail?: Uint8Array;
+  size: number;
+}
+
 export interface ToolWorkspaceHost {
   getRootPath(): string | undefined;
   getWorkspaceId?(): string;
@@ -25,6 +31,7 @@ export interface ToolWorkspaceHost {
   realPath?(absolutePath: string): Promise<string>;
   findFiles?(options: ToolWorkspaceFindOptions): Promise<string[]>;
   readFile(path: string): Promise<Uint8Array>;
+  readFilePreview?(path: string, maxBytes: number): Promise<ToolWorkspaceFilePreview>;
   writeFile(path: string, content: Uint8Array): Promise<void>;
   stat(path: string): Promise<ToolWorkspaceStat>;
   createParentDirectory(path: string): Promise<void>;
@@ -172,6 +179,9 @@ function createValidatingWorkspaceHost(host: ToolWorkspaceHost): ToolWorkspaceHo
         }
       : undefined,
     readFile: async (rawPath: string) => host.readFile(await validate(rawPath)),
+    readFilePreview: host.readFilePreview
+      ? async (rawPath: string, maxBytes: number) => host.readFilePreview!(await validate(rawPath), maxBytes)
+      : undefined,
     writeFile: async (rawPath: string, content: Uint8Array) => host.writeFile(await validate(rawPath, true), content),
     stat: async (rawPath: string) => host.stat(await validate(rawPath)),
     createParentDirectory: async (rawPath: string) => host.createParentDirectory(await validate(rawPath, true)),

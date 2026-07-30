@@ -11,6 +11,8 @@ export const chat = {
     newLine: "new line",
     modelSelector: "Model Selector",
     reasoning: "Reasoning",
+    activity: "Activity",
+    activitySteps: "{count} steps",
     off: "Off",
     high: "High",
     max: "Max",

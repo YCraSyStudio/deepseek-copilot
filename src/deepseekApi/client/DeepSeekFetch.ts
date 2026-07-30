@@ -1,9 +1,11 @@
 import { DeepSeekApiError } from "@/deepseekApi/errors/DeepSeekApiError";
 import { buildDeepSeekAuthHeaders } from "@/deepseekApi/auth/AuthHeaders";
+import { ApiOriginError, assertSameApiOrigin, normalizeApiBaseUrl } from "@/shared/security/ApiOrigin";
 
 const DEEPSEEK_BASE_URL = "https://api.deepseek.com";
 const FETCH_TIMEOUT_MS = 60_000;
 const MAX_ATTEMPTS = 3;
+const MAX_REDIRECTS = 5;
 
 interface DeepSeekFetchOptions {
   pathOrUrl: string;
@@ -14,17 +16,14 @@ interface DeepSeekFetchOptions {
 
 export async function deepseekFetch(options: DeepSeekFetchOptions): Promise<Response> {
   const { pathOrUrl, apiKey, baseUrl = DEEPSEEK_BASE_URL, requestInit = {} } = options;
-  const url = buildApiUrl(baseUrl, pathOrUrl);
+  const normalizedBaseUrl = normalizeApiBaseUrl(baseUrl);
+  const url = buildApiUrl(normalizedBaseUrl, pathOrUrl);
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     const timeoutSignal = AbortSignal.timeout(FETCH_TIMEOUT_MS);
     const signal = requestInit.signal ? AbortSignal.any([requestInit.signal, timeoutSignal]) : timeoutSignal;
     try {
-      const response = await fetch(url, {
-        ...requestInit,
-        signal,
-        headers: buildDeepSeekAuthHeaders(apiKey, requestInit.headers || {}),
-      });
+      const response = await fetchWithSameOriginRedirects(url, normalizedBaseUrl, apiKey, { ...requestInit, signal });
       if (response.ok) {return response;}
 
       if (attempt < MAX_ATTEMPTS && isRetryableStatus(response.status)) {
@@ -33,9 +32,14 @@ export async function deepseekFetch(options: DeepSeekFetchOptions): Promise<Resp
         await wait(delay, requestInit.signal);
         continue;
       }
-      throw await createApiError(response);
+      await response.body?.cancel();
+      throw new DeepSeekApiError(
+        response.status,
+        getSafeHttpErrorMessage(response.status),
+        String(response.status),
+      );
     } catch (error) {
-      if (requestInit.signal?.aborted || isDeepSeekApiError(error) || attempt === MAX_ATTEMPTS) {throw error;}
+      if (requestInit.signal?.aborted || isDeepSeekApiError(error) || error instanceof ApiOriginError || attempt === MAX_ATTEMPTS) {throw error;}
       await wait(getRetryDelayMs(null, attempt), requestInit.signal);
     }
   }
@@ -43,26 +47,80 @@ export async function deepseekFetch(options: DeepSeekFetchOptions): Promise<Resp
 }
 
 export function buildApiUrl(baseUrl: string, pathOrUrl: string): string {
-  if (/^https?:\/\//i.test(pathOrUrl)) {return new URL(pathOrUrl).toString();}
-  const base = new URL(baseUrl);
-  const basePath = base.pathname.replace(/\/+$/, "");
-  base.pathname = `${basePath}/${pathOrUrl.replace(/^\/+/, "")}`;
-  return base.toString();
+  const normalizedBaseUrl = normalizeApiBaseUrl(baseUrl);
+  if (/^[a-z][a-z\d+.-]*:/i.test(pathOrUrl)) {
+    return assertSameApiOrigin(normalizedBaseUrl, pathOrUrl).toString();
+  }
+  const url = new URL(pathOrUrl.replace(/^\/+/, ""), `${normalizedBaseUrl}/`);
+  return assertSameApiOrigin(normalizedBaseUrl, url.toString()).toString();
 }
 
-async function createApiError(response: Response): Promise<DeepSeekApiError> {
-  let errorMessage = `HTTP ${response.status}`;
-  try {
-    const errorBody = await response.json() as { error?: { message?: string }; message?: string };
-    errorMessage = errorBody.error?.message || errorBody.message || errorMessage;
-  } catch {
-    errorMessage = response.statusText || errorMessage;
+async function fetchWithSameOriginRedirects(
+  initialUrl: string,
+  baseUrl: string,
+  apiKey: string,
+  requestInit: RequestInit,
+): Promise<Response> {
+  let currentUrl = assertSameApiOrigin(baseUrl, initialUrl);
+  let currentInit = { ...requestInit };
+
+  for (let redirectCount = 0; redirectCount <= MAX_REDIRECTS; redirectCount++) {
+    const response = await fetch(currentUrl, {
+      ...currentInit,
+      redirect: "manual",
+      headers: buildDeepSeekAuthHeaders(apiKey, currentInit.headers || {}),
+    });
+    if (!isRedirectStatus(response.status)) {
+      return response;
+    }
+
+    const location = response.headers.get("location");
+    if (!location) {
+      return response;
+    }
+    if (redirectCount === MAX_REDIRECTS) {
+      await response.body?.cancel();
+      throw new ApiOriginError("The API request exceeded the redirect limit.");
+    }
+
+    const redirectedUrl = new URL(location, currentUrl);
+    await response.body?.cancel();
+    currentUrl = assertSameApiOrigin(baseUrl, redirectedUrl.toString());
+    currentInit = redirectedRequestInit(currentInit, response.status);
   }
-  return new DeepSeekApiError(response.status, errorMessage, String(response.status));
+  throw new ApiOriginError("The API request exceeded the redirect limit.");
+}
+
+function redirectedRequestInit(requestInit: RequestInit, status: number): RequestInit {
+  const method = (requestInit.method ?? "GET").toUpperCase();
+  if (status !== 303 && !((status === 301 || status === 302) && method === "POST")) {
+    return requestInit;
+  }
+  const headers = new Headers(requestInit.headers);
+  headers.delete("content-length");
+  headers.delete("content-type");
+  return { ...requestInit, method: "GET", body: undefined, headers };
+}
+
+function getSafeHttpErrorMessage(status: number): string {
+  switch (status) {
+    case 401:
+      return "Invalid API credentials.";
+    case 403:
+      return "API access denied.";
+    case 429:
+      return "API rate limit exceeded.";
+    default:
+      return `API request failed with HTTP ${status}.`;
+  }
 }
 
 function isRetryableStatus(status: number): boolean {
   return status === 429 || status === 408 || status >= 500;
+}
+
+function isRedirectStatus(status: number): boolean {
+  return status === 301 || status === 302 || status === 303 || status === 307 || status === 308;
 }
 
 function getRetryDelayMs(retryAfter: string | null, attempt: number): number {

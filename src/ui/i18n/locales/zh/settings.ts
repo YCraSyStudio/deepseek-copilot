@@ -37,6 +37,9 @@ export const settings = {
         tooltip: "显示/隐藏 API key"
       },
       testConnection: "测试连接",
+      removeCredential: "删除 API key",
+      removingCredential: "正在删除 API key...",
+      removeCredentialFailed: "无法删除 API key。",
       testing: "正在测试...",
       notConfigured: "未配置",
       connection: {

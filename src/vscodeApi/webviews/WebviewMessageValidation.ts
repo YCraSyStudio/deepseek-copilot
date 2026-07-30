@@ -1,7 +1,9 @@
 import { MAX_OUTPUT_TOKENS, type AppConfig, type WebviewToHandlerMessage } from "@/adapters";
+import { isAllowedApiBaseUrl } from "@/shared/security/ApiOrigin";
 
 const MAX_CHAT_TEXT = 1024 * 1024;
 const MAX_CODE_TEXT = 2 * 1024 * 1024;
+const MAX_CHANGE_DIFF_TEXT = 2 * 1024 * 1024;
 const MAX_REFERENCE_CONTENT = 1024 * 1024;
 const MAX_TOTAL_REFERENCE_CONTENT = 5 * 1024 * 1024;
 const MAX_REFERENCES = 50;
@@ -30,6 +32,7 @@ export function isWebviewToHandlerMessage(value: unknown): value is WebviewToHan
       return hasOnlyKeys(value, ["type", "conversationId"]) &&
         isNonEmptyBoundedString(value.conversationId, 512);
     case "resetConfig":
+    case "deleteApiKey":
       return hasOnlyKeys(value, ["type", "requestId"]) && isNonEmptyBoundedString(value.requestId, 128);
     case "cancelGeneration":
       return hasOnlyKeys(value, ["type", "generationId"]) && isNonEmptyBoundedString(value.generationId, 512);
@@ -44,8 +47,8 @@ export function isWebviewToHandlerMessage(value: unknown): value is WebviewToHan
     case "testConnection":
       return (
         hasOnlyKeys(value, ["type", "apiKey", "baseUrl", "model"]) &&
-        isNonEmptyBoundedString(value.apiKey, 16_384) &&
-        isHttpUrl(value.baseUrl) &&
+        (value.apiKey === undefined || isNonEmptyBoundedString(value.apiKey, 16_384)) &&
+        isAllowedApiBaseUrl(value.baseUrl) &&
         isNonEmptyBoundedString(value.model, 256)
       );
     case "sendMessage":
@@ -94,6 +97,14 @@ export function isWebviewToHandlerMessage(value: unknown): value is WebviewToHan
         hasOnlyKeys(value, ["type", "path", "line", "conversationId", "workspaceRevision"]) &&
         isNonEmptyBoundedString(value.path, 32_768) &&
         (value.line === undefined || (Number.isSafeInteger(value.line) && (value.line as number) >= 1)) &&
+        (value.conversationId === undefined || isNonEmptyBoundedString(value.conversationId, 512)) &&
+        isOptionalBoundedString(value.workspaceRevision, 256)
+      );
+    case "openFileDiff":
+      return (
+        hasOnlyKeys(value, ["type", "path", "diff", "conversationId", "workspaceRevision"]) &&
+        isNonEmptyBoundedString(value.path, 32_768) &&
+        isNonEmptyBoundedString(value.diff, MAX_CHANGE_DIFF_TEXT) &&
         (value.conversationId === undefined || isNonEmptyBoundedString(value.conversationId, 512)) &&
         isOptionalBoundedString(value.workspaceRevision, 256)
       );
@@ -185,7 +196,7 @@ function isAppConfigPatch(value: unknown): value is Partial<AppConfig> {
   return (
     (value.interfaceLanguage === undefined || value.interfaceLanguage === "auto" || value.interfaceLanguage === "en" || value.interfaceLanguage === "es" || value.interfaceLanguage === "zh") &&
     isOptionalBoundedString(value.apiKey, 16_384) &&
-    (value.baseUrl === undefined || isHttpUrl(value.baseUrl)) &&
+    (value.baseUrl === undefined || isAllowedApiBaseUrl(value.baseUrl)) &&
     (value.model === undefined || isNonEmptyBoundedString(value.model, 256)) &&
     isOptionalBoolean(value.thinkingMode) &&
     (value.reasoningEffort === undefined || value.reasoningEffort === "high" || value.reasoningEffort === "max") &&
@@ -212,18 +223,6 @@ function isToolExecutionModes(value: unknown): boolean {
   return Object.entries(value).every(
     ([name, mode]) => /^[a-zA-Z0-9_-]{1,128}$/.test(name) && (mode === "disabled" || mode === "enabled" || mode === "auto_approve"),
   );
-}
-
-function isHttpUrl(value: unknown): boolean {
-  if (!isNonEmptyBoundedString(value, 4096)) {
-    return false;
-  }
-  try {
-    const url = new URL(value);
-    return (url.protocol === "https:" || url.protocol === "http:") && !!url.hostname && !url.username && !url.password;
-  } catch {
-    return false;
-  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

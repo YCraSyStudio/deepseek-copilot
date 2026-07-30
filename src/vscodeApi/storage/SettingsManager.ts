@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import type { AppConfig, InterfaceLanguage, PermissionMode, PermissionSnapshot, ToolExecutionMode, ToolExecutionModes } from "@/adapters";
 import { MAX_OUTPUT_TOKENS } from "@/adapters";
 import { DEEPSEEK_DEFAULTS } from "@/deepseekApi";
+import { normalizeApiBaseUrlOrDefault } from "@/shared/security/ApiOrigin";
 import { writeJsonFileAtomic } from "./JsonFileStorage";
 import { getSettingsFilePath } from "./UserDataPaths";
 
@@ -250,15 +251,7 @@ function normalizeInterfaceLanguage(value: unknown): InterfaceLanguage {
 }
 
 function normalizeBaseUrl(value: unknown): string {
-  if (typeof value !== "string") {return DEEPSEEK_DEFAULTS.baseUrl;}
-  try {
-    const url = new URL(value);
-    if (url.protocol !== "https:" && url.protocol !== "http:") {return DEEPSEEK_DEFAULTS.baseUrl;}
-    url.pathname = url.pathname.replace(/\/+$/, "");
-    return url.toString().replace(/\/$/, "");
-  } catch {
-    return DEEPSEEK_DEFAULTS.baseUrl;
-  }
+  return normalizeApiBaseUrlOrDefault(value, DEEPSEEK_DEFAULTS.baseUrl);
 }
 
 function clampNumber(value: unknown, min: number, max: number, fallback: number): number {

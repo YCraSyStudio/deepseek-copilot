@@ -5,22 +5,9 @@ import { InputCtrls, InputFooter, MessagesSection } from "./sections";
 import { useChatConfig } from "./hooks";
 import type { ApiKeyStatus, ChatMessage } from "./ChatViewTypes";
 import { getVsCodeApi } from "@webview/VsCodeApi";
-import type { Conversation, PermissionMode, WorkspaceContextStatus } from "@/adapters";
+import type { Conversation, PermissionMode, ReferencedFile, WorkspaceContextStatus } from "@/adapters";
 import type { GenerationSnapshot } from "@/adapters";
 import { t } from "@webview/i18n";
-
-interface ReferencedFile {
-  path: string;
-  name: string;
-  content?: string;
-  language?: string;
-  type: "file" | "directory";
-  size?: number;
-  referenceId?: string;
-  scope?: "workspace" | "external-snapshot";
-  rootUri?: string;
-  bindingRevision?: string;
-}
 
 type ChatCommandMessage =
   | { type: "addReferencedFiles"; files: ReferencedFile[] }

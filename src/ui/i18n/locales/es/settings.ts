@@ -37,6 +37,9 @@ export const settings = {
         tooltip: "Mostrar/ocultar API key"
       },
       testConnection: "Probar conexión",
+      removeCredential: "Eliminar API key",
+      removingCredential: "Eliminando API key...",
+      removeCredentialFailed: "No se pudo eliminar la API key.",
       testing: "Probando...",
       notConfigured: "Sin configurar",
       connection: {

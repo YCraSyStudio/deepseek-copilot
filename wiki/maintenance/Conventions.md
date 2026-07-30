@@ -22,6 +22,13 @@
 - Source folders use `camelCase`.
 - Source implementation files use `PascalCase`.
 - Keep ecosystem-required exceptions unchanged: `index.ts` barrels, Astro route files such as `index.astro` and `[slug].astro`, package/config files, and generated output.
+- Keep barrels at layer or feature boundaries. Internal modules use explicit
+  imports so dependencies remain visible.
+- Prefer domain folders over one-component folder chains.
+- Preserve public message names, tool IDs, persisted keys, and compatibility
+  re-exports during incremental moves.
+- A facade coordinates services; it does not retain context building, execution,
+  persistence, and UI-event translation in one file.
 
 ## New features
 

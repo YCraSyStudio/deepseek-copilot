@@ -1,2 +1,2 @@
-export { GeneralTab } from "./general";
-export { ToolsTab } from "./tools";
+export { default as GeneralTab } from "./GeneralTab";
+export { default as ToolsTab } from "./ToolsTab";

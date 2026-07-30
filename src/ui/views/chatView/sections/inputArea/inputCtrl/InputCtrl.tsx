@@ -1,19 +1,9 @@
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
-import type { HandlerToWebviewMessage, PathCompletionItem } from "@/adapters";
+import type { HandlerToWebviewMessage, PathCompletionItem, ReferencedFile } from "@/adapters";
 import "./InputCtrl.css";
 import { FileSelector, getPathToken, type PathToken } from "@webview/components/chatView";
 import { useVsCode } from "@webview/views/chatView/contexts";
 import { t } from "@webview/i18n";
-
-interface ReferencedFile {
-  path: string;
-  content?: string;
-  type: "file" | "directory";
-  referenceId?: string;
-  scope?: "workspace" | "external-snapshot";
-  rootUri?: string;
-  bindingRevision?: string;
-}
 
 type Props = {
   input: string;

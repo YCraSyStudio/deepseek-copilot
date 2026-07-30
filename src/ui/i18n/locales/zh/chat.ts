@@ -11,6 +11,8 @@ export const chat = {
     newLine: "换行",
     modelSelector: "模型选择器",
     reasoning: "推理",
+    activity: "活动",
+    activitySteps: "{count} 个步骤",
     off: "关闭",
     high: "高",
     max: "最大",

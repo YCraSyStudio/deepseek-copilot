@@ -1,13 +1,19 @@
 .settingsView {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   height: 100%;
   color: var(--text-primary);
   flex-direction: column;
   gap: 10px;
   padding: 10px;
   display: flex;
+  overflow-x: hidden;
   overflow-y: auto;
   .settingsSection {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
     border: 1px solid var(--border-color);
     background: color-mix(in srgb, var(--bg-secondary) 72%, transparent);
     border-radius: 14px;
@@ -46,6 +52,8 @@
     }
   }
   .settingsTabPanel {
+    width: 100%;
+    min-width: 0;
     flex-direction: column;
     gap: 10px;
     display: flex;

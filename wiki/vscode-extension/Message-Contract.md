@@ -2,7 +2,9 @@
 
 # Message Contract
 
-The shared contract lives in `src/adapters/messages/Webview.ts`. The UI must not call backend internal APIs; it only sends messages through `postMessage`.
+The shared contract is split into `WebviewModels.ts`, `WebviewRequests.ts`, and
+`WebviewEvents.ts`. `Webview.ts` remains the stable compatibility barrel. The UI
+must not call backend internal APIs; it only sends messages through `postMessage`.
 
 ## Incoming from webview
 

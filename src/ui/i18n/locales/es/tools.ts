@@ -28,12 +28,9 @@ export const tools = {
     error: "Error",
     rejected: "Rechazada",
     cancelled: "Cancelada",
-    copyCall: "Copiar llamada",
-    copyToolData: "Copiar datos de {tool}",
+    openFile: "Abrir archivo",
+    viewChange: "Ver cambio",
     copy: "Copiar",
     insert: "Insertar",
-    copyArguments: "Copiar argumentos",
-    copyResult: "Copiar resultado",
-    labelCopied: "{label} copiado."
   }
 } satisfies TranslationCatalog;

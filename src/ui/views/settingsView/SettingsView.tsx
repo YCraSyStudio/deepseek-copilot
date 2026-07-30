@@ -4,7 +4,7 @@ import "@vscode/codicons/dist/codicon.css";
 import "./SettingsView.css";
 import { GeneralTab, ToolsTab } from "./tabs";
 import { getVsCodeApi } from "../../VsCodeApi";
-import { DEFAULT_CONFIG, MODEL_OPTIONS, REASONING_EFFORT_OPTIONS, type SaveOnBlurFn, type SettingsConfig } from "./settingsDataModels";
+import { DEFAULT_CONFIG, MODEL_OPTIONS, REASONING_EFFORT_OPTIONS, type ApiCredentialState, type SaveOnBlurFn, type SettingsConfig } from "./model";
 import type { AvailableToolInfo, HandlerToWebviewMessage, ToolExecutionModes } from "@/adapters";
 import { setInterfaceLanguage, t } from "@webview/i18n";
 import { shouldApplyConfigRevision } from "@webview/config/ConfigRevision";
@@ -15,6 +15,8 @@ type Notification = { type: "error" | "success"; message: string };
 function SettingsView() {
   const vscode = useMemo(() => getVsCodeApi(), []);
   const [config, setConfig] = useState<SettingsConfig>(DEFAULT_CONFIG);
+  const [apiKeyDraft, setApiKeyDraft] = useState("");
+  const [apiCredential, setApiCredential] = useState<ApiCredentialState | null>(null);
   const [tools, setTools] = useState<AvailableToolInfo[]>([]);
   const [activeTab, setActiveTab] = useState<SettingsTab>("general");
   const [hasLoadedConfig, setHasLoadedConfig] = useState(false);
@@ -28,11 +30,7 @@ function SettingsView() {
   const effectiveToolExecutionModes = useMemo(() => normalizeToolExecutionModes(config.toolExecutionModes, tools), [config.toolExecutionModes, tools]);
 
   const applyConfig = useCallback((nextConfig: Partial<SettingsConfig>) => {
-    setConfig((current) => ({
-      ...current,
-      ...nextConfig,
-      apiKey: nextConfig.apiKey ?? current.apiKey ?? DEFAULT_CONFIG.apiKey,
-    }));
+    setConfig((current) => ({ ...current, ...nextConfig }));
   }, []);
 
   const updateConfig = useCallback(<K extends keyof SettingsConfig>(key: K, value: SettingsConfig[K]) => {
@@ -112,6 +110,10 @@ function SettingsView() {
             if (message.config.interfaceLanguage) {setInterfaceLanguage(message.config.interfaceLanguage);}
             applyConfig(message.config);
           }
+          if (message.credentialUpdated) {
+            setApiKeyDraft("");
+            setApiCredential(null);
+          }
           if (message.status === "success") {
             setNotification({ type: "success", message: message.operation === "reset" ? t("settings.reset.success") : t("settings.save.success") });
           } else if (message.status === "error") {
@@ -120,6 +122,9 @@ function SettingsView() {
           } else {
             setNotification(null);
           }
+          break;
+        case "apiKeyStatusSettings":
+          setApiCredential({ status: message.status, keyPreview: message.keyPreview });
           break;
         case "availableTools":
           setTools(message.tools);
@@ -183,8 +188,19 @@ function SettingsView() {
         {hasLoadedConfig && activeTab === "general" ? (
           <GeneralTab
             config={config}
+            apiKeyDraft={apiKeyDraft}
+            credential={apiCredential}
             updateConfig={updateConfig}
             saveOnBlur={saveOnBlur}
+            onApiKeyChange={setApiKeyDraft}
+            onApiKeyBlur={(apiKey) => {
+              const requestId = crypto.randomUUID();
+              vscode?.postMessage({
+                type: "saveConfig",
+                requestId,
+                config: { apiKey },
+              });
+            }}
             modelOptions={MODEL_OPTIONS}
             reasoningEffortOptions={REASONING_EFFORT_OPTIONS}
           />

@@ -17,7 +17,9 @@ Official reference:
 ## Flow
 
 1. `GenerationCoordinator` starts a queued task with a unique `generationId` and `AbortController`.
-2. `ChatHandler` prepares an isolated conversation state, messages, and configuration.
+2. `ChatHandler` coordinates the request; `GenerationExecutor` prepares the
+   isolated conversation state and `GenerationContext` builds and compacts the
+   provider request.
 3. `createDeepSeekProvider(config)` creates the provider.
 4. The provider opens an SSE request for chat responses.
 5. Each chunk is normalized as content or reasoning and tagged with its generation and conversation.

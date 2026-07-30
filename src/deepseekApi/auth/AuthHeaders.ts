@@ -1,7 +1,8 @@
-export function buildDeepSeekAuthHeaders(apiKey: string, extraHeaders: HeadersInit = {}): HeadersInit {
-  return {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${apiKey}`,
-    ...extraHeaders,
-  };
+export function buildDeepSeekAuthHeaders(apiKey: string, extraHeaders: HeadersInit = {}): Headers {
+  const headers = new Headers(extraHeaders);
+  if (!headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+  headers.set("Authorization", `Bearer ${apiKey}`);
+  return headers;
 }

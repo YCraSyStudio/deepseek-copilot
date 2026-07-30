@@ -1,4 +1,4 @@
-import type { ReferencedFile } from "./Types";
+import type { ReferencedFile } from "@/adapters";
 import { t } from "@webview/i18n";
 
 interface ReferencedFilesChipsProps {
@@ -16,7 +16,7 @@ function ReferencedFilesChips({ files, onRemove }: ReferencedFilesChipsProps) {
       {files.map((file, index) => (
         <span key={index} className="fileChip" data-tooltip={file.path}>
           <span className="fileChipIcon">{file.type === "directory" ? "📁" : "📄"}</span>
-          <span className="fileChipName">{file.name}</span>
+          <span className="fileChipName">{file.name ?? file.path}</span>
           {file.size && file.size > 1_048_576 && <span className="fileChipWarn">⚠️ {t("chat.large")}</span>}
           {file.type === "directory" && <span className="fileChipLabel">{t("chat.folder")}</span>}
           <button className="fileChipRemove" onClick={() => onRemove(index)} aria-label={t("chat.removeFile")}>

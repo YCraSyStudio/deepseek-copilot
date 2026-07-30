@@ -1,5 +1,4 @@
-import type { ChatCompletionRequest, ReferencedFile } from "@/adapters";
-import type { BaseProvider } from "@/deepseekApi";
+import type { ChatCompletionRequest, ChatCompletionResponse, ReferencedFile } from "@/adapters";
 import { createHash } from "crypto";
 import type { ApiContextUnit } from "@/core/chat/ConversationState";
 import type { ConversationContextSummary } from "@/core/chat/ProviderTranscript";
@@ -7,11 +6,15 @@ import type { ConversationContextSummary } from "@/core/chat/ProviderTranscript"
 const AUXILIARY_MAX_TOKENS = 4096;
 const MAX_RANGE_COUNT = 12;
 
+export interface ContextCompactionProvider {
+  chatCompletion(request: ChatCompletionRequest, signal?: AbortSignal): Promise<ChatCompletionResponse>;
+}
+
 export class ContextCompactor {
   private calls = 0;
 
   constructor(
-    private readonly provider: BaseProvider,
+    private readonly provider: ContextCompactionProvider,
     private readonly model: string,
     private readonly signal: AbortSignal,
     private readonly maxCalls = 4,

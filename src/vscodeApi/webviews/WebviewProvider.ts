@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import { randomUUID } from "node:crypto";
 import * as path from "node:path";
-import { ChatHandler } from "./handlers/ChatHandler";
+import { ChatHandler } from "./handlers/chat/ChatHandler";
 import { SettingsHandler } from "./handlers/SettingsHandler";
 import { HistoryHandler } from "./handlers/HistoryHandler";
 import { getDevViewContent } from "./utils/DevViewRenderer";
@@ -14,6 +14,7 @@ import type { ReferencedFile, WebviewToHandlerMessage } from "@/adapters";
 import type { ReferencedFilePayload } from "@/vscodeApi/commands/ChatCommands";
 import { isWebviewToHandlerMessage } from "./WebviewMessageValidation";
 import { isUriInsideRoot } from "@/vscodeApi/workspace";
+import { ChangeDiffViewer } from "@/vscodeApi/editor/diff/ChangeDiffViewer";
 
 type ChatCommandMessage = { type: "addReferencedFiles"; files: ReferencedFilePayload[] } | { type: "setDraft"; text: string };
 
@@ -24,6 +25,7 @@ export class WebviewProvider implements vscode.WebviewViewProvider, vscode.Dispo
   private readonly settingsHandler: SettingsHandler;
   private readonly historyHandler: HistoryHandler;
   private readonly historyManager: HistoryManager;
+  private readonly changeDiffViewer: ChangeDiffViewer;
   private readonly disposables: vscode.Disposable[] = [];
   private readonly pendingMessages: ChatCommandMessage[] = [];
   private webviewView?: vscode.WebviewView;
@@ -33,6 +35,8 @@ export class WebviewProvider implements vscode.WebviewViewProvider, vscode.Dispo
     private readonly _context: vscode.ExtensionContext,
   ) {
     this.historyManager = new HistoryManager(this._context);
+    this.changeDiffViewer = new ChangeDiffViewer();
+    this.disposables.push(this.changeDiffViewer);
     this.chatHandler = new ChatHandler(this._context, this.historyManager);
     this.settingsHandler = new SettingsHandler(this._context);
     this.historyHandler = new HistoryHandler(
@@ -208,6 +212,7 @@ export class WebviewProvider implements vscode.WebviewViewProvider, vscode.Dispo
       case "getConfig":
       case "saveConfig":
       case "resetConfig":
+      case "deleteApiKey":
       case "testConnection":
         this.settingsHandler.handle(message, webviewView);
         break;
@@ -222,6 +227,11 @@ export class WebviewProvider implements vscode.WebviewViewProvider, vscode.Dispo
       case "openFile":
         void this.withWorkspaceBinding(message.conversationId, message.workspaceRevision, (binding) =>
           openWorkspaceFile(message.path, binding, message.line));
+        break;
+
+      case "openFileDiff":
+        void this.withWorkspaceBinding(message.conversationId, message.workspaceRevision, (binding) =>
+          this.changeDiffViewer.open(message.path, message.diff, binding));
         break;
 
       default:

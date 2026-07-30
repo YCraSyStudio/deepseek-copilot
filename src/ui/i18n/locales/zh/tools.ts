@@ -28,12 +28,9 @@ export const tools = {
     error: "错误",
     rejected: "已拒绝",
     cancelled: "已取消",
-    copyCall: "复制调用",
-    copyToolData: "复制 {tool} 数据",
+    openFile: "打开文件",
+    viewChange: "查看更改",
     copy: "复制",
     insert: "插入",
-    copyArguments: "复制参数",
-    copyResult: "复制结果",
-    labelCopied: "已复制{label}。"
   }
 } satisfies TranslationCatalog;

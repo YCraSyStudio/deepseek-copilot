@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import type { AppConfig } from "@/adapters";
 import { CONFIG_SECTION, INCLUDE_HOME_AGENTS_KEY } from "@/shared/constants";
 import { registerExtensionApi } from "@/vscodeApi/activation/RegisterExtensionApi";
-import { SettingsManager } from "@/vscodeApi/storage";
+import { SettingsManager, SecretsManager } from "@/vscodeApi/storage";
 import { WebviewProvider } from "@/vscodeApi/webviews/WebviewProvider";
 import { setActiveProvider } from "./ExtensionRuntime";
 
@@ -29,6 +29,7 @@ const LEGACY_SETTING_KEYS: ReadonlyArray<LegacySettingKey> = [
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   await initializeUserSettings();
+  await SecretsManager.migrateLegacyApiKey(context, SettingsManager.load().baseUrl);
   const provider = new WebviewProvider(context.extensionUri, context);
   setActiveProvider(provider);
   await provider.initialize();

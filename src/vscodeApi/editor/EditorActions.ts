@@ -15,8 +15,7 @@ export async function openWorkspaceFile(
   line?: number,
 ): Promise<void> {
   try {
-    const snapshot = captureWorkspaceRunSnapshot(binding);
-    await createVsCodeToolWorkspace(snapshot).resolvePath!(filePath, false);
+    const snapshot = await validateWorkspaceFilePath(filePath, binding);
     const fileUri = resolveWorkspaceUri(snapshot, filePath);
     const document = await vscode.workspace.openTextDocument(fileUri);
     const editor = await vscode.window.showTextDocument(document);
@@ -31,6 +30,15 @@ export async function openWorkspaceFile(
     logError(`[EditorActions] Error opening file '${filePath}'`, err);
     await vscode.window.showErrorMessage(err instanceof Error ? err.message : "Unable to open the workspace file.");
   }
+}
+
+export async function validateWorkspaceFilePath(
+  filePath: string,
+  binding: WorkspaceBinding,
+): Promise<WorkspaceRunSnapshot> {
+  const snapshot = captureWorkspaceRunSnapshot(binding);
+  await createVsCodeToolWorkspace(snapshot).resolvePath!(filePath, false);
+  return snapshot;
 }
 
 export async function insertCodeIntoActiveEditor(code: string, binding: WorkspaceBinding): Promise<void> {

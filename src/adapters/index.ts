@@ -3,6 +3,7 @@ export { resolveToolExecutionMode } from "./Config";
 export type {
   WebviewToHandlerMessage,
   HandlerToWebviewMessage,
+  WebviewConfig,
   Conversation,
   ConversationSummary,
   ConversationMessage,

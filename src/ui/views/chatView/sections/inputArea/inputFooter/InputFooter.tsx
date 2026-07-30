@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import "./InputFooter.css";
 import { MODEL_OPTIONS } from "@/adapters/deepseek/Models";
 import ReferencedFilesChips from "./ReferencedFilesChips";
-import type { ReferencedFile } from "./Types";
+import type { ReferencedFile } from "@/adapters";
 import type { PermissionMode } from "@/adapters";
 import { t } from "@webview/i18n";
 import { getVsCodeApi } from "@webview/VsCodeApi";
