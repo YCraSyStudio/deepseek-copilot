@@ -9,7 +9,7 @@ export const userManual: PageContent = {
     {
       title: "Getting started",
       items: [
-        "Open Yar's DeepSeek Copilot from the Activity Bar and enter the API key in Settings. The key is stored in VS Code Secret Storage.",
+        "Open Yar's DeepSeek Copilot from the Activity Bar and enter the API key in Settings. Credentials are stored per normalized API origin in VS Code Secret Storage; reopening Settings shows only a masked placeholder preview.",
         "Choose the model, thinking mode, reasoning effort, output allowance, tool-round checkpoint interval, and concurrent generation limit. DeepSeek V4 has a 1M-token total context and a 384K maximum output; the extension reserves 65,536 output tokens by default. Concurrency defaults to 8 and accepts values from 1 to 16.",
         "Type ./ to autocomplete safe workspace paths. Parent traversal with ../ is never accepted. In multi-root workspaces, paths begin with a stable alias such as ./frontend/src/App.tsx.",
         "Use the attachment button or Explorer/editor commands for explicit context. Files outside the workspace become bounded, read-only snapshots; they never grant tools access to the surrounding folder.",
@@ -38,6 +38,14 @@ export const userManual: PageContent = {
       ],
     },
     {
+      title: "Activity and file results",
+      items: [
+        "Adjacent reasoning and tool calls are collapsed into an Activity panel by default. Expand it to inspect individual reasoning steps, tool states, arguments, and relevant results.",
+        "A successful read_file call does not duplicate the file body in Chat. Use Open file to inspect it in the editor; failed reads still show their diagnostic result.",
+        "Completed create_file, edit_file, and apply_patch calls expose View change when a complete diff is available. It opens the before and after content recorded for that specific tool execution, independent of later working-tree changes.",
+      ],
+    },
+    {
       title: "Workspace content search",
       items: [
         "search_content matches literal text case-insensitively through the VS Code workspace filesystem; it does not run a shell or treat the query as a regular expression. The query must contain text and is limited to 4,096 characters.",
@@ -54,12 +62,14 @@ export const userManual: PageContent = {
         "The result records stdout, stderr, exit code, signal, timeout, cancellation, effective working directory, and shell.",
         "Output is bounded; when truncated, the beginning and end are retained and the omitted middle is marked.",
         "Outside global Auto approve, unknown commands require caution. Chained Bash, PowerShell, and cmd segments, publishing, deployment, remote changes, package managers, redirects, and destructive operations are reviewed before execution.",
+        "In auto-approve, local analysis runs first. An uncertain but workspace-contained command may be sent to a separate DeepSeek reviewer together with the initial user request and bounded, non-sensitive context from explicitly named workspace files.",
+        "The reviewer may approve, return constraints for safer replanning, or request manual confirmation. Automatic approval or replanning requires medium-high confidence or above; sensitive, external, elevated, remote, broad process-termination, and destructive operations stay manual.",
       ],
     },
     {
       title: "History and privacy",
       items: [
-        "Settings are stored in ~/.yrs-dpsk-copilot/settings.json. The API key remains in VS Code Secret Storage.",
+        "Settings are stored in ~/.yrs-dpsk-copilot/settings.json. API credentials remain in VS Code Secret Storage, isolated by normalized origin, and are never included in WebviewConfig, history, or checkpoints.",
         "History is stored globally as one JSON file per conversation in ~/.yrs-dpsk-copilot/history/ and each entry shows its source workspace.",
         "History can be disabled and retention can be configured from 0 days (manual deletion only) to 3650 days. The default is 30 days.",
         "The history list is rebuilt directly from validated conversation files. Storage is capped at 100 conversations and 24 MiB.",

@@ -9,7 +9,7 @@ export const userManual: PageContent = {
     {
       title: "开始使用",
       items: [
-        "从 Activity Bar 打开 Yar's DeepSeek Copilot，并在 Settings 中输入 API key。密钥保存在 VS Code Secret Storage 中。",
+        "从 Activity Bar 打开 Yar's DeepSeek Copilot，并在 Settings 中输入 API key。凭据按规范化 API 来源存储在 VS Code Secret Storage 中；重新打开 Settings 时只会显示遮罩占位符预览。",
         "选择模型、thinking mode、reasoning effort、输出预留、工具轮次检查间隔和并发生成上限。DeepSeek V4 的总上下文为 1M Token，最大输出为 384K；扩展默认预留 65,536 个输出 Token。默认并发数为 8，可设置为 1 到 16。",
         "输入 ./ 可自动补全安全的工作区路径；始终拒绝 ../ 父目录遍历。多根工作区路径以稳定别名开头，例如 ./frontend/src/App.tsx。",
         "可使用附件按钮或资源管理器/编辑器命令显式添加上下文。工作区外文件会转换为受限的只读快照，绝不会授予工具访问其所在文件夹的权限。",
@@ -38,6 +38,14 @@ export const userManual: PageContent = {
       ],
     },
     {
+      title: "活动和文件结果",
+      items: [
+        "相邻的推理和工具调用默认折叠在 Activity 面板中。展开后可检查各个推理步骤、工具状态、参数和相关结果。",
+        "成功的 read_file 不会在聊天中重复文件正文。可使用 Open file 在编辑器中查看；读取失败时仍会显示诊断结果。",
+        "完成的 create_file、edit_file 和 apply_patch 在拥有完整 diff 时会提供 View change。它会打开该次工具执行记录的前后内容，不受之后工作树变更影响。",
+      ],
+    },
+    {
       title: "工作区内容搜索",
       items: [
         "search_content 通过 VS Code 工作区文件系统执行不区分大小写的字面文本搜索；它不会运行 shell，也不会将查询解释为正则表达式。查询必须包含文本，且最多为 4,096 个字符。",
@@ -54,12 +62,14 @@ export const userManual: PageContent = {
         "结果会记录 stdout、stderr、退出码、信号、超时、取消状态、实际工作目录和 shell。",
         "输出有大小限制；发生截断时会保留开头和结尾，并标记被省略的中间部分。",
         "除全局“自动批准”外，未知命令需要谨慎处理。执行前会分析 Bash、PowerShell 和 cmd 命令链，以及发布、部署、远程更改、包管理器、重定向和破坏性操作。",
+        "在 auto-approve 中会先执行本地分析。仍不确定但位于工作区内的命令，可以连同初始用户请求及显式命名工作区文件的受限、非敏感上下文发送给独立 DeepSeek 审查器。",
+        "审查器可以批准、返回更安全的重新规划约束或要求手动确认。自动批准或重新规划至少需要 medium-high 置信度；敏感、外部、提权、远程、广泛终止进程和破坏性操作仍需手动处理。",
       ],
     },
     {
       title: "历史记录和隐私",
       items: [
-        "设置保存在 ~/.yrs-dpsk-copilot/settings.json 中。API key 仍保存在 VS Code Secret Storage 中。",
+        "设置保存在 ~/.yrs-dpsk-copilot/settings.json 中。API 凭据按规范化来源隔离保存在 VS Code Secret Storage 中，绝不会进入 WebviewConfig、历史记录或 checkpoint。",
         "历史记录以每个会话一个 JSON 文件的形式全局保存在 ~/.yrs-dpsk-copilot/history/ 中，每条记录都会显示其来源工作区。",
         "可以禁用历史记录，也可以将保留期设为 0 天（仅手动删除）到 3650 天；默认值为 30 天。",
         "历史列表直接从经过验证的会话文件重建。存储上限为 100 个会话和 24 MiB。",

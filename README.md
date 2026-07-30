@@ -23,8 +23,11 @@ The extension is DeepSeek-only by design.
 - Keyboard-accessible confirmations, controlled autoscroll, editable drafts during streaming, and reduced-motion support.
 - Webview interface localized automatically in English, Spanish, and Chinese.
 - Safety confirmations for dangerous or destructive tool calls.
+- Two-stage command review in `auto-approve`: local analysis first, then a bounded DeepSeek safety review when a workspace-contained command remains uncertain.
+- Compact expandable Activity groups for reasoning and tool calls.
+- `Open file` and per-operation `View change` actions for file tools; successful file reads do not duplicate editor content in Chat.
 - Stop generation restores the cancelled prompt to the input and does not keep it in conversation context.
-- API key stored in VS Code Secret Storage.
+- API credentials stored per API origin in VS Code Secret Storage and represented in Settings only by a masked placeholder.
 
 ## Requirements
 
@@ -63,7 +66,7 @@ Settings are managed from the extension UI and stored globally in:
 
 This includes the model, reasoning options, limits, permission mode, per-tool execution modes, history retention, automatic context and global `AGENTS.md` access. Existing VS Code settings are copied to this file once and then removed from VS Code configuration.
 
-The API key is never written to this file. It remains in VS Code Secret Storage.
+The API key is never written to this file or returned as webview configuration. Credentials remain in VS Code Secret Storage, are isolated by API origin, and appear in Settings only as a masked placeholder. Changing to a different API origin requires explicit confirmation and never copies the existing credential.
 
 ## Tools and Safety
 
@@ -81,7 +84,7 @@ Tool execution is then controlled per tool:
 - `enabled`: execute with normal safety checks.
 - `auto_approve`: execute without confirmation only when the operation is not considered dangerous.
 
-Changing an individual tool while a preset is selected copies that preset into `custom` automatically. Terminal commands are not OS-sandboxed. `auto-approve` delegates operations proven to remain in the workspace and asks before external access. Enabling `full-access` shows a global danger warning because it removes workspace containment and confirmation prompts. VS Code Workspace Trust and cancellation remain enforced. Legacy `chat` and transitional `enabled` settings migrate to `default`; legacy `workspace` migrates to `full-access`.
+Changing an individual tool while a preset is selected copies that preset into `custom` automatically. Terminal commands are not OS-sandboxed. In `auto-approve`, a conservative local analyzer handles commands it understands; uncertain workspace-contained commands may receive a separate DeepSeek security review using the initial user request and bounded, non-sensitive context from explicitly named workspace files. Automatic approval or replanning requires at least `medium_high` confidence. Credentials, elevation, external or remote mutation, broad process termination, publishing, deployment, and destructive operations are never delegated to that reviewer. Unresolved cases ask the user. Enabling `full-access` shows a global danger warning because it removes workspace containment and confirmation prompts. VS Code Workspace Trust and cancellation remain enforced. Legacy `chat` and transitional `enabled` settings migrate to `default`; legacy `workspace` migrates to `full-access`.
 
 Tool calls have one visible lifecycle: awaiting confirmation, running, then completed, rejected, cancelled, or error. Calls within a round execute sequentially and identical repeated calls are skipped. The configured tool-round value is a safety-checkpoint interval: auto-approve and full-access ask DeepSeek to reassess whether to continue, request instructions, or stop; other modes ask the user whether to continue.
 

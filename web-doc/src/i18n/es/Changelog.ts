@@ -4,10 +4,23 @@ export const changelog: PageContent = {
   navTitle: "Changelog",
   title: "Changelog",
   description: "Cambios relevantes y estado preview.",
-  lead: "La versión 0.1.3-unreleased añade bindings inmutables del workspace lógico, aliases multi-root seguros y snapshots explícitos de contexto externo.",
+  lead: "La versión preview 0.1.4 protege las credenciales de API, añade revisión contextual de comandos para auto-approve y hace la actividad de herramientas más compacta e inspeccionable.",
   sections: [
     {
-      title: "0.1.3-unreleased seguridad del workspace y coordinación de generaciones",
+      title: "0.1.4 preview: credenciales, revisión de comandos y UI enfocada en herramientas",
+      items: [
+        "Las credenciales se aíslan por origen de API normalizado en Secret Storage de VS Code. La clave antigua se migra automáticamente, cambiar de origen requiere confirmación y la webview solo recibe el estado y una preview enmascarada para el placeholder.",
+        "Las peticiones a DeepSeek mantienen el origen elegido durante las redirecciones y eliminan credenciales de errores, logs, historial, ajustes, checkpoints y mensajes visibles.",
+        "Auto-approve ejecuta primero un analizador local conservador. Los comandos de terminal inciertos pero contenidos en el workspace pueden recibir una revisión DeepSeek separada con la petición inicial del usuario y previews acotadas y no sensibles de archivos nombrados explícitamente.",
+        "El revisor puede aprobar, pedir una replanificación más segura o requerir confirmación manual. Las decisiones automáticas exigen confianza medium-high o superior y nunca anulan el límite del workspace ni delegan credenciales, elevación, publicación, despliegue, mutación remota, acceso externo, terminación amplia de procesos u operaciones destructivas.",
+        "El razonamiento y las tool calls adyacentes se agrupan en paneles Activity desplegables con número de pasos y estado agregado.",
+        "El contenido correcto de read_file se omite del Chat. Las herramientas de archivo ofrecen Open file y las creaciones, ediciones y patches completados pueden abrir el cambio exacto registrado como diff nativo de VS Code.",
+        "Los paneles de confirmación, Settings, controles de herramientas y compositor aprovechan el ancho en paneles amplios y evitan el overflow global en paneles estrechos.",
+        "Contratos, tools integradas, revisión de comandos, orquestación del chat, adaptadores del workspace, Settings, UI de Chat y tests se reorganizaron por dominio conservando mensajes públicos, nombres de tools, ajustes e historial.",
+      ],
+    },
+    {
+      title: "0.1.3 seguridad del workspace y coordinación de generaciones",
       items: [
         "Elevada la reserva de salida predeterminada de DeepSeek de 8.192 a 65.536 tokens, conservando el máximo de 384K y documentando su relación con el contexto de 1M tokens.",
         "Convertido el límite de rondas en un checkpoint: los modos desatendidos preguntan a DeepSeek si debe continuar, pedir instrucciones o parar, y los modos atendidos conservan la decisión del usuario.",

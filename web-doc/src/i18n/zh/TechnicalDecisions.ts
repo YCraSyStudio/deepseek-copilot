@@ -9,10 +9,11 @@ export const technicalDecisions: PageContent = {
     {
       title: "分层边界",
       items: [
-        "core 负责与供应商无关的会话、上下文和工具领域逻辑，不导入 React 或具体 HTTP 客户端。",
-        "deepseekApi 负责请求、响应验证、SSE 解析、有限重试和工具调用编排。",
-        "vscodeApi 负责密钥、工作区访问、存储、命令、终端进程、确认以及宿主与 webview 的通信。",
-        "ui 负责 React webview，只有收到宿主消息后才会更改权威工具状态。",
+        "adapters 负责稳定的共享模型和 webview 契约，并通过兼容 barrel 将其拆分为模型、入站请求和出站事件。",
+        "core 负责与供应商无关的会话、上下文和工具领域逻辑，不导入 React、VS Code 或具体 HTTP 客户端。",
+        "deepseekApi 负责请求、响应验证、SSE 解析、有限重试、工具调用编排和独立的命令审查功能。",
+        "vscodeApi 负责密钥、工作区访问、存储、命令、终端进程、确认、宿主与 webview 路由、路径解析和原生变更 diff。",
+        "ui 负责 React webview，只有收到宿主消息后才会更改权威工具状态。Chat 和 Settings 按功能分组，并使用明确的内部导入。",
       ],
     },
     {
@@ -22,6 +23,7 @@ export const technicalDecisions: PageContent = {
         "实时流和恢复的历史记录使用同一 timeline 契约，保留 think -> tool -> think -> response 顺序。",
         "文本增量按动画帧分组，并在工具组、完成、取消或持久化之前刷新。",
         "消息、事件、会话和备用工具调用 ID 使用 crypto.randomUUID()。",
+        "相邻的推理和工具事件在展示层中分组为默认折叠的 Activity 块，同时保持持久化时间顺序不变。",
       ],
     },
     {
@@ -43,6 +45,8 @@ export const technicalDecisions: PageContent = {
         "路径授权仅接受工作区 ./ 路径，拒绝父目录遍历、绝对路径和 URI，并解析真实路径与现有祖先以防止 symlink 或 junction 越界。",
         "显式外部附件是临时只读快照；不会持久化，也不会把工具授权扩展到绑定工作区之外。",
         "已确认的文件写入带有 SHA-256 守卫；如果预览后磁盘内容发生变化，编辑或覆盖会失败。",
+        "Auto-approve 会先使用本地分析器，再进行远程审查。审查器只接收初始用户请求、范围事实以及显式命名且非敏感工作区文件的受限预览；自动批准或重新规划至少需要 medium-high 置信度。",
+        "原生变更视图根据该次创建、编辑或补丁记录的受限 diff 重建前后文档，而不是读取当前磁盘或 Git 状态。",
       ],
     },
     {
@@ -50,7 +54,8 @@ export const technicalDecisions: PageContent = {
       items: [
         "SSE 支持注释、CRLF、带或不带空格的 data 字段、多行事件、解码器收尾、异常 JSON 诊断和 reader 取消。",
         "DeepSeek 请求使用规范化 URL，每次尝试超时 60 秒；对临时故障最多尝试三次，并遵守 Retry-After。",
-        "设置、schema-v2 会话历史和生成 checkpoint 都保存在 ~/.yrs-dpsk-copilot/ 下。checkpoint 绝不包含 API key，异常的历史或 checkpoint 文件会被隔离。",
+        "设置、schema-v2 会话历史和生成 checkpoint 保存在 ~/.yrs-dpsk-copilot/ 下。API 凭据按规范化来源单独保存在 VS Code Secret Storage 中，webview 只接收遮罩状态。checkpoint 绝不包含密钥，异常记录会被隔离。",
+        "DeepSeek 请求拒绝带凭据的 URL，在非 loopback 环境强制 HTTPS，在重定向中保持所选来源，并从可见错误中移除敏感值。",
         "DeepSeek V4 模型按官方的 1M Token 总上下文和 384K 最大输出进行预算。配置的输出预留默认为 65,536，并与安全余量一起减少输入预算。",
         "上下文具有总预算、二进制检测、Git staged 和 unstaged 数据、受限的 AGENTS.md 来源，以及明确的不受信任数据分隔符。",
       ],

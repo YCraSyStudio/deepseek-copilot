@@ -9,10 +9,11 @@ export const technicalDecisions: PageContent = {
     {
       title: "Layer boundaries",
       items: [
-        "core owns provider-independent conversation, context, and tool-domain logic and does not import React or concrete HTTP clients.",
-        "deepseekApi owns requests, response validation, SSE parsing, bounded retries, and tool-call orchestration.",
-        "vscodeApi owns secrets, workspace access, storage, commands, terminal processes, confirmations, and host-webview routing.",
-        "ui owns the React webview and changes authoritative tool state only after host messages.",
+        "adapters owns stable shared models and the webview contract, split into models, incoming requests, and outgoing events behind a compatibility barrel.",
+        "core owns provider-independent conversation, context, and tool-domain logic and does not import React, VS Code, or concrete HTTP clients.",
+        "deepseekApi owns requests, response validation, SSE parsing, bounded retries, tool-call orchestration, and the isolated command-review feature.",
+        "vscodeApi owns secrets, workspace access, storage, commands, terminal processes, confirmations, host-webview routing, path resolution, and native change diffs.",
+        "ui owns the React webview and changes authoritative tool state only after host messages. Chat and Settings are grouped by feature with explicit internal imports.",
       ],
     },
     {
@@ -22,6 +23,7 @@ export const technicalDecisions: PageContent = {
         "The same timeline contract renders live streams and restored history, preserving think -> tool -> think -> response order.",
         "Text deltas are grouped per animation frame and flushed before tool groups, completion, cancellation, or persistence.",
         "Message, event, conversation, and fallback tool-call IDs use crypto.randomUUID().",
+        "Adjacent reasoning and tool events are grouped into collapsed Activity blocks for presentation without altering the persisted chronological event order.",
       ],
     },
     {
@@ -43,6 +45,8 @@ export const technicalDecisions: PageContent = {
         "Path authorization accepts ./ workspace paths, rejects parent traversal, absolute paths and URIs, and resolves real paths and existing ancestors to prevent symlink or junction escapes.",
         "Explicit external attachments are temporary read-only snapshots. They are not persisted and never extend tool authorization beyond the bound workspace.",
         "Confirmed file writes carry SHA-256 guards so edits and overwrites fail if disk content changes after preview.",
+        "Auto-approve uses a local analyzer before remote review. The reviewer receives the original user request, scope facts, and only bounded previews of explicitly named, non-sensitive workspace files; medium-high confidence or above is required for automatic approval or replanning.",
+        "Native change views reconstruct the before and after documents from the bounded diff recorded by that specific create, edit, or patch call, rather than from current disk or Git state.",
       ],
     },
     {
@@ -50,7 +54,8 @@ export const technicalDecisions: PageContent = {
       items: [
         "SSE supports comments, CRLF, data fields with or without spaces, multiline events, decoder finalization, malformed JSON diagnostics, and reader cancellation.",
         "DeepSeek requests use normalized URLs, a 60-second per-attempt timeout, and at most three retries for transient failures while respecting Retry-After.",
-        "Settings, schema-v2 conversation history, and generation checkpoints live under ~/.yrs-dpsk-copilot/. Checkpoints never contain the API key, and malformed history or checkpoint files are isolated.",
+        "Settings, schema-v2 conversation history, and generation checkpoints live under ~/.yrs-dpsk-copilot/. API credentials live separately in VS Code Secret Storage, keyed by normalized origin; only masked status reaches the webview. Checkpoints never contain a key, and malformed history or checkpoint files are isolated.",
+        "DeepSeek requests reject credential-bearing URLs, require HTTPS outside loopback, preserve the selected origin across redirects, and redact sensitive values from surfaced errors.",
         "DeepSeek V4 models are budgeted against their documented 1M-token total context and 384K maximum output. The configured output allowance defaults to 65,536 and reduces the input budget alongside a safety margin.",
         "Context has aggregate budgets, binary detection, staged and unstaged Git data, bounded AGENTS.md sources, and explicit untrusted-data delimiters.",
       ],

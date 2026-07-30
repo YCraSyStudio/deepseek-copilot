@@ -4,11 +4,12 @@
 
 ## Target release
 
-Use the version declared in `package.json`.
+The current target is `0.1.4` pre-release. Use the version declared in
+`package.json` and keep the root lockfile aligned.
 
 ## Marketplace metadata
 
-- Publisher: `YCraSyStudio`
+- Publisher: `yarcrasy`
 - Repository: `https://github.com/YarCrasy/deepseek-copilot`
 - License: MIT
 - Categories: `AI`, `Chat`
@@ -38,10 +39,21 @@ The Astro build output is the repository root `docs/` folder. Configure GitHub P
 Package the VSIX:
 
 ```bash
-npx @vscode/vsce package --no-dependencies
+npx @vscode/vsce package --pre-release --no-dependencies
 ```
 
 Do not use the deprecated `vsce` package. Older versions still require explicit `activationEvents`; modern VS Code generates activation events from contribution declarations.
+
+Publish only after installing the packaged VSIX in a clean profile and testing
+an upgrade from `0.1.3`:
+
+```bash
+npx @vscode/vsce publish --pre-release
+```
+
+Marketplace pre-releases use ordinary `major.minor.patch` versions; SemVer
+suffixes such as `-preview.1` are not supported. `preview: true` marks the
+extension as a preview product but does not replace the `--pre-release` channel.
 
 ## Manual beta validation
 

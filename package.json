@@ -2,7 +2,7 @@
   "name": "yrs-dpsk-copilot",
   "displayName": "Yar's Deepseek copilot - A VS Code copilot specialized on Deepseek.",
   "description": "A deeply integrated VS Code coding assistant specialized in DeepSeek.",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "preview": true,
   "publisher": "yarcrasy",
   "license": "MIT",

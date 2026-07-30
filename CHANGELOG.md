@@ -1,5 +1,16 @@
 # Change Log
 
+## [0.1.4] - 2026-07-30
+
+- Protected DeepSeek credentials per API origin in VS Code Secret Storage, including automatic migration of the legacy key, explicit confirmation before changing credential destinations, same-origin redirect enforcement, redacted errors, and a masked placeholder preview that never places the stored key in webview configuration.
+- Added a two-stage `auto-approve` command gate: conservative local analysis runs first, uncertain workspace-contained commands receive a bounded DeepSeek security review with the original user request and safe read-only file context, and genuine ambiguity falls back to manual confirmation.
+- Added reviewer outcomes for automatic approval, safe replanning, and manual confirmation with confidence levels from `very_low` through `very_high`; automatic decisions require at least `medium_high`, while credentials, elevation, external mutation, broad process termination, and destructive operations remain non-delegable.
+- Grouped adjacent reasoning and tool calls into compact expandable Activity panels, hid successful `read_file` contents from Chat, and replaced generic copy actions on file tools with `Open file` and `View change`.
+- Added native per-tool change diffs reconstructed from the recorded operation, so a completed create, edit, or patch can be reviewed independently from later working-tree changes.
+- Reworked confirmation panels, Settings, tool controls, and the chat composer for narrow and wide sidebars; the API-key preview now appears correctly on first open.
+- Reorganized contracts, built-in tools, command review, chat orchestration, VS Code workspace adapters, Settings, Chat UI, and tests by domain while preserving public messages, tool names, stored configuration, and history compatibility.
+- Added enforced architecture boundaries, recursive unit-test discovery, dedicated integration tests, and coverage for credential redaction, API origins, command review, activity grouping, and file-tool presentation.
+
 ## [0.1.3] - 2026-07-27
 - Improved history storage with automatic legacy-conversation migration during the compatibility period tracked by [issue #61](https://github.com/YarCrasy/deepseek-copilot/issues/61).
 - Added concurrent generations across conversations, per-conversation queues, targeted interruption, and atomic checkpoint recovery after restart.

@@ -11,7 +11,11 @@
 - `npm run build:webview`: bundle `dist/webview`.
 - `npm run dev:webview`: Vite server for UI.
 - `npm run lint`: ESLint over `src`.
-- `npm test`: VS Code tests.
+- `npm run test:unit`: recursively discovers unit tests under `src/test` while
+  excluding `src/test/integration`.
+- `npm run test:integration`: builds and runs the VS Code Extension Development
+  Host tests from `src/test/integration`.
+- `npm test`: unit tests followed by integration tests.
 
 ## Web documentation
 

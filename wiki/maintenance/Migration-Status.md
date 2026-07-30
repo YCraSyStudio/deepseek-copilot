@@ -11,7 +11,10 @@
 - Public configuration is DeepSeek-only.
 - Human documentation lives in `web-doc` with Astro and has English, Spanish, and Chinese routes.
 - Technical documentation lives in the repository `wiki/` directory.
-- Marketplace metadata, README, MIT license, and VSIX packaging are prepared for the current preview release.
+- Marketplace metadata, README, MIT license, and VSIX packaging are being
+  prepared for the `0.1.4` pre-release.
+- Legacy single-origin API credentials migrate to a versioned per-origin Secret
+  Storage bundle without exposing the stored value to the webview.
 - New and rewritten conversations use `schemaVersion: 2`, with generation ownership and terminal status stored on messages.
 - Activation atomically migrates valid unversioned history files, partially migrated schema-v2 files, and legacy `workspaceState` envelopes, then verifies the complete schema-v2 replacement before removing the old representation.
 - Historical turns receive deterministic `generationId` values; historical assistant and error messages receive terminal `generationStatus` values.

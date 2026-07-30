@@ -17,6 +17,7 @@ package-lock.json
 esbuild.js
 vsc-extension-quickstart.md
 *.vsix
+*.log
 **/tsconfig.json
 **/eslint.config.mjs
 **/*.map

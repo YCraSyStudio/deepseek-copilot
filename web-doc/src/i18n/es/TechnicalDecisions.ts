@@ -9,10 +9,11 @@ export const technicalDecisions: PageContent = {
     {
       title: "Límites entre capas",
       items: [
-        "core contiene la conversación, el contexto y el dominio de herramientas independientes del proveedor, y no importa React ni clientes HTTP concretos.",
-        "deepseekApi contiene las peticiones, validación de respuestas, parsing SSE, reintentos acotados y orquestación de tool calls.",
-        "vscodeApi contiene secretos, workspace, almacenamiento, comandos, procesos de terminal, confirmaciones y comunicación host-webview.",
-        "ui contiene la webview React y solo cambia el estado autoritativo de una herramienta después de recibir mensajes del host.",
+        "adapters contiene modelos compartidos estables y el contrato de la webview, dividido en modelos, peticiones entrantes y eventos salientes tras un barrel compatible.",
+        "core contiene conversación, contexto y dominio de herramientas independientes del proveedor, y no importa React, VS Code ni clientes HTTP concretos.",
+        "deepseekApi contiene peticiones, validación de respuestas, parsing SSE, reintentos acotados, orquestación de tool calls y el módulo aislado de revisión de comandos.",
+        "vscodeApi contiene secretos, workspace, almacenamiento, comandos, procesos de terminal, confirmaciones, comunicación host-webview, resolución de rutas y diffs nativos.",
+        "ui contiene la webview React y solo cambia el estado autoritativo de una herramienta después de recibir mensajes del host. Chat y Settings se agrupan por feature con imports internos explícitos.",
       ],
     },
     {
@@ -22,6 +23,7 @@ export const technicalDecisions: PageContent = {
         "El mismo contrato de timeline renderiza el stream en vivo y el historial restaurado, conservando el orden think -> tool -> think -> response.",
         "Los deltas de texto se agrupan por frame de animación y se vacían antes de los grupos de herramientas, finalización, cancelación o persistencia.",
         "Los IDs de mensajes, eventos, conversaciones y tool calls de respaldo usan crypto.randomUUID().",
+        "Los eventos adyacentes de razonamiento y herramientas se agrupan en bloques Activity contraídos para la presentación sin alterar su orden cronológico persistido.",
       ],
     },
     {
@@ -43,6 +45,8 @@ export const technicalDecisions: PageContent = {
         "La autorización acepta rutas ./ del workspace, rechaza padres, rutas absolutas y URI, y resuelve rutas reales y ancestros existentes para impedir escapes por symlinks o junctions.",
         "Los adjuntos externos explícitos son snapshots temporales de solo lectura. No se persisten ni amplían la autorización de herramientas fuera del workspace vinculado.",
         "Las escrituras confirmadas llevan guardas SHA-256 para que una edición falle si el contenido en disco cambia después de la previsualización.",
+        "Auto-approve usa un analizador local antes de la revisión remota. El revisor recibe la petición inicial, hechos de alcance y solo previews acotadas de archivos del workspace explícitos y no sensibles; se exige confianza medium-high o superior para aprobar o replanificar automáticamente.",
+        "Las vistas nativas de cambios reconstruyen los documentos anterior y posterior a partir del diff acotado registrado por esa creación, edición o patch, no desde el disco o Git actuales.",
       ],
     },
     {
@@ -50,7 +54,8 @@ export const technicalDecisions: PageContent = {
       items: [
         "SSE admite comentarios, CRLF, campos data con o sin espacios, eventos multilínea, finalización del decoder, diagnósticos de JSON inválido y cancelación del reader.",
         "Las peticiones a DeepSeek normalizan URLs, usan un timeout de 60 segundos por intento y un máximo de tres intentos para fallos transitorios, respetando Retry-After.",
-        "Los ajustes, el historial de conversaciones con esquema v2 y los checkpoints viven bajo ~/.yrs-dpsk-copilot/. Los checkpoints nunca contienen la API key y los historiales o checkpoints inválidos se aíslan.",
+        "Los ajustes, el historial con esquema v2 y los checkpoints viven bajo ~/.yrs-dpsk-copilot/. Las credenciales viven separadas en Secret Storage de VS Code por origen normalizado; la webview solo recibe estado enmascarado. Los checkpoints nunca contienen una clave y los registros inválidos se aíslan.",
+        "Las peticiones a DeepSeek rechazan URLs con credenciales, exigen HTTPS fuera de loopback, conservan el origen elegido durante redirecciones y eliminan valores sensibles de errores visibles.",
         "El presupuesto de los modelos DeepSeek V4 usa su contexto total documentado de 1M tokens y un máximo de salida de 384K. La reserva de salida configurada es 65.536 de forma predeterminada y reduce el presupuesto de entrada junto con un margen de seguridad.",
         "El contexto tiene presupuestos agregados, detección de binarios, datos Git staged y unstaged, fuentes AGENTS.md acotadas y delimitadores explícitos de datos no confiables.",
       ],

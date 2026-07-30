@@ -9,7 +9,7 @@ export const userManual: PageContent = {
     {
       title: "Primeros pasos",
       items: [
-        "Abre Yar's DeepSeek Copilot desde la Activity Bar e introduce la API key en Settings. La clave se guarda en VS Code Secret Storage.",
+        "Abre Yar's DeepSeek Copilot desde la Activity Bar e introduce la API key en Settings. Las credenciales se guardan por origen de API normalizado en Secret Storage de VS Code; al reabrir Settings solo se muestra una preview enmascarada como placeholder.",
         "Elige el modelo, thinking mode, reasoning effort, reserva de salida, intervalo de control de rondas y límite de generaciones concurrentes. DeepSeek V4 tiene 1M tokens de contexto total y un máximo de salida de 384K; la extensión reserva 65.536 tokens de salida de forma predeterminada. La concurrencia predeterminada es 8 y admite valores entre 1 y 16.",
         "Escribe ./ para autocompletar rutas seguras del workspace. El recorrido a padres con ../ nunca se acepta. En multi-root, las rutas comienzan por un alias estable como ./frontend/src/App.tsx.",
         "Usa el botón de adjuntar o los comandos del explorador/editor para aportar contexto explícito. Los archivos externos se convierten en snapshots acotados y de solo lectura; nunca conceden acceso de herramientas a su carpeta.",
@@ -38,6 +38,14 @@ export const userManual: PageContent = {
       ],
     },
     {
+      title: "Actividad y resultados de archivos",
+      items: [
+        "El razonamiento y las tool calls adyacentes aparecen contraídos en un panel Activity de forma predeterminada. Despliégalo para revisar pasos de razonamiento, estados, argumentos y resultados relevantes.",
+        "Un read_file correcto no duplica el contenido del archivo en Chat. Usa Open file para inspeccionarlo en el editor; las lecturas fallidas sí muestran su diagnóstico.",
+        "Las llamadas completadas de create_file, edit_file y apply_patch ofrecen View change cuando existe un diff completo. Abre el contenido anterior y posterior registrado para esa ejecución concreta, independientemente de cambios posteriores en el working tree.",
+      ],
+    },
+    {
       title: "Búsqueda de contenido del workspace",
       items: [
         "search_content busca texto literal sin distinguir mayúsculas y minúsculas mediante el sistema de archivos del workspace de VS Code; no ejecuta una shell ni interpreta la consulta como una expresión regular. La consulta debe contener texto y está limitada a 4.096 caracteres.",
@@ -54,12 +62,14 @@ export const userManual: PageContent = {
         "El resultado registra stdout, stderr, código de salida, señal, timeout, cancelación, directorio efectivo y shell.",
         "La salida está limitada; si se trunca, se conservan el principio y el final y se marca la parte central omitida.",
         "Fuera de la Aprobación automática global, los comandos desconocidos requieren precaución. Se revisan las cadenas de Bash, PowerShell y cmd, publicaciones, despliegues, cambios remotos, gestores de paquetes, redirecciones y operaciones destructivas.",
+        "En auto-approve primero se ejecuta el análisis local. Un comando incierto pero contenido en el workspace puede enviarse a un revisor DeepSeek separado junto con la petición inicial y contexto acotado y no sensible de archivos del workspace nombrados explícitamente.",
+        "El revisor puede aprobar, devolver restricciones para replanificar de forma segura o pedir confirmación manual. La aprobación o replanificación automática exige confianza medium-high o superior; las operaciones sensibles, externas, elevadas, remotas, destructivas o de terminación amplia de procesos siguen siendo manuales.",
       ],
     },
     {
       title: "Historial y privacidad",
       items: [
-        "Los ajustes se guardan en ~/.yrs-dpsk-copilot/settings.json. La API key permanece en Secret Storage de VS Code.",
+        "Los ajustes se guardan en ~/.yrs-dpsk-copilot/settings.json. Las credenciales permanecen en Secret Storage de VS Code, aisladas por origen normalizado, y nunca forman parte de WebviewConfig, historial o checkpoints.",
         "El historial se guarda globalmente como un archivo JSON por conversación en ~/.yrs-dpsk-copilot/history/ y cada entrada muestra su workspace de origen.",
         "Puede deshabilitarse y su retención puede configurarse entre 0 días (solo borrado manual) y 3650 días. El valor predeterminado es 30 días.",
         "La lista se reconstruye directamente desde archivos de conversación validados. El almacenamiento está limitado a 100 conversaciones y 24 MiB.",

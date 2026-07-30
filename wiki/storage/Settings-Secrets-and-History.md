@@ -23,11 +23,22 @@ It must handle:
 
 Stores the API key with `context.secrets`.
 
-Current key:
+Current credential bundle:
 
-- `yrs-dpsk-copilot.apiKey`
+- `yrs-dpsk-copilot.apiCredentials.v2`
 
-Rule: never write the API key to logs, history, settings, or visible messages.
+Credentials are keyed by normalized API origin. The legacy
+`yrs-dpsk-copilot.apiKey` value is migrated atomically to the current origin and
+then removed. Changing origins requires native confirmation and does not copy a
+credential to the new destination. Resetting settings preserves every stored
+origin credential; deleting a credential removes only the active origin.
+
+The webview receives only `configured` or `missing` state plus a masked preview
+for the input placeholder. The secret is not part of `WebviewConfig`.
+
+Rule: never write an API key to logs, history, settings, checkpoints, webview
+configuration, or visible messages. API requests and redirects must remain on
+the normalized origin selected for that credential.
 
 ## `HistoryManager`
 

@@ -10,10 +10,12 @@ export const intro: PageContent = {
       title: "Current beta scope",
       items: [
         "Sidebar chat with responses, reasoning, and tool calls streamed and rendered in chronological order.",
+        "Reasoning and tools stay compact in expandable Activity groups; file tools open the affected file or the exact recorded change in the native editor.",
         "Thinking mode can be enabled or disabled without disabling tools.",
         "Default confirms every tool, read-only auto approves non-mutating tools, auto-approve delegates workspace-contained operations, full-access permits unrestricted access, and custom provides per-tool control.",
         "Safe path autocomplete appears only after typing ./; auto context, Git, instructions, terminal, and tools all use the same immutable logical-workspace snapshot.",
         "Settings and global history are stored under ~/.yrs-dpsk-copilot/ with configurable retention, native deletion confirmation, and Undo.",
+        "API credentials are isolated by origin in VS Code Secret Storage and never returned to the webview; Settings shows only a masked placeholder preview.",
       ],
     },
     {

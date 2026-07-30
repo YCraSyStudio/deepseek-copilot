@@ -50,4 +50,22 @@ files. A locally uncertain operation is executed automatically only when the
 review reaches the configured accepted confidence; unresolved doubt falls back
 to the manual confirmation above.
 
+The reviewer returns one of three decisions:
+
+- `approve`: execute only when local workspace containment is also proven.
+- `revise`: return concise constraints to the primary agent so it can continue
+  with a safer or more focused tool call.
+- `manual_confirmation`: preserve the exact command for a human decision.
+
+Confidence levels are `very_high`, `high`, `medium_high`, `medium`,
+`medium_low`, `low`, and `very_low`. Only `medium_high` or above can approve or
+revise automatically. File context is limited to explicitly named,
+non-sensitive workspace files, at most three files and 4 KiB per preview.
+Commands containing likely credentials are not sent for remote review.
+
+Credential exposure, elevation, publishing, deployment, remote mutation,
+external access, broad process termination, download-and-execute flows, and
+destructive delete, Git, or disk operations are non-delegable. A remote
+approval never overrides the local workspace boundary.
+
 [Back](INDEX.md)

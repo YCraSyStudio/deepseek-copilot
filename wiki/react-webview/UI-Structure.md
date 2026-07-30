@@ -62,6 +62,17 @@ Chat rendering is grouped by feature:
 - `components/chatView/tools/results`: file, diff, search, terminal, and argument
   result renderers.
 
+Adjacent reasoning and tool events are collapsed into an Activity panel by
+default. Its summary exposes the step count and aggregate status without
+occupying the full conversation height. Individual tool cards remain
+expandable inside the group.
+
+Successful `read_file` calls do not render file contents in Chat because the
+editor is the canonical viewing surface. File tools expose `Open file`; create,
+edit, and patch calls also expose `View change` when the stored, bounded diff is
+complete. That action reconstructs the before/after documents for that specific
+tool execution instead of comparing against the current working tree.
+
 ## Narrow layouts
 
 Responsive rules follow the webview viewport rather than assuming a normal
