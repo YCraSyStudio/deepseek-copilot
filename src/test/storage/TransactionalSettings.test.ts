@@ -1,9 +1,11 @@
 import * as assert from "node:assert";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { SettingsManager } from "@/vscodeApi/storage/SettingsManager";
 import { getSettingsFilePath } from "@/vscodeApi/storage/UserDataPaths";
+import { getGenerationCheckpointDirectory } from "@/vscodeApi/storage/UserDataPaths";
+import { GenerationCheckpointStore } from "@/vscodeApi/storage/GenerationCheckpointStore";
 
 suite("transactional settings", () => {
   const previousNodeEnv = process.env.NODE_ENV;
@@ -80,5 +82,32 @@ suite("transactional settings", () => {
     await save;
     assert.strictEqual((await capture).permissionMode, "default");
     SettingsManager.setPersistenceForTests();
+  });
+
+  test("does not write checkpoints while history is disabled and clears stale files", async () => {
+    const store = new GenerationCheckpointStore();
+    const checkpoint = {
+      conversationId: "incognito-conversation",
+      status: "streaming" as const,
+      content: "private partial response",
+      timeline: [],
+      toolCalls: [],
+      queue: [],
+      workspaceUri: "file:///workspace",
+      updatedAt: Date.now(),
+    };
+
+    await SettingsManager.save({ historyEnabled: false });
+    await store.save(checkpoint);
+    const directory = getGenerationCheckpointDirectory();
+    assert.strictEqual(existsSync(directory) ? readdirSync(directory).filter((name) => name.endsWith(".json")).length : 0, 0);
+
+    await SettingsManager.save({ historyEnabled: true });
+    await store.save(checkpoint);
+    assert.strictEqual(readdirSync(directory).filter((name) => name.endsWith(".json")).length, 1);
+
+    await SettingsManager.save({ historyEnabled: false });
+    await store.clearAll();
+    assert.strictEqual(readdirSync(directory).filter((name) => name.endsWith(".json")).length, 0);
   });
 });

@@ -22,6 +22,9 @@ export type {
   WorkspaceContextStatus,
   WorkspaceRebinding,
   ReferencedFile,
+  ChatPersistenceMode,
+  HistoryTransitionPhase,
+  HistoryTransitionDecision,
 } from "./messages/Webview";
 export type {
   ChatMessage,

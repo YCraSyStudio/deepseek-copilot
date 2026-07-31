@@ -5,6 +5,7 @@ export type WebviewToHandlerMessage =
   | { type: "getConfig" }
   | { type: "saveConfig"; requestId: string; config: Partial<AppConfig> }
   | { type: "resetConfig"; requestId: string }
+  | { type: "resolveHistoryTransition"; requestId: string; decision: "stop" | "save" | "discard" | "cancel" }
   | { type: "deleteApiKey"; requestId: string }
   | { type: "testConnection"; apiKey?: string; baseUrl: string; model: string }
   | {

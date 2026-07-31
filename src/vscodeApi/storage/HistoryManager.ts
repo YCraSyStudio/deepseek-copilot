@@ -66,11 +66,13 @@ export class HistoryManager {
   }
 
   async deleteMany(ids: string[]): Promise<void> {
+    if (!SettingsManager.load().historyEnabled) {return;}
     const uniqueIds = [...new Set(ids)];
     await this.enqueueMutation(() => Promise.all(uniqueIds.map((id) => rm(getConversationPath(id), { force: true }))).then(() => undefined));
   }
 
   async getById(id: string): Promise<StoredConversationData | undefined> {
+    if (!SettingsManager.load().historyEnabled) {return undefined;}
     await this.waitForPendingMutations();
     const filePath = getConversationPath(id);
     try {

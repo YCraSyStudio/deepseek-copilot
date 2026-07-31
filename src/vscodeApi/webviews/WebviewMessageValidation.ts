@@ -34,6 +34,10 @@ export function isWebviewToHandlerMessage(value: unknown): value is WebviewToHan
     case "resetConfig":
     case "deleteApiKey":
       return hasOnlyKeys(value, ["type", "requestId"]) && isNonEmptyBoundedString(value.requestId, 128);
+    case "resolveHistoryTransition":
+      return hasOnlyKeys(value, ["type", "requestId", "decision"]) &&
+        isNonEmptyBoundedString(value.requestId, 128) &&
+        (value.decision === "stop" || value.decision === "save" || value.decision === "discard" || value.decision === "cancel");
     case "cancelGeneration":
       return hasOnlyKeys(value, ["type", "generationId"]) && isNonEmptyBoundedString(value.generationId, 512);
     case "consumeRecoveredDraft":

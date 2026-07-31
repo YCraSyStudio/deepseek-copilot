@@ -26,15 +26,6 @@ function GeneralSection({ config, updateConfig, saveOnBlur }: GeneralSectionProp
         </select>
       </div>
 
-      <Toggle
-        label={t("settings.history.store")}
-        id="historyEnabled"
-        checked={config.historyEnabled}
-        onToggle={(checked) => {
-          updateConfig("historyEnabled", checked);
-          saveOnBlur("historyEnabled", checked);
-        }}
-      />
       <div className="settingRow">
         <label htmlFor="historyRetentionDays">{t("settings.history.retention")}</label>
         <input

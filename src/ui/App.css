@@ -73,6 +73,7 @@ body,
     line-height: 1.4;
     text-align: left;
     white-space: normal;
+    overflow-wrap: anywhere;
     transition: opacity 80ms, transform 80ms;
     transform: translate(-50%, 2px);
   }

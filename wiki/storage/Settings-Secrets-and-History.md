@@ -60,6 +60,12 @@ Legacy compatibility has no date-based runtime cutoff. It remains active until t
 
 History should avoid storing temporary data that can be rebuilt from the UI.
 
+When `historyEnabled` is false the product enters **Incognito mode**. Existing
+history files remain untouched, but reads and writes are unavailable. New turns
+stay in an explicitly incognito `ConversationState` and can reach history only
+through the confirmed "Save and leave" transition. Enabling history by itself
+must never promote an incognito session.
+
 ## `GenerationCheckpointStore`
 
 Stores one atomic checkpoint per conversation under `~/.yrs-dpsk-copilot/generation-checkpoints/`.
@@ -70,5 +76,7 @@ Stores one atomic checkpoint per conversation under `~/.yrs-dpsk-copilot/generat
 - Activation preserves a checkpoint already marked complete with its valid transcript. Partial work becomes an interrupted history turn, unfinished tools become `cancelled`, and queued prompts return as user-selectable drafts.
 - Invalid checkpoints are isolated under `generation-checkpoints/corrupt/`.
 - Completing or deleting a conversation removes its checkpoint.
+- Incognito mode invalidates pending checkpoint writes, clears live checkpoint
+  files, and disables generation, queue, recovery, and shutdown checkpointing.
 
 [Back](INDEX.md)

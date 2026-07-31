@@ -13,6 +13,7 @@ export type InitialConfig = {
   reasoning?: string;
   model?: string;
   permissionMode?: PermissionMode;
+  historyEnabled?: boolean;
 };
 
 /** User action for a tool call. */

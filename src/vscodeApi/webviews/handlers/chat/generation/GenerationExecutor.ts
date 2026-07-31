@@ -164,7 +164,13 @@ export class GenerationExecutor {
           ? activeConversationState.getConversation()
           : undefined
       );
-    const runState = new ConversationState(historyManager);
+    const selectedMode = activeConversationState.getActiveConversationId() === task.conversationId
+      ? activeConversationState.getPersistenceMode()
+      : undefined;
+    const runState = new ConversationState(
+      historyManager,
+      selectedMode ?? (config.historyEnabled ? "persistent" : "incognito"),
+    );
     if (sourceConversation) {
       runState.load(sourceConversation);
     } else {

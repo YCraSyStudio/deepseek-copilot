@@ -6,6 +6,15 @@
 
   &.user {
     align-items: flex-end;
+
+    .messageContent {
+      box-sizing: border-box;
+      width: 100%;
+      max-width: 100%;
+      border-color: color-mix(in srgb, var(--accent-color) 20%, var(--border-color));
+      border-radius: 12px 12px 0 12px;
+      box-shadow: 0 3px 10px #0000001f;
+    }
   }
 
   &.assistant .messageContent {

@@ -1,2 +1,4 @@
 export { default as CollapsiblePanel } from "./collapsiblePanel/CollapsiblePanel";
 export { default as Header } from "./header/Header";
+export { default as HistoryTransitionPanel } from "./historyTransitionPanel/HistoryTransitionPanel";
+export type { HistoryTransition } from "./historyTransitionPanel/HistoryTransitionPanel";

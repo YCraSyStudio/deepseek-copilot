@@ -57,3 +57,46 @@ export function mergeToolCallGroups(
   }
   return [...groups.values()].sort((a, b) => a.round - b.round);
 }
+
+export function reconcileLatestAssistantToolCalls(
+  messages: ChatMessage[],
+  liveGroups: ToolCallGroup[],
+): ChatMessage[] {
+  let messageIndex = -1;
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index].role === "assistant") {
+      messageIndex = index;
+      break;
+    }
+  }
+  if (messageIndex < 0) {return messages;}
+
+  const message = messages[messageIndex];
+  const timelineToolCallIds = (message.timeline ?? []).flatMap((event) =>
+    event.type === "tool-group" ? event.toolCallIds : [],
+  );
+  if (timelineToolCallIds.length === 0) {return messages;}
+
+  const allowedIds = new Set(timelineToolCallIds);
+  const calls = new Map(message.toolCalls?.map((toolCall) => [toolCall.toolCallId, toolCall]));
+  for (const group of liveGroups) {
+    for (const toolCall of group.toolCalls) {
+      if (!allowedIds.has(toolCall.toolCallId)) {continue;}
+      calls.set(toolCall.toolCallId, {
+        ...calls.get(toolCall.toolCallId),
+        ...toolCall,
+        round: group.round,
+      });
+    }
+  }
+
+  const nextToolCalls = timelineToolCallIds.flatMap((toolCallId) => {
+    const toolCall = calls.get(toolCallId);
+    return toolCall ? [toolCall] : [];
+  });
+  if (JSON.stringify(nextToolCalls) === JSON.stringify(message.toolCalls ?? [])) {return messages;}
+
+  const nextMessages = [...messages];
+  nextMessages[messageIndex] = { ...message, toolCalls: nextToolCalls };
+  return nextMessages;
+}

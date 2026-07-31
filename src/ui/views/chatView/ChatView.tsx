@@ -11,6 +11,7 @@ import { t } from "@webview/i18n";
 
 type ChatCommandMessage =
   | { type: "addReferencedFiles"; files: ReferencedFile[] }
+  | { type: "clearChat" }
   | { type: "setDraft"; text: string }
   | { type: "activeConversationChanged"; id: string }
   | { type: "generationAccepted"; generationId: string; conversationId: string; clientRequestId: string }
@@ -21,26 +22,34 @@ type ChatCommandMessage =
   | { type: "contextFilesSelected"; files: ReferencedFile[] }
   | { type: "generationSnapshot"; generations: GenerationSnapshot[]; recoveredDrafts: Array<{ conversationId: string; messages: Array<{ clientRequestId: string; text: string }> }> };
 
-interface ChatViewState {
-  schemaVersion: 2;
+interface PersistentChatViewState {
+  schemaVersion: 3;
+  mode: "persistent";
   draft: string;
   referencedFiles: ReferencedFile[];
   messages: ChatMessage[];
   conversationId?: string;
 }
 
+interface IncognitoChatViewState {
+  schemaVersion: 3;
+  mode: "incognito";
+}
+
+type ChatViewState = PersistentChatViewState | IncognitoChatViewState;
+
 interface ChatViewProps {
   loadedConversation?: Conversation | null;
 }
 
 function ChatView({ loadedConversation }: ChatViewProps) {
-  const savedState = getSavedChatState();
   const [apiKeyStatus, setApiKeyStatus] = useState<ApiKeyStatus>("missing");
   const [isProcessing, setIsProcessing] = useState(false);
-  const [draft, setDraft] = useState(loadedConversation ? "" : (savedState?.draft ?? ""));
-  const [referencedFiles, setReferencedFiles] = useState<ReferencedFile[]>(loadedConversation ? [] : (savedState?.referencedFiles ?? []));
-  const [messages, setMessages] = useState<ChatMessage[]>(loadedConversation?.messages ?? savedState?.messages ?? []);
-  const [conversationId, setConversationId] = useState<string | undefined>(loadedConversation?.id ?? savedState?.conversationId);
+  const [draft, setDraft] = useState("");
+  const [referencedFiles, setReferencedFiles] = useState<ReferencedFile[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>(loadedConversation?.messages ?? []);
+  const [conversationId, setConversationId] = useState<string | undefined>(loadedConversation?.id);
+  const [stateHydrated, setStateHydrated] = useState(false);
   const [activeGenerationId, setActiveGenerationId] = useState<string | undefined>();
   const [recoveredDrafts, setRecoveredDrafts] = useState<Array<{ clientRequestId: string; text: string }>>([]);
   const [workspaceContext, setWorkspaceContext] = useState<WorkspaceContextStatus>();
@@ -48,6 +57,7 @@ function ChatView({ loadedConversation }: ChatViewProps) {
   const conversationIdRef = useRef(conversationId);
   const activeGenerationIdRef = useRef(activeGenerationId);
   const pendingClientRequestIdsRef = useRef(new Set<string>());
+  const initialConfigHandledRef = useRef(false);
 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -63,6 +73,7 @@ function ChatView({ loadedConversation }: ChatViewProps) {
     selectedModel,
     reasoning,
     permissionMode,
+    historyEnabled,
     isPermissionUpdatePending,
     configUpdateError,
     selectedModelRef,
@@ -75,7 +86,7 @@ function ChatView({ loadedConversation }: ChatViewProps) {
   } = useChatConfig();
 
   const handleConfigLoaded = useMemo(
-    () => (config: { revision: number; reasoning?: string; model?: string; permissionMode?: PermissionMode }) => {
+    () => (config: { revision: number; reasoning?: string; model?: string; permissionMode?: PermissionMode; historyEnabled?: boolean }) => {
       applySavedConfig(config, config.revision);
     },
     [applySavedConfig],
@@ -131,15 +142,46 @@ function ChatView({ loadedConversation }: ChatViewProps) {
   }, [conversationId]);
 
   useEffect(() => {
+    if (historyEnabled === undefined) {
+      return;
+    }
     const vscode = getVsCodeApi();
-    vscode?.setState<ChatViewState>({
-      schemaVersion: 2,
+    if (!initialConfigHandledRef.current) {
+      initialConfigHandledRef.current = true;
+      if (historyEnabled && !loadedConversation) {
+        const savedState = getSavedChatState();
+        if (savedState) {
+          setDraft(savedState.draft);
+          setReferencedFiles(savedState.referencedFiles);
+          setMessages(savedState.messages);
+          setConversationId(savedState.conversationId);
+        }
+      }
+    }
+    if (!historyEnabled) {
+      vscode?.setState<IncognitoChatViewState>({ schemaVersion: 3, mode: "incognito" });
+    }
+    setStateHydrated(true);
+  }, [historyEnabled, loadedConversation]);
+
+  useEffect(() => {
+    const vscode = getVsCodeApi();
+    if (!stateHydrated || historyEnabled === undefined) {
+      return;
+    }
+    if (!historyEnabled) {
+      vscode?.setState<IncognitoChatViewState>({ schemaVersion: 3, mode: "incognito" });
+      return;
+    }
+    vscode?.setState<PersistentChatViewState>({
+      schemaVersion: 3,
+      mode: "persistent",
       draft,
       referencedFiles: referencedFiles.filter((file) => file.scope !== "external-snapshot"),
       messages,
       conversationId,
     });
-  }, [draft, referencedFiles, messages, conversationId]);
+  }, [draft, referencedFiles, messages, conversationId, historyEnabled, stateHydrated]);
 
   useEffect(() => {
     const vscode = getVsCodeApi();
@@ -157,6 +199,19 @@ function ChatView({ loadedConversation }: ChatViewProps) {
       if (message.type === "activeConversationChanged") {
         conversationIdRef.current = message.id;
         setConversationId(message.id);
+      }
+      if (message.type === "clearChat") {
+        conversationIdRef.current = undefined;
+        activeGenerationIdRef.current = undefined;
+        pendingClientRequestIdsRef.current.clear();
+        lastSubmittedPromptRef.current = "";
+        setConversationId(undefined);
+        setActiveGenerationId(undefined);
+        setMessages([]);
+        setIsProcessing(false);
+        setReferencedFiles([]);
+        setDraft("");
+        setRecoveredDrafts([]);
       }
       if (message.type === "workspaceContextChanged") {
         setWorkspaceContext((previous) => {
@@ -243,6 +298,7 @@ function ChatView({ loadedConversation }: ChatViewProps) {
       {apiKeyStatus === "missing" ? <div className="statusMessage warning">{t("chat.apiKeyMissing")}</div> : null}
       {isPermissionUpdatePending ? <div className="statusMessage" role="status" aria-live="polite">{t("chat.applyingPermissions")}</div> : null}
       {configUpdateError ? <div className="statusMessage warning" role="alert">{configUpdateError}</div> : null}
+      {historyEnabled === false ? <div className="statusMessage incognito" role="status">{t("chat.incognitoActive")}</div> : null}
 
       <div className="inputArea">
         {recoveredDrafts.length > 0 ? (
@@ -302,14 +358,19 @@ function ChatView({ loadedConversation }: ChatViewProps) {
   );
 }
 
-function getSavedChatState(): ChatViewState | undefined {
-  const state = getVsCodeApi()?.getState<Partial<ChatViewState>>();
-  if (!state || typeof state !== "object" || state.schemaVersion !== 2) {
+function getSavedChatState(): PersistentChatViewState | undefined {
+  const state = getVsCodeApi()?.getState<Record<string, unknown>>();
+  if (!state || typeof state !== "object") {
     return undefined;
   }
 
+  const isV3 = state.schemaVersion === 3 && state.mode === "persistent";
+  const isV2 = state.schemaVersion === 2;
+  if (!isV3 && !isV2) {return undefined;}
+
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
+    mode: "persistent",
     draft: typeof state.draft === "string" ? state.draft : "",
     referencedFiles: Array.isArray(state.referencedFiles)
       ? state.referencedFiles.filter(isReferencedFile).filter((file) => file.scope !== "external-snapshot")

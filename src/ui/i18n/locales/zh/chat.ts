@@ -2,6 +2,7 @@ import type { TranslationCatalog } from "../Types";
 
 export const chat = {
   chat: {
+    incognitoActive: "无痕模式已启用。重新加载扩展后，本聊天将丢失。",
     applyingPermissions: "正在应用权限...",
     apiKeyMissing: "缺少 API key",
     askAnythingAboutYourCode: "询问任何代码问题...",

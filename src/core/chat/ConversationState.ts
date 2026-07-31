@@ -1,4 +1,4 @@
-import type { ChatMessage, ConversationMessage, WorkspaceBinding } from "@/adapters";
+import type { ChatMessage, ChatPersistenceMode, ConversationMessage, WorkspaceBinding } from "@/adapters";
 import { randomUUID } from "crypto";
 import { createConversationTitle } from "./ConversationTitle";
 import type {
@@ -33,14 +33,38 @@ export interface SaveConversationMessagesOptions {
 export class ConversationState {
   private activeConversation: StoredConversation | null = null;
 
-  constructor(private readonly conversationStore: ConversationStore) {}
+  constructor(
+    private readonly conversationStore: ConversationStore,
+    private persistenceMode: ChatPersistenceMode = "persistent",
+  ) {}
 
   load(conversation: StoredConversation): void {
     this.activeConversation = conversation;
   }
 
-  reset(): void {
+  reset(mode: ChatPersistenceMode = this.persistenceMode): void {
     this.activeConversation = null;
+    this.persistenceMode = mode;
+  }
+
+  getPersistenceMode(): ChatPersistenceMode {
+    return this.persistenceMode;
+  }
+
+  isIncognito(): boolean {
+    return this.persistenceMode === "incognito";
+  }
+
+  hasMessages(): boolean {
+    return (this.activeConversation?.messages.length ?? 0) > 0;
+  }
+
+  async promoteIncognito(): Promise<void> {
+    if (this.persistenceMode !== "incognito" || !this.activeConversation) {
+      return;
+    }
+    await this.conversationStore.save(structuredClone(this.activeConversation));
+    this.persistenceMode = "persistent";
   }
 
   forget(id: string): boolean {
@@ -139,7 +163,9 @@ export class ConversationState {
     };
 
     this.activeConversation = conversation;
-    await this.conversationStore.save(conversation);
+    if (this.persistenceMode === "persistent") {
+      await this.conversationStore.save(conversation);
+    }
   }
 
   async saveContextSummary(summary: ConversationContextSummary): Promise<void> {
@@ -151,7 +177,9 @@ export class ConversationState {
       contextSummary: structuredClone(summary),
       updatedAt: Date.now(),
     };
-    await this.conversationStore.save(this.activeConversation);
+    if (this.persistenceMode === "persistent") {
+      await this.conversationStore.save(this.activeConversation);
+    }
   }
 }
 

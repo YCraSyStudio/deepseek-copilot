@@ -38,7 +38,7 @@ export class WebviewProvider implements vscode.WebviewViewProvider, vscode.Dispo
     this.changeDiffViewer = new ChangeDiffViewer();
     this.disposables.push(this.changeDiffViewer);
     this.chatHandler = new ChatHandler(this._context, this.historyManager);
-    this.settingsHandler = new SettingsHandler(this._context);
+    this.settingsHandler = new SettingsHandler(this._context, this.chatHandler);
     this.historyHandler = new HistoryHandler(
       this.historyManager,
       (conversation) => this.chatHandler.loadConversation(conversation),
@@ -56,6 +56,8 @@ export class WebviewProvider implements vscode.WebviewViewProvider, vscode.Dispo
   }
 
   public async resolveWebviewView(webviewView: vscode.WebviewView): Promise<void> {
+    this.settingsHandler.handleWebviewRecreation();
+    await this.chatHandler.discardIncognitoForWebviewRecreation();
     this.webviewView = webviewView;
     this.chatHandler.attachWebview(webviewView);
     const webviewDistUri = vscode.Uri.joinPath(this._extensionUri, "dist", "webview");
@@ -212,6 +214,7 @@ export class WebviewProvider implements vscode.WebviewViewProvider, vscode.Dispo
       case "getConfig":
       case "saveConfig":
       case "resetConfig":
+      case "resolveHistoryTransition":
       case "deleteApiKey":
       case "testConnection":
         this.settingsHandler.handle(message, webviewView);

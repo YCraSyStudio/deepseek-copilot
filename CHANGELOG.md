@@ -1,5 +1,7 @@
 # Change Log
 
+- Added Incognito mode as the privacy boundary for disabled history: active work requires confirmation, chat and referenced content stay out of history, checkpoints, and webview persistence, and leaving the mode requires an explicit save-or-discard decision.
+
 ## [0.1.5] - 2026-07-30
 
 - Packaging hotfix: excluded `*.log` files from VSIX artifacts.

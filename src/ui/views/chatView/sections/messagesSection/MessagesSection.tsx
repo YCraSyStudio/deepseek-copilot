@@ -7,6 +7,7 @@ import { ChatEmptyState, ChatMessages, ToolCallConfirmationModal, ToolCallTimeli
 import { useChatMessagesController, useCodeActionHandler, useToolCallController } from "../../../../hooks/chat";
 import { t } from "@webview/i18n";
 import ToolCallLimitModal from "@webview/components/chatView/tools/confirmations/ToolCallLimitModal";
+import { reconcileLatestAssistantToolCalls } from "@webview/components/chatView/messages/ToolCallReconciliation";
 
 function MessagesSection({
   conversationId,
@@ -53,6 +54,16 @@ function MessagesSection({
   const followsLatestRef = useRef(true);
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
   const [isCompacting, setIsCompacting] = useState(false);
+  const timelineToolCallSignature = [...messages]
+    .reverse()
+    .find((message) => message.role === "assistant")
+    ?.timeline?.flatMap((event) => event.type === "tool-group" ? event.toolCallIds : [])
+    .join("\u0000") ?? "";
+
+  useEffect(() => {
+    if (!onMessagesChange || tools.toolCallGroups.length === 0) {return;}
+    onMessagesChange((current) => reconcileLatestAssistantToolCalls(current, tools.toolCallGroups));
+  }, [onMessagesChange, timelineToolCallSignature, tools.toolCallGroups]);
 
   useMessageHandler(vscode, {
     ...dispatcher,
@@ -115,6 +126,7 @@ function MessagesSection({
             <>
               <ChatMessages
                 messages={messages}
+                isProcessing={isProcessing}
                 activeToolCallGroups={tools.activeTimelineGroups}
                 renderToolCallGroups={(groups) => (
                   <ToolCallTimeline

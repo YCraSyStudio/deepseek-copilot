@@ -1,0 +1,178 @@
+.historyTransitionBackdrop {
+  z-index: 50;
+  background: #0009;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  display: flex;
+  position: fixed;
+  inset: 0;
+  backdrop-filter: blur(2px);
+}
+
+.historyTransitionPanel {
+  width: min(460px, 100%);
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--accent-color) 52%, var(--border-color));
+  background: color-mix(in srgb, var(--bg-primary) 96%, black 4%);
+  border-radius: 14px;
+  padding: 18px;
+  box-shadow: 0 20px 56px #000a, inset 0 1px #ffffff0a;
+  animation: historyTransitionEnter 140ms ease-out;
+}
+
+.historyTransitionHeader {
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  display: flex;
+
+  > div {
+    min-width: 0;
+  }
+
+  h3 {
+    color: var(--text-primary);
+    margin: 0 0 3px;
+    font-size: 15px;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+  }
+}
+
+.historyTransitionIcon {
+  width: 36px;
+  height: 36px;
+  color: var(--accent-color);
+  background: color-mix(in srgb, var(--accent-color) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-color) 38%, transparent);
+  border-radius: 10px;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  display: flex;
+
+  .codicon {
+    font-size: 18px;
+  }
+}
+
+.historyTransitionMode {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .02em;
+}
+
+.historyTransitionNotice {
+  color: var(--text-secondary);
+  border: 1px solid color-mix(in srgb, var(--border-color) 75%, transparent);
+  background: color-mix(in srgb, var(--bg-secondary) 48%, transparent);
+  border-radius: 9px;
+  align-items: flex-start;
+  gap: 9px;
+  margin: 16px 0;
+  padding: 10px 11px;
+  display: flex;
+
+  > .codicon {
+    color: var(--accent-color);
+    flex: none;
+    margin-top: 1px;
+  }
+
+  p {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+  }
+
+  &.warning {
+    border-color: color-mix(in srgb, var(--warning-color) 38%, var(--border-color));
+    background: color-mix(in srgb, var(--warning-color) 8%, transparent);
+
+    > .codicon {
+      color: var(--warning-color);
+    }
+  }
+}
+
+.historyTransitionActions {
+  border-top: 1px solid color-mix(in srgb, var(--border-color) 60%, transparent);
+  justify-content: flex-end;
+  flex-wrap: wrap-reverse;
+  gap: 8px;
+  padding-top: 14px;
+  display: flex;
+}
+
+.historyTransitionAction {
+  min-height: 34px;
+  color: var(--text-primary);
+  background: var(--button-secondary-bg);
+  border: 1px solid color-mix(in srgb, var(--border-color) 90%, transparent);
+  border-radius: 7px;
+  gap: 7px;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.25;
+  transition: background-color 100ms, border-color 100ms, transform 100ms;
+
+  &:hover:not(:disabled) {
+    color: var(--text-primary);
+    background: var(--button-secondary-hover);
+    border-color: color-mix(in srgb, var(--accent-color) 35%, var(--border-color));
+    opacity: 1;
+  }
+
+  &:active:not(:disabled) {
+    transform: translateY(1px);
+    opacity: 1;
+  }
+
+  &.primary {
+    color: var(--button-fg);
+    background: var(--button-bg);
+    border-color: color-mix(in srgb, var(--button-bg) 82%, white 18%);
+
+    &:hover:not(:disabled) {
+      color: var(--button-fg);
+      background: var(--button-hover);
+      border-color: color-mix(in srgb, var(--button-hover) 75%, white 25%);
+    }
+  }
+}
+
+@keyframes historyTransitionEnter {
+  from {
+    opacity: 0;
+    transform: translateY(5px) scale(.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (max-width: 360px) {
+  .historyTransitionPanel {
+    border-radius: 11px;
+    padding: 14px;
+  }
+
+  .historyTransitionActions {
+    flex-direction: column-reverse;
+
+    .historyTransitionAction {
+      width: 100%;
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .historyTransitionPanel {
+    animation: none;
+  }
+}

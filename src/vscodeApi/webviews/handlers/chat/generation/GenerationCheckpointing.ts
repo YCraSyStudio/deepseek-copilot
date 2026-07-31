@@ -29,6 +29,13 @@ export async function checkpointGeneration(
   immediate: boolean,
   dependencies: GenerationCheckpointDependencies,
 ): Promise<void> {
+  if (!SettingsManager.load().historyEnabled || record.state.isIncognito()) {
+    if (record.checkpointTimer) {
+      clearTimeout(record.checkpointTimer);
+      record.checkpointTimer = undefined;
+    }
+    return;
+  }
   if (immediate && record.checkpointTimer) {
     clearTimeout(record.checkpointTimer);
     record.checkpointTimer = undefined;
@@ -62,6 +69,9 @@ export async function checkpointQueuedGeneration(
   runs: ReadonlyMap<string, GenerationRunRecord>,
   dependencies: GenerationCheckpointDependencies,
 ): Promise<void> {
+  if (!SettingsManager.load().historyEnabled) {
+    return;
+  }
   const active = dependencies.coordinator.getActiveForConversation(conversationId);
   const record = active ? runs.get(active.generationId) : undefined;
   if (record) {

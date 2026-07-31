@@ -63,6 +63,25 @@ export const settings = {
       topP: "Top P"
     },
     history: {
+      incognito: "Incognito mode",
+      incognitoDescription: "Chats are kept only in memory and are lost when the extension or VS Code reloads.",
+      transition: {
+        workTitle: "Enter incognito mode?",
+        workDescription: "There are {generations} active generations and {queued} queued messages.",
+        workFinished: "The pending work has finished. You can now enter incognito mode.",
+        exitWorkTitle: "Stop incognito work before leaving?",
+        exitWorkFinished: "The pending incognito work has finished. You can continue leaving incognito mode.",
+        stopAndEnter: "Stop generations and enter incognito",
+        stopAndContinue: "Stop generations and continue",
+        enter: "Enter incognito",
+        continueExit: "Continue",
+        cancelAndWait: "Cancel and wait",
+        exitTitle: "Leave incognito mode?",
+        exitDescription: "Choose whether to save this incognito chat as a new conversation or discard it.",
+        saveAndExit: "Save and leave",
+        discardAndExit: "Discard and leave",
+        cancel: "Cancel"
+      },
       store: "Store chat history",
       retention: "History retention days (0 = unlimited)"
     },

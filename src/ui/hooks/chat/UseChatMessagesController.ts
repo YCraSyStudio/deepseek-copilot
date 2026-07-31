@@ -163,6 +163,7 @@ export function useChatMessagesController({
           reasoning: config.thinkingMode === false ? "off" : config.reasoningEffort === "max" ? "max" : "high",
           model: config.model ?? undefined,
           permissionMode: config.permissionMode,
+          historyEnabled: config.historyEnabled,
         });
       },
       [onConfigLoaded],

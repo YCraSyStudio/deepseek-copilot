@@ -134,6 +134,7 @@ export function useToolCallController({ conversationId, messages, isProcessing, 
 
   return {
     dispatcher,
+    toolCallGroups,
     activeTimelineGroups,
     pendingToolCalls,
     currentRound: toolCallGroups.length > 0 ? toolCallGroups.length : undefined,

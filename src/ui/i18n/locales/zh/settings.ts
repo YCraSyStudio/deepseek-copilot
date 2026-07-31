@@ -63,6 +63,25 @@ export const settings = {
       topP: "Top P"
     },
     history: {
+      incognito: "无痕模式",
+      incognitoDescription: "聊天只保留在内存中，重新加载扩展或 VS Code 后将丢失。",
+      transition: {
+        workTitle: "进入无痕模式？",
+        workDescription: "当前有 {generations} 个活动生成和 {queued} 条排队消息。",
+        workFinished: "待处理工作已完成，现在可以进入无痕模式。",
+        exitWorkTitle: "退出前停止无痕工作？",
+        exitWorkFinished: "待处理的无痕工作已完成，现在可以继续退出无痕模式。",
+        stopAndEnter: "停止生成并进入无痕模式",
+        stopAndContinue: "停止生成并继续",
+        enter: "进入无痕模式",
+        continueExit: "继续",
+        cancelAndWait: "取消并等待",
+        exitTitle: "退出无痕模式？",
+        exitDescription: "选择将本次无痕聊天保存为新会话，或将其丢弃。",
+        saveAndExit: "保存并退出",
+        discardAndExit: "丢弃并退出",
+        cancel: "取消"
+      },
       store: "保存聊天历史",
       retention: "历史保留天数（0 = 不限）"
     },

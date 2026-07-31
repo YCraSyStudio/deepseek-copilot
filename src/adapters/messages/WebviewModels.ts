@@ -1,5 +1,9 @@
 import type { AppConfig } from "../Config";
 
+export type ChatPersistenceMode = "persistent" | "incognito";
+export type HistoryTransitionPhase = "stop-work" | "exit-incognito";
+export type HistoryTransitionDecision = "stop" | "save" | "discard" | "cancel";
+
 export type WebviewConfig = Omit<AppConfig, "apiKey">;
 
 /** Tool call information stored in a message (for persistence). */

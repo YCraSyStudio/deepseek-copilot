@@ -4,6 +4,45 @@ import { ConversationState } from "@/core/chat/ConversationState";
 import { createProviderTranscript } from "@/core/chat/ProviderTranscript";
 
 suite("ConversationState", () => {
+  test("keeps incognito turns in memory until an explicit promotion", async () => {
+    const saves: Conversation[] = [];
+    const state = new ConversationState(
+      { save: async (conversation) => {saves.push(structuredClone(conversation));} },
+      "incognito",
+    );
+
+    await state.saveTurn({
+      userMessage: state.createMessage("user", "Private question"),
+      assistantMessage: state.createMessage("assistant", "Private answer"),
+      model: "test-model",
+    });
+
+    assert.strictEqual(state.isIncognito(), true);
+    assert.strictEqual(state.hasMessages(), true);
+    assert.strictEqual(state.getConversation()?.messages.length, 2);
+    assert.strictEqual(saves.length, 0);
+
+    await state.promoteIncognito();
+    assert.strictEqual(state.getPersistenceMode(), "persistent");
+    assert.strictEqual(saves.length, 1);
+    assert.deepStrictEqual(saves[0].messages.map((message) => message.content), ["Private question", "Private answer"]);
+  });
+
+  test("discards an incognito conversation without touching the store", async () => {
+    let saveCount = 0;
+    const state = new ConversationState(
+      { save: async () => {saveCount += 1;} },
+      "incognito",
+    );
+    await state.saveMessages({ messages: [state.createMessage("user", "Secret")], model: "test-model" });
+
+    state.reset("incognito");
+
+    assert.strictEqual(saveCount, 0);
+    assert.strictEqual(state.hasMessages(), false);
+    assert.strictEqual(state.getConversation(), undefined);
+  });
+
   test("appends multiple turns to one conversation until explicitly reset", async () => {
     const saves: Conversation[] = [];
     const state = new ConversationState({ save: async (conversation) => {saves.push(structuredClone(conversation));} });

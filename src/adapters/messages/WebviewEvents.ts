@@ -13,10 +13,19 @@ import type {
   StoredToolCall,
   WebviewConfig,
   WorkspaceContextStatus,
+  HistoryTransitionPhase,
 } from "./WebviewModels";
 
 export type HandlerToWebviewMessage =
   | { type: "configLoaded"; revision: number; config: Partial<WebviewConfig> }
+  | {
+      type: "historyTransitionRequired";
+      requestId: string;
+      phase: HistoryTransitionPhase;
+      direction: "enter-incognito" | "exit-incognito";
+      activeGenerations: number;
+      queuedMessages: number;
+    }
   | {
       type: "configUpdateResult";
       requestId: string;
