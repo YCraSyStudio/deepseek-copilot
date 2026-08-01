@@ -137,6 +137,7 @@ suite("ConversationState", () => {
       updatedAt: 1,
       model: "deepseek-v4-flash",
       workspaceUri: "file:///workspace",
+      workspaceBinding: testWorkspaceBinding(),
       messages: [
         {
           id: "user",
@@ -176,6 +177,7 @@ suite("ConversationState", () => {
       updatedAt: 1,
       model: "model",
       workspaceUri: "file:///workspace",
+      workspaceBinding: testWorkspaceBinding(),
       messages: [{
         id: "assistant",
         role: "assistant",
@@ -195,3 +197,14 @@ suite("ConversationState", () => {
     assert.deepStrictEqual(state.getApiMessages(), [{ role: "assistant", content: "partial answer" }]);
   });
 });
+
+function testWorkspaceBinding() {
+  return {
+    schemaVersion: 1 as const,
+    uri: "file:///workspace",
+    name: "workspace",
+    revision: "test",
+    folders: [],
+    capabilities: { files: true, search: true, git: true, terminal: true },
+  };
+}

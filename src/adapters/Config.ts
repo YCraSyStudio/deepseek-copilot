@@ -45,7 +45,6 @@ export interface AppConfig {
   historyEnabled: boolean;
   historyRetentionDays: number;
   includeHomeAgents: boolean;
-  enableBetaFeatures: boolean;
 
   userId?: string;
 }
@@ -76,5 +75,4 @@ export const DEFAULT_CONFIG: AppConfig = {
   historyEnabled: true,
   historyRetentionDays: 30,
   includeHomeAgents: false,
-  enableBetaFeatures: false,
 };

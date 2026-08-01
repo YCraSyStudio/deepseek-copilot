@@ -6,11 +6,11 @@ import { SettingsHandler } from "./handlers/SettingsHandler";
 import { HistoryHandler } from "./handlers/HistoryHandler";
 import { getDevViewContent } from "./utils/DevViewRenderer";
 import { getHtmlContent } from "./utils/HtmlRenderer";
-import { HistoryManager } from "@/vscodeApi/storage";
+import { HistoryManager, SettingsManager } from "@/vscodeApi/storage";
 import { getPathCompletionItems, insertCodeIntoActiveEditor, openWorkspaceFile } from "@/vscodeApi/editor/EditorActions";
 import { CHAT_VIEW_TYPE, SIDEBAR_VIEW_ID } from "@/shared/constants";
 import { logWarning } from "@/shared/logging/Logger";
-import type { ReferencedFile, WebviewToHandlerMessage } from "@/adapters";
+import { WEBVIEW_PROTOCOL_VERSION, type ReferencedFile, type WebviewToHandlerMessage } from "@/adapters";
 import type { ReferencedFilePayload } from "@/vscodeApi/commands/ChatCommands";
 import { isWebviewToHandlerMessage } from "./WebviewMessageValidation";
 import { isUriInsideRoot } from "@/vscodeApi/workspace";
@@ -28,6 +28,7 @@ export class WebviewProvider implements vscode.WebviewViewProvider, vscode.Dispo
   private readonly changeDiffViewer: ChangeDiffViewer;
   private readonly disposables: vscode.Disposable[] = [];
   private readonly pendingMessages: ChatCommandMessage[] = [];
+  private viewDisposables: vscode.Disposable[] = [];
   private webviewView?: vscode.WebviewView;
 
   constructor(
@@ -56,6 +57,7 @@ export class WebviewProvider implements vscode.WebviewViewProvider, vscode.Dispo
   }
 
   public async resolveWebviewView(webviewView: vscode.WebviewView): Promise<void> {
+    this.disposeViewRegistrations();
     this.settingsHandler.handleWebviewRecreation();
     await this.chatHandler.discardIncognitoForWebviewRecreation();
     this.webviewView = webviewView;
@@ -67,7 +69,7 @@ export class WebviewProvider implements vscode.WebviewViewProvider, vscode.Dispo
 
     webviewView.webview.options = {
       enableScripts: true,
-      localResourceRoots: [webviewDistUri, codiconsDistUri],
+      localResourceRoots: devServerUrl ? [webviewDistUri, codiconsDistUri] : [webviewDistUri],
       portMapping: [
         {
           webviewPort: 5175,
@@ -80,20 +82,51 @@ export class WebviewProvider implements vscode.WebviewViewProvider, vscode.Dispo
     webviewView.webview.html =
       devServerUrl && useDevServer
         ? getDevViewContent({ webview: webviewView.webview, devServerUrl, codiconFontUri })
-        : getHtmlContent(webviewView.webview, webviewDistUri, codiconsDistUri);
+        : getHtmlContent(webviewView.webview, webviewDistUri);
 
-    webviewView.webview.onDidReceiveMessage((message: unknown) => {
+    let protocolReady = false;
+    this.viewDisposables.push(webviewView.webview.onDidReceiveMessage((message: unknown) => {
       if (isWebviewToHandlerMessage(message)) {
+        if (message.type === "initializeProtocol") {
+          protocolReady = message.protocolVersion === WEBVIEW_PROTOCOL_VERSION;
+          void webviewView.webview.postMessage(protocolReady
+            ? { type: "protocolReady", protocolVersion: WEBVIEW_PROTOCOL_VERSION }
+            : { type: "protocolError", supportedVersion: WEBVIEW_PROTOCOL_VERSION, error: "Unsupported webview protocol version." });
+          return;
+        }
+        if (!protocolReady) {
+          void webviewView.webview.postMessage({
+            type: "requestRejected",
+            requestId: getMessageRequestId(message),
+            action: message.type,
+            error: "The webview protocol has not been initialized. Reload the view and try again.",
+          });
+          return;
+        }
         this._routeMessage(message, webviewView);
       } else {
         logWarning("[WebviewProvider] Ignoring malformed webview message");
+        void webviewView.webview.postMessage({
+          type: "requestRejected",
+          requestId: getUnknownRequestId(message),
+          action: getUnknownMessageType(message),
+          error: "The request was rejected because its payload is invalid or exceeds a supported limit.",
+        });
       }
-    });
+    }));
+    this.viewDisposables.push(webviewView.onDidDispose(() => {
+      if (this.webviewView === webviewView) {
+        this.webviewView = undefined;
+      }
+      this.chatHandler.detachWebview(webviewView);
+      this.disposeViewRegistrations();
+    }));
 
     await this.flushPendingMessages();
   }
 
   public dispose(): void {
+    this.disposeViewRegistrations();
     while (this.disposables.length > 0) {
       this.disposables.pop()?.dispose();
     }
@@ -101,8 +134,23 @@ export class WebviewProvider implements vscode.WebviewViewProvider, vscode.Dispo
   }
 
   public async initialize(): Promise<void> {
-    await this.historyManager.initialize();
+    try {
+      await this.historyManager.initialize();
+    } catch (error: unknown) {
+      SettingsManager.enterDegradedMode(error);
+      await vscode.window.showWarningMessage(
+        "DeepSeek Copilot could not initialize persistent storage. Chat remains available in incognito mode; check access to the extension data directory and reload VS Code.",
+      );
+    }
     await this.chatHandler.initialize();
+  }
+
+  private disposeViewRegistrations(): void {
+    const registrations = this.viewDisposables;
+    this.viewDisposables = [];
+    for (const registration of registrations) {
+      registration.dispose();
+    }
   }
 
   public async shutdown(): Promise<void> {
@@ -330,6 +378,33 @@ export class WebviewProvider implements vscode.WebviewViewProvider, vscode.Dispo
     this.chatHandler.registerExternalContextFiles(files as ReferencedFile[]);
     await webviewView.webview.postMessage({ type: "contextFilesSelected", files });
   }
+}
+
+function getMessageRequestId(message: WebviewToHandlerMessage): string | undefined {
+  if ("clientRequestId" in message) {
+    return message.clientRequestId;
+  }
+  if ("requestId" in message) {
+    return String(message.requestId);
+  }
+  return undefined;
+}
+
+function getUnknownRequestId(value: unknown): string | undefined {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+  const candidate = value as { requestId?: unknown; clientRequestId?: unknown };
+  const id = candidate.requestId ?? candidate.clientRequestId;
+  return typeof id === "string" || typeof id === "number" ? String(id).slice(0, 512) : undefined;
+}
+
+function getUnknownMessageType(value: unknown): string | undefined {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+  const type = (value as { type?: unknown }).type;
+  return typeof type === "string" ? type.slice(0, 128) : undefined;
 }
 
 function looksBinary(bytes: Uint8Array): boolean {

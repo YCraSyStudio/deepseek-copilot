@@ -62,10 +62,27 @@ function isChatMessage(value: unknown): value is ChatMessage {
   if (value.reasoning_content !== undefined && value.reasoning_content !== null && !isString(value.reasoning_content)) {
     return false;
   }
-  if (value.tool_calls !== undefined && (!Array.isArray(value.tool_calls) || !value.tool_calls.every(isToolCall))) {
+  if (value.tool_calls !== undefined && (
+    !Array.isArray(value.tool_calls) ||
+    !value.tool_calls.every(isToolCall) ||
+    !hasUniqueNonEmptyToolCallIds(value.tool_calls)
+  )) {
     return false;
   }
   return (value.tool_call_id === undefined || isString(value.tool_call_id)) && (value.name === undefined || isString(value.name));
+}
+
+export function assertUniqueToolCallIds(toolCalls: readonly ToolCall[], previouslySeen: ReadonlySet<string> = new Set()): void {
+  const seen = new Set(previouslySeen);
+  for (const toolCall of toolCalls) {
+    if (!toolCall.id.trim()) {
+      throw new Error("DeepSeek returned an empty tool-call ID");
+    }
+    if (seen.has(toolCall.id)) {
+      throw new Error(`DeepSeek returned duplicate tool-call ID "${toolCall.id}"`);
+    }
+    seen.add(toolCall.id);
+  }
 }
 
 function isToolCall(value: unknown): value is ToolCall {
@@ -78,6 +95,15 @@ function isToolCall(value: unknown): value is ToolCall {
     isString(value.function.arguments) &&
     (value.index === undefined || Number.isSafeInteger(value.index))
   );
+}
+
+function hasUniqueNonEmptyToolCallIds(toolCalls: ToolCall[]): boolean {
+  try {
+    assertUniqueToolCallIds(toolCalls);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

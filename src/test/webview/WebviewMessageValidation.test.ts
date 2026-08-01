@@ -4,6 +4,7 @@ import { isWebviewToHandlerMessage } from "@/vscodeApi/webviews/WebviewMessageVa
 suite("webview message validation", () => {
   test("accepts every valid message shape", () => {
     const messages = [
+      { type: "initializeProtocol", protocolVersion: 1 },
       { type: "getConfig" },
       { type: "saveConfig", requestId: "config-1", config: { interfaceLanguage: "es", permissionMode: "auto-approve", temperature: 1, maxTokens: 384_000, toolExecutionModes: { read_file: "auto_approve" } } },
       { type: "saveConfig", requestId: "config-custom", config: { permissionMode: "custom", toolExecutionModes: { read_file: "enabled", create_file: "disabled" } } },
@@ -50,6 +51,8 @@ suite("webview message validation", () => {
   test("rejects malformed, oversized and unexpected payloads", () => {
     const messages = [
       null,
+      { type: "initializeProtocol", protocolVersion: 0 },
+      { type: "initializeProtocol", protocolVersion: 1, injected: true },
       { type: "getConfig", injected: true },
       { type: "resetConfig" },
       { type: "resolveHistoryTransition", requestId: "history", decision: "wait" },
@@ -77,6 +80,15 @@ suite("webview message validation", () => {
       { type: "copyCode", code: "x".repeat(2 * 1024 * 1024 + 1) },
       { type: "rebindConversationWorkspace", conversationId: "" },
       { type: "selectContextFiles", injected: true },
+      { type: "sendMessage", clientRequestId: "large", text: "x".repeat(1024 * 1024 + 1), modelId: "model", reasoning: "high" },
+      {
+        type: "sendMessage",
+        clientRequestId: "references",
+        text: "hello",
+        modelId: "model",
+        reasoning: "high",
+        referencedFiles: Array.from({ length: 51 }, (_, index) => ({ path: `file-${index}`, type: "file" })),
+      },
     ];
 
     for (const message of messages) {

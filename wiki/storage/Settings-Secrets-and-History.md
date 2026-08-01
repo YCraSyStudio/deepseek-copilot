@@ -51,7 +51,7 @@ It should support:
 - deleting a conversation.
 - serializing mutations per conversation.
 - persisting completed, interrupted, and error generation outcomes with their `generationId`.
-- atomically migrating valid unversioned files, partially migrated schema-v2 files, and legacy `workspaceState` envelopes to complete schema v2.
+- isolating unversioned or malformed files instead of interpreting or rewriting them.
 - assigning deterministic `generationId` values to historical turns and terminal `generationStatus` values to historical assistant and error messages.
 - storing complete canonical DeepSeek transcripts host-side for new tool-enabled generations while exposing only presentation messages to the webview.
 - storing an internal context summary with the atomic generation IDs it replaces; legacy conversations remain replayable as visible user/assistant text without inventing tool protocol.

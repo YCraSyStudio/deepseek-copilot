@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { VsCodeApi } from "@webview/VsCodeApi";
-import type { AssistantTimelineEvent, HandlerToWebviewMessage, AppConfig, StoredToolCall, ToolCall } from "@/adapters";
+import { WEBVIEW_PROTOCOL_VERSION, type AssistantTimelineEvent, type HandlerToWebviewMessage, type AppConfig, type StoredToolCall, type ToolCall } from "@/adapters";
 import type { ApiKeyStatus, DangerConfirmationData, ToolCallStatus } from "../ChatViewTypes";
 import { setInterfaceLanguage } from "@webview/i18n";
 
@@ -159,6 +159,7 @@ export function useMessageHandler(vscode: VsCodeApi | null, dispatcher: MessageD
     };
 
     window.addEventListener("message", handleMessage);
+    vscode.postMessage({ type: "initializeProtocol", protocolVersion: WEBVIEW_PROTOCOL_VERSION });
     vscode.postMessage({ type: "getConfig" });
     vscode.postMessage({ type: "getGenerationSnapshot" });
 

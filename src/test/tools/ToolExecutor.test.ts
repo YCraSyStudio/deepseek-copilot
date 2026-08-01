@@ -10,6 +10,7 @@ suite("tool executor result classification", () => {
     const result = await executor.execute(createToolCall());
 
     assert.strictEqual(result.isError, true);
+    assert.strictEqual(result.status, "error");
   });
 
   test("marks plain handler errors as failed after forced execution", async () => {
@@ -18,6 +19,7 @@ suite("tool executor result classification", () => {
     const result = await executor.executeForced(createToolCall());
 
     assert.strictEqual(result.isError, true);
+    assert.strictEqual(result.status, "error");
   });
 
   test("does not classify successful plain text as an error", async () => {
@@ -26,6 +28,7 @@ suite("tool executor result classification", () => {
     const result = await executor.execute(createToolCall());
 
     assert.strictEqual(result.isError, false);
+    assert.strictEqual(result.status, "completed");
   });
 
   test("preserves the analyzed workspace root in confirmation results", async () => {
@@ -40,6 +43,7 @@ suite("tool executor result classification", () => {
     const result = await executor.execute(createToolCall());
     const confirmation = ToolExecutor.isConfirmationRequired(result.result);
 
+    assert.strictEqual(result.status, "confirmation_required");
     assert.strictEqual(confirmation?.workspaceRoot, "C:\\workspace");
   });
 });

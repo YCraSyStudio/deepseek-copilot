@@ -1,7 +1,7 @@
 import type { ChatMessage, StreamChunk, ToolCall, ToolDefinition } from "@/adapters";
-import { randomUUID } from "crypto";
 import { chatCompletionStream, type ChatResponse } from "../Chat";
 import { buildToolCallRequest } from "./ToolCallRequest";
+import { assertUniqueToolCallIds } from "../ChatResponseValidation";
 import type { ToolCallCycleOptions } from "./ToolCallTypes";
 
 interface StreamToolCallRoundOptions {
@@ -13,6 +13,8 @@ interface StreamToolCallRoundOptions {
   cycleOptions: ToolCallCycleOptions;
   emitStreamEvents?: boolean;
 }
+
+const MAX_TOOL_ARGUMENT_BYTES = 2 * 1024 * 1024;
 
 export async function streamToolCallRound(options: StreamToolCallRoundOptions): Promise<ChatResponse> {
   const { messages, tools, model, apiKey, baseUrl, cycleOptions, emitStreamEvents = true } = options;
@@ -45,11 +47,13 @@ export async function streamToolCallRound(options: StreamToolCallRoundOptions): 
     signal: cycleOptions.signal,
   });
 
+  const toolCalls = hasToolCallsInStream ? sortedToolCalls(streamingToolCalls) : undefined;
+  if (toolCalls) {assertUniqueToolCallIds(toolCalls);}
   const message: ChatMessage = {
     role: "assistant",
     content: finalContent || null,
     reasoning_content: finalReasoning || null,
-    ...(hasToolCallsInStream ? { tool_calls: sortedToolCalls(streamingToolCalls) } : {}),
+    ...(toolCalls ? { tool_calls: toolCalls } : {}),
   };
 
   return {
@@ -117,8 +121,11 @@ function mergeStreamingToolCalls(streamingToolCalls: Map<number, ToolCall>, part
     const idx = partialTc.index ?? 0;
     const existing = streamingToolCalls.get(idx);
     if (!existing) {
+      if (Buffer.byteLength(partialTc.function?.arguments ?? "", "utf8") > MAX_TOOL_ARGUMENT_BYTES) {
+        throw new Error("DeepSeek tool arguments exceeded their size limit");
+      }
       streamingToolCalls.set(idx, {
-        id: partialTc.id ?? randomUUID(),
+        id: partialTc.id ?? "",
         type: "function",
         function: {
           name: partialTc.function?.name ?? "",
@@ -137,6 +144,9 @@ function mergeStreamingToolCalls(streamingToolCalls: Map<number, ToolCall>, part
     }
     if (partialTc.function?.arguments) {
       existing.function.arguments += partialTc.function.arguments;
+      if (Buffer.byteLength(existing.function.arguments, "utf8") > MAX_TOOL_ARGUMENT_BYTES) {
+        throw new Error("DeepSeek tool arguments exceeded their size limit");
+      }
     }
   }
 }

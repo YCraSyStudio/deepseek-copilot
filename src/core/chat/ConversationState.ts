@@ -148,6 +148,7 @@ export class ConversationState {
     const now = Date.now();
     const existing = this.activeConversation;
     const nextMessages = [...(existing?.messages ?? []), ...options.messages];
+    const workspaceBinding = existing?.workspaceBinding ?? this.conversationStore.getWorkspaceBinding?.() ?? createUnknownWorkspaceBinding();
     const conversation: StoredConversation = {
       schemaVersion: 2,
       id: existing?.id ?? randomUUID(),
@@ -155,8 +156,8 @@ export class ConversationState {
       createdAt: existing?.createdAt ?? now,
       updatedAt: now,
       model: options.model,
-      workspaceUri: existing?.workspaceUri ?? this.conversationStore.getWorkspaceBinding?.().uri ?? this.conversationStore.getWorkspaceUri?.() ?? "workspace:unknown",
-      workspaceBinding: existing?.workspaceBinding ?? this.conversationStore.getWorkspaceBinding?.(),
+      workspaceUri: existing?.workspaceUri ?? workspaceBinding.uri,
+      workspaceBinding,
       workspaceRebindings: existing?.workspaceRebindings,
       contextSummary: existing?.contextSummary,
       messages: nextMessages,
@@ -181,6 +182,17 @@ export class ConversationState {
       await this.conversationStore.save(this.activeConversation);
     }
   }
+}
+
+function createUnknownWorkspaceBinding(): WorkspaceBinding {
+  return {
+    schemaVersion: 1,
+    uri: "workspace:unknown",
+    name: "Unknown workspace",
+    revision: "unknown",
+    folders: [],
+    capabilities: { files: false, search: false, git: false, terminal: false },
+  };
 }
 
 function toVisibleContextText(messages: StoredConversationMessage[]): string {

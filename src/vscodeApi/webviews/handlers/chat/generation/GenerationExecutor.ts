@@ -371,7 +371,11 @@ export class GenerationExecutor {
           generationId,
           status: "interrupted",
         });
-        stream.done({ cancelled: true });
+        if (error.reason === "cancelled") {
+          stream.done({ cancelled: true });
+        } else {
+          stream.error(error.message);
+        }
         return;
       }
 

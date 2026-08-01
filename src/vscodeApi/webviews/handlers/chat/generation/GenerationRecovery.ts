@@ -17,7 +17,9 @@ export async function recoverGenerationCheckpoints(
   }>>,
 ): Promise<void> {
   if (!SettingsManager.load().historyEnabled) {
-    await checkpointStore.clearAll();
+    if (!SettingsManager.getPersistenceError()) {
+      await checkpointStore.clearAll();
+    }
     recoveredDrafts.clear();
     return;
   }

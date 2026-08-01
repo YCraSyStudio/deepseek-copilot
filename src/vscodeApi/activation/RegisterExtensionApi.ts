@@ -2,6 +2,8 @@ import * as vscode from "vscode";
 import { SIDEBAR_VIEW_ID } from "@/shared/constants";
 import { registerChatCommands } from "@/vscodeApi/commands/ChatCommands";
 import { WebviewProvider } from "@/vscodeApi/webviews/WebviewProvider";
+import { clearDiagnostics, createSanitizedSupportReport, showDiagnostics } from "@/shared/logging/Logger";
+import { SettingsManager } from "@/vscodeApi/storage";
 
 export function registerExtensionApi(context: vscode.ExtensionContext, provider: WebviewProvider): void {
   context.subscriptions.push(
@@ -16,4 +18,37 @@ export function registerExtensionApi(context: vscode.ExtensionContext, provider:
   );
 
   registerChatCommands(context, provider);
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("yrs-dpsk-copilot.showDiagnostics", async () => {
+      showDiagnostics();
+      const action = await vscode.window.showInformationMessage(
+        "DeepSeek Copilot diagnostics are sanitized and exclude prompts, file contents, tool output, and reasoning.",
+        "Copy sanitized report",
+        "Clear diagnostics",
+      );
+      if (action === "Copy sanitized report") {
+        const config = SettingsManager.load();
+        const report = createSanitizedSupportReport({
+          extensionVersion: context.extension.packageJSON.version,
+          vscodeVersion: vscode.version,
+          platform: process.platform,
+          architecture: process.arch,
+          model: config.model,
+          permissionMode: config.permissionMode,
+          features: {
+            thinkingMode: config.thinkingMode,
+            autoContext: config.autoContext,
+            historyEnabled: config.historyEnabled,
+            includeHomeAgents: config.includeHomeAgents,
+          },
+        });
+        await vscode.env.clipboard.writeText(report);
+        await vscode.window.showInformationMessage("Sanitized diagnostics copied.");
+      } else if (action === "Clear diagnostics") {
+        clearDiagnostics();
+      }
+    }),
+    vscode.commands.registerCommand("yrs-dpsk-copilot.clearDiagnostics", () => clearDiagnostics()),
+  );
 }

@@ -3,7 +3,7 @@ import { buildDeepSeekAuthHeaders } from "@/deepseekApi/auth/AuthHeaders";
 import { ApiOriginError, assertSameApiOrigin, normalizeApiBaseUrl } from "@/shared/security/ApiOrigin";
 
 const DEEPSEEK_BASE_URL = "https://api.deepseek.com";
-const FETCH_TIMEOUT_MS = 60_000;
+const CONNECTION_TIMEOUT_MS = 30_000;
 const MAX_ATTEMPTS = 3;
 const MAX_REDIRECTS = 5;
 
@@ -19,14 +19,17 @@ export async function deepseekFetch(options: DeepSeekFetchOptions): Promise<Resp
   const normalizedBaseUrl = normalizeApiBaseUrl(baseUrl);
   const url = buildApiUrl(normalizedBaseUrl, pathOrUrl);
 
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    const timeoutSignal = AbortSignal.timeout(FETCH_TIMEOUT_MS);
-    const signal = requestInit.signal ? AbortSignal.any([requestInit.signal, timeoutSignal]) : timeoutSignal;
+  const attempts = canRetryRequest(requestInit) ? MAX_ATTEMPTS : 1;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    const timeoutController = new AbortController();
+    const timeout = setTimeout(() => timeoutController.abort(new DOMException("API connection timed out", "TimeoutError")), CONNECTION_TIMEOUT_MS);
+    const signal = requestInit.signal ? AbortSignal.any([requestInit.signal, timeoutController.signal]) : timeoutController.signal;
     try {
       const response = await fetchWithSameOriginRedirects(url, normalizedBaseUrl, apiKey, { ...requestInit, signal });
+      clearTimeout(timeout);
       if (response.ok) {return response;}
 
-      if (attempt < MAX_ATTEMPTS && isRetryableStatus(response.status)) {
+      if (attempt < attempts && isRetryableStatus(response.status)) {
         const delay = getRetryDelayMs(response.headers.get("retry-after"), attempt);
         await response.body?.cancel();
         await wait(delay, requestInit.signal);
@@ -39,11 +42,19 @@ export async function deepseekFetch(options: DeepSeekFetchOptions): Promise<Resp
         String(response.status),
       );
     } catch (error) {
-      if (requestInit.signal?.aborted || isDeepSeekApiError(error) || error instanceof ApiOriginError || attempt === MAX_ATTEMPTS) {throw error;}
+      clearTimeout(timeout);
+      if (requestInit.signal?.aborted || isDeepSeekApiError(error) || error instanceof ApiOriginError || attempt === attempts) {throw error;}
       await wait(getRetryDelayMs(null, attempt), requestInit.signal);
+    } finally {
+      clearTimeout(timeout);
     }
   }
   throw new Error("DeepSeek request failed after retries");
+}
+
+function canRetryRequest(requestInit: RequestInit): boolean {
+  const method = (requestInit.method ?? "GET").toUpperCase();
+  return method === "GET" || method === "HEAD" || method === "OPTIONS";
 }
 
 export function buildApiUrl(baseUrl: string, pathOrUrl: string): string {

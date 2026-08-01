@@ -372,6 +372,12 @@ export class ChatHandler {
     this.webviewView = webviewView;
   }
 
+  detachWebview(webviewView: vscode.WebviewView): void {
+    if (this.webviewView === webviewView) {
+      this.webviewView = undefined;
+    }
+  }
+
   async initialize(): Promise<void> {
     await recoverGenerationCheckpoints(
       this.checkpointStore,

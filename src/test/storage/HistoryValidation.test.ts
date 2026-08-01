@@ -4,12 +4,21 @@ import { isConversation } from "@/core/chat/ConversationValidation";
 suite("history validation", () => {
   test("accepts native timeline history and rejects malformed persisted data", () => {
     const conversation = {
+      schemaVersion: 2,
       id: "conversation-1",
       title: "Test",
       createdAt: 1,
       updatedAt: 2,
       model: "model",
       workspaceUri: "file:///workspace",
+      workspaceBinding: {
+        schemaVersion: 1,
+        uri: "file:///workspace",
+        name: "workspace",
+        revision: "test",
+        folders: [],
+        capabilities: { files: true, search: true, git: true, terminal: true },
+      },
       messages: [
         { id: "user-1", role: "user", content: "hello" },
         {
@@ -25,7 +34,7 @@ suite("history validation", () => {
       ],
     };
 
-    assert.strictEqual(isConversation(conversation), true);
+    assert.strictEqual(isConversation({ ...conversation, schemaVersion: undefined }), false);
     assert.strictEqual(isConversation({ ...conversation, schemaVersion: 2 }), true);
     assert.strictEqual(isConversation({ ...conversation, schemaVersion: 3 }), false);
     assert.strictEqual(isConversation({ ...conversation, messages: [{ id: "x", role: "root", content: "bad" }] }), false);

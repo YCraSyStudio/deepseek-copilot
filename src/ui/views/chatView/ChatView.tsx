@@ -15,6 +15,8 @@ type ChatCommandMessage =
   | { type: "setDraft"; text: string }
   | { type: "activeConversationChanged"; id: string }
   | { type: "generationAccepted"; generationId: string; conversationId: string; clientRequestId: string }
+  | { type: "requestRejected"; requestId?: string; action?: string; error: string }
+  | { type: "protocolError"; supportedVersion: number; error: string }
   | { type: "streamDone"; generationId?: string; conversationId?: string }
   | { type: "streamError"; generationId?: string; conversationId?: string }
   | { type: "workspaceContextChanged"; context: WorkspaceContextStatus }
@@ -23,11 +25,10 @@ type ChatCommandMessage =
   | { type: "generationSnapshot"; generations: GenerationSnapshot[]; recoveredDrafts: Array<{ conversationId: string; messages: Array<{ clientRequestId: string; text: string }> }> };
 
 interface PersistentChatViewState {
-  schemaVersion: 3;
+  schemaVersion: 4;
   mode: "persistent";
   draft: string;
   referencedFiles: ReferencedFile[];
-  messages: ChatMessage[];
   conversationId?: string;
 }
 
@@ -56,7 +57,10 @@ function ChatView({ loadedConversation }: ChatViewProps) {
   const lastSubmittedPromptRef = useRef("");
   const conversationIdRef = useRef(conversationId);
   const activeGenerationIdRef = useRef(activeGenerationId);
-  const pendingClientRequestIdsRef = useRef(new Set<string>());
+  const pendingRequestsRef = useRef(new Map<string, { text: string; referenceIds: string[] }>());
+  const draftRef = useRef(draft);
+  const referencedFilesRef = useRef(referencedFiles);
+  const [requestError, setRequestError] = useState<string>();
   const initialConfigHandledRef = useRef(false);
 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -68,6 +72,14 @@ function ChatView({ loadedConversation }: ChatViewProps) {
   useEffect(() => {
     activeGenerationIdRef.current = activeGenerationId;
   }, [activeGenerationId]);
+
+  useEffect(() => {
+    draftRef.current = draft;
+  }, [draft]);
+
+  useEffect(() => {
+    referencedFilesRef.current = referencedFiles;
+  }, [referencedFiles]);
 
   const {
     selectedModel,
@@ -105,8 +117,11 @@ function ChatView({ loadedConversation }: ChatViewProps) {
 
   const handleSend = (text: string, clientRequestId: string) => {
     lastSubmittedPromptRef.current = text;
-    pendingClientRequestIdsRef.current.add(clientRequestId);
-    setReferencedFiles([]);
+    pendingRequestsRef.current.set(clientRequestId, {
+      text,
+      referenceIds: referencedFilesRef.current.map(referenceIdentity),
+    });
+    setRequestError(undefined);
   };
 
   const removeFile = useCallback((index: number) => {
@@ -153,7 +168,6 @@ function ChatView({ loadedConversation }: ChatViewProps) {
         if (savedState) {
           setDraft(savedState.draft);
           setReferencedFiles(savedState.referencedFiles);
-          setMessages(savedState.messages);
           setConversationId(savedState.conversationId);
         }
       }
@@ -174,14 +188,13 @@ function ChatView({ loadedConversation }: ChatViewProps) {
       return;
     }
     vscode?.setState<PersistentChatViewState>({
-      schemaVersion: 3,
+      schemaVersion: 4,
       mode: "persistent",
       draft,
       referencedFiles: referencedFiles.filter((file) => file.scope !== "external-snapshot"),
-      messages,
       conversationId,
     });
-  }, [draft, referencedFiles, messages, conversationId, historyEnabled, stateHydrated]);
+  }, [draft, referencedFiles, conversationId, historyEnabled, stateHydrated]);
 
   useEffect(() => {
     const vscode = getVsCodeApi();
@@ -203,7 +216,7 @@ function ChatView({ loadedConversation }: ChatViewProps) {
       if (message.type === "clearChat") {
         conversationIdRef.current = undefined;
         activeGenerationIdRef.current = undefined;
-        pendingClientRequestIdsRef.current.clear();
+        pendingRequestsRef.current.clear();
         lastSubmittedPromptRef.current = "";
         setConversationId(undefined);
         setActiveGenerationId(undefined);
@@ -226,13 +239,31 @@ function ChatView({ loadedConversation }: ChatViewProps) {
         setWorkspaceContext(message.context);
       }
       if (message.type === "generationAccepted") {
-        const wasSubmittedHere = pendingClientRequestIdsRef.current.delete(message.clientRequestId);
-        if (wasSubmittedHere || message.conversationId === conversationIdRef.current) {
+        const submitted = pendingRequestsRef.current.get(message.clientRequestId);
+        pendingRequestsRef.current.delete(message.clientRequestId);
+        if (submitted && draftRef.current.trim() === submitted.text) {
+          draftRef.current = "";
+          setDraft("");
+        }
+        if (submitted && sameReferenceSet(referencedFilesRef.current, submitted.referenceIds)) {
+          referencedFilesRef.current = [];
+          setReferencedFiles([]);
+        }
+        if (submitted || message.conversationId === conversationIdRef.current) {
           conversationIdRef.current = message.conversationId;
           activeGenerationIdRef.current = message.generationId;
           setConversationId(message.conversationId);
           setActiveGenerationId(message.generationId);
         }
+      }
+      if (message.type === "requestRejected") {
+        if (message.requestId) {
+          pendingRequestsRef.current.delete(message.requestId);
+        }
+        setRequestError(message.error);
+      }
+      if (message.type === "protocolError") {
+        setRequestError(message.error);
       }
       if (
         (message.type === "streamDone" || message.type === "streamError") &&
@@ -298,6 +329,7 @@ function ChatView({ loadedConversation }: ChatViewProps) {
       {apiKeyStatus === "missing" ? <div className="statusMessage warning">{t("chat.apiKeyMissing")}</div> : null}
       {isPermissionUpdatePending ? <div className="statusMessage" role="status" aria-live="polite">{t("chat.applyingPermissions")}</div> : null}
       {configUpdateError ? <div className="statusMessage warning" role="alert">{configUpdateError}</div> : null}
+      {requestError ? <div className="statusMessage warning" role="alert">{requestError}</div> : null}
       {historyEnabled === false ? <div className="statusMessage incognito" role="status">{t("chat.incognitoActive")}</div> : null}
 
       <div className="inputArea">
@@ -364,20 +396,28 @@ function getSavedChatState(): PersistentChatViewState | undefined {
     return undefined;
   }
 
+  const isV4 = state.schemaVersion === 4 && state.mode === "persistent";
   const isV3 = state.schemaVersion === 3 && state.mode === "persistent";
   const isV2 = state.schemaVersion === 2;
-  if (!isV3 && !isV2) {return undefined;}
+  if (!isV4 && !isV3 && !isV2) {return undefined;}
 
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     mode: "persistent",
     draft: typeof state.draft === "string" ? state.draft : "",
     referencedFiles: Array.isArray(state.referencedFiles)
       ? state.referencedFiles.filter(isReferencedFile).filter((file) => file.scope !== "external-snapshot")
       : [],
-    messages: Array.isArray(state.messages) ? (state.messages as ChatMessage[]) : [],
     conversationId: typeof state.conversationId === "string" && state.conversationId.trim() ? state.conversationId : undefined,
   };
+}
+
+function referenceIdentity(file: ReferencedFile): string {
+  return file.referenceId ?? `${file.scope ?? "workspace"}:${file.path}`;
+}
+
+function sameReferenceSet(files: ReferencedFile[], expected: string[]): boolean {
+  return files.length === expected.length && files.every((file, index) => referenceIdentity(file) === expected[index]);
 }
 
 function isReferencedFile(value: unknown): value is ReferencedFile {

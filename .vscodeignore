@@ -1,7 +1,7 @@
 .vscode/**
 .github/**
 .vscode-test/**
-deepseek-copilot.wiki/**
+wiki/**
 web-doc/**
 docs/**
 node_modules/**
@@ -11,6 +11,7 @@ src/**
 scripts/**
 .tmp/**
 out/**
+test-results/**
 .gitignore
 .yarnrc
 package-lock.json

@@ -32,6 +32,7 @@ export class ToolExecutor {
         toolName: toolCall.function.name,
         result: validation.error!,
         isError: true,
+        status: "error",
       };
     }
 
@@ -68,6 +69,7 @@ export class ToolExecutor {
           toolName: toolCall.function.name,
           result: JSON.stringify(confirmationResult),
           isError: false,
+          status: "confirmation_required",
         };
       }
 
@@ -76,6 +78,7 @@ export class ToolExecutor {
         toolName: toolCall.function.name,
         result,
         isError: isToolErrorResult(result, parsedResult),
+        status: isToolErrorResult(result, parsedResult) ? "error" : "completed",
       };
     } catch (err: unknown) {
       if (isCancellationError(err)) {
@@ -86,6 +89,7 @@ export class ToolExecutor {
         toolName: toolCall.function.name,
         result: `Error executing ${toolCall.function.name}: ${getErrorMessage(err)}`,
         isError: true,
+        status: "error",
       };
     }
   }
@@ -109,6 +113,7 @@ export class ToolExecutor {
         toolName: toolCall.function.name,
         result: validation.error!,
         isError: true,
+        status: "error",
       };
     }
 
@@ -124,6 +129,7 @@ export class ToolExecutor {
         toolName: toolCall.function.name,
         result,
         isError: isToolErrorResult(result),
+        status: isToolErrorResult(result) ? "error" : "completed",
       };
     } catch (err: unknown) {
       if (isCancellationError(err)) {
@@ -134,6 +140,7 @@ export class ToolExecutor {
         toolName: toolCall.function.name,
         result: `Error executing ${toolCall.function.name}: ${getErrorMessage(err)}`,
         isError: true,
+        status: "error",
       };
     }
   }

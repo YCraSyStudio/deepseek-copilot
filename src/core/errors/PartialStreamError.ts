@@ -10,6 +10,7 @@ export class PartialStreamError extends Error {
   constructor(
     message: string,
     readonly partial: StreamedAssistantResult,
+    readonly reason: "cancelled" | "failed" = "failed",
   ) {
     super(message);
     this.name = "PartialStreamError";

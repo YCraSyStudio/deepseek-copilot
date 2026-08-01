@@ -109,8 +109,7 @@ export interface GenerationSnapshot {
 }
 
 export interface Conversation {
-  /** Required for new data; optional only during the temporary v1 migration window. */
-  schemaVersion?: 2;
+  schemaVersion: 2;
   id: string;
   title: string;
   createdAt: number;
@@ -118,7 +117,7 @@ export interface Conversation {
   messages: ConversationMessage[];
   model: string;
   workspaceUri: string;
-  workspaceBinding?: WorkspaceBinding;
+  workspaceBinding: WorkspaceBinding;
   workspaceRebindings?: WorkspaceRebinding[];
 }
 

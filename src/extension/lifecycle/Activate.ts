@@ -5,6 +5,7 @@ import { registerExtensionApi } from "@/vscodeApi/activation/RegisterExtensionAp
 import { SettingsManager, SecretsManager } from "@/vscodeApi/storage";
 import { WebviewProvider } from "@/vscodeApi/webviews/WebviewProvider";
 import { setActiveProvider } from "./ExtensionRuntime";
+import { initializeLogger } from "@/shared/logging/Logger";
 
 type LegacySettingKey = Exclude<keyof AppConfig, "apiKey" | "userId" | "includeHomeAgents" | "interfaceLanguage"> | "responseFormat";
 
@@ -24,11 +25,17 @@ const LEGACY_SETTING_KEYS: ReadonlyArray<LegacySettingKey> = [
   "autoContext",
   "historyEnabled",
   "historyRetentionDays",
-  "enableBetaFeatures",
 ];
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
+  const diagnostics = vscode.window.createOutputChannel("Yar's DeepSeek Copilot");
+  context.subscriptions.push(initializeLogger(diagnostics));
   await initializeUserSettings();
+  if (SettingsManager.getPersistenceError()) {
+    await vscode.window.showWarningMessage(
+      "DeepSeek Copilot settings storage is unavailable. Chat remains available with temporary settings and incognito history; check access to the extension data directory and reload VS Code.",
+    );
+  }
   await SecretsManager.migrateLegacyApiKey(context, SettingsManager.load().baseUrl);
   const provider = new WebviewProvider(context.extensionUri, context);
   setActiveProvider(provider);

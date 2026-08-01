@@ -1,12 +1,12 @@
-import { MAX_OUTPUT_TOKENS, type AppConfig, type WebviewToHandlerMessage } from "@/adapters";
+import { MAX_OUTPUT_TOKENS, WEBVIEW_INPUT_LIMITS, type AppConfig, type WebviewToHandlerMessage } from "@/adapters";
 import { isAllowedApiBaseUrl } from "@/shared/security/ApiOrigin";
 
-const MAX_CHAT_TEXT = 1024 * 1024;
+const MAX_CHAT_TEXT = WEBVIEW_INPUT_LIMITS.chatText;
 const MAX_CODE_TEXT = 2 * 1024 * 1024;
 const MAX_CHANGE_DIFF_TEXT = 2 * 1024 * 1024;
-const MAX_REFERENCE_CONTENT = 1024 * 1024;
-const MAX_TOTAL_REFERENCE_CONTENT = 5 * 1024 * 1024;
-const MAX_REFERENCES = 50;
+const MAX_REFERENCE_CONTENT = WEBVIEW_INPUT_LIMITS.referenceContent;
+const MAX_TOTAL_REFERENCE_CONTENT = WEBVIEW_INPUT_LIMITS.totalReferenceContent;
+const MAX_REFERENCES = WEBVIEW_INPUT_LIMITS.references;
 
 export function isWebviewToHandlerMessage(value: unknown): value is WebviewToHandlerMessage {
   if (!isRecord(value) || typeof value.type !== "string") {
@@ -14,6 +14,8 @@ export function isWebviewToHandlerMessage(value: unknown): value is WebviewToHan
   }
 
   switch (value.type) {
+    case "initializeProtocol":
+      return hasOnlyKeys(value, ["type", "protocolVersion"]) && value.protocolVersion === 1;
     case "getConfig":
     case "newConversation":
     case "getHistory":
@@ -188,7 +190,6 @@ const APP_CONFIG_KEYS = [
   "historyEnabled",
   "historyRetentionDays",
   "includeHomeAgents",
-  "enableBetaFeatures",
   "userId",
 ] as const satisfies readonly (keyof AppConfig)[];
 
@@ -215,7 +216,6 @@ function isAppConfigPatch(value: unknown): value is Partial<AppConfig> {
     isOptionalBoolean(value.historyEnabled) &&
     (value.historyRetentionDays === undefined || (Number.isSafeInteger(value.historyRetentionDays) && (value.historyRetentionDays as number) >= 0 && (value.historyRetentionDays as number) <= 3650)) &&
     isOptionalBoolean(value.includeHomeAgents) &&
-    isOptionalBoolean(value.enableBetaFeatures) &&
     isOptionalBoundedString(value.userId, 256)
   );
 }

@@ -1,5 +1,5 @@
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
-import type { HandlerToWebviewMessage, PathCompletionItem, ReferencedFile } from "@/adapters";
+import { WEBVIEW_INPUT_LIMITS, type HandlerToWebviewMessage, type PathCompletionItem, type ReferencedFile } from "@/adapters";
 import "./InputCtrl.css";
 import { FileSelector, getPathToken, type PathToken } from "@webview/components/chatView";
 import { useVsCode } from "@webview/views/chatView/contexts";
@@ -130,7 +130,6 @@ const InputCtrl = forwardRef<HTMLTextAreaElement, Props>(
         return;
       }
 
-      setInput("");
       setCompletions([]);
       setPathToken(null);
       const clientRequestId = crypto.randomUUID();
@@ -145,7 +144,7 @@ const InputCtrl = forwardRef<HTMLTextAreaElement, Props>(
         workspaceRevision,
         referencedFiles: referencedFiles?.map(toRequestReference),
       });
-    }, [input, vscode, canSend, setInput, selectedModelRef, reasoningRef, referencedFiles, conversationId, workspaceRevision, onSend]);
+    }, [input, vscode, canSend, selectedModelRef, reasoningRef, referencedFiles, conversationId, workspaceRevision, onSend]);
 
     const handleCancel = useCallback(() => {
       if (activeGenerationId) {
@@ -158,7 +157,6 @@ const InputCtrl = forwardRef<HTMLTextAreaElement, Props>(
       if (!text || !vscode || !conversationId || !activeGenerationId) {
         return;
       }
-      setInput("");
       const clientRequestId = crypto.randomUUID();
       onSend?.(text, clientRequestId);
       vscode.postMessage({
@@ -172,7 +170,7 @@ const InputCtrl = forwardRef<HTMLTextAreaElement, Props>(
         workspaceRevision,
         referencedFiles: referencedFiles?.map(toRequestReference),
       });
-    }, [activeGenerationId, conversationId, input, onSend, reasoningRef, referencedFiles, selectedModelRef, setInput, vscode, workspaceRevision]);
+    }, [activeGenerationId, conversationId, input, onSend, reasoningRef, referencedFiles, selectedModelRef, vscode, workspaceRevision]);
 
     const insertCompletion = useCallback(
       (completion: PathCompletionItem) => {
@@ -286,6 +284,7 @@ const InputCtrl = forwardRef<HTMLTextAreaElement, Props>(
           aria-controls={completions.length > 0 ? "path-completion-listbox" : undefined}
           aria-activedescendant={completions.length > 0 ? `path-completion-option-${activeIndex}` : undefined}
           aria-busy={isProcessing}
+          maxLength={WEBVIEW_INPUT_LIMITS.chatText}
         />
         {isProcessing ? (
           <>

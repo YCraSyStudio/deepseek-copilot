@@ -17,6 +17,9 @@ import type {
 } from "./WebviewModels";
 
 export type HandlerToWebviewMessage =
+  | { type: "protocolReady"; protocolVersion: 1 }
+  | { type: "protocolError"; supportedVersion: 1; error: string }
+  | { type: "requestRejected"; requestId?: string; action?: string; error: string }
   | { type: "configLoaded"; revision: number; config: Partial<WebviewConfig> }
   | {
       type: "historyTransitionRequired";

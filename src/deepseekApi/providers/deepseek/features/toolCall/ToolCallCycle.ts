@@ -3,6 +3,7 @@ import type { ChatMessage } from "@/adapters";
 import { chatCompletion } from "../Chat";
 import { createToolResultMessage, validateToolCall } from "./ToolCallMessages";
 import { buildToolCallRequest } from "./ToolCallRequest";
+import { assertUniqueToolCallIds } from "../ChatResponseValidation";
 import { streamToolCallRound } from "./ToolCallStreaming";
 import type {
   RunToolCallCycleOptions,
@@ -19,6 +20,7 @@ export async function runToolCallCycle(options: RunToolCallCycleOptions): Promis
   const transcript: ChatMessage[] = [];
   let toolCallsExecuted = 0;
   const executedSignatures = new Set<string>();
+  const seenProviderToolCallIds = new Set<string>();
 
   for (let round = 0; ; round++) {
     if (cycleOptions.signal?.aborted) {
@@ -55,6 +57,8 @@ export async function runToolCallCycle(options: RunToolCallCycleOptions): Promis
       };
     }
 
+    assertUniqueToolCallIds(message.tool_calls, seenProviderToolCallIds);
+    for (const toolCall of message.tool_calls) {seenProviderToolCallIds.add(toolCall.id);}
     assertValidToolArguments(message);
     const toolRoundTools = await cycleOptions.getToolsForRound?.("tools", round + 1) ?? reasoningTools;
     const availableTools = new Map(toolRoundTools.map((tool) => [tool.function.name, tool]));

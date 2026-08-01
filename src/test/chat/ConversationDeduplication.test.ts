@@ -20,17 +20,30 @@ suite("conversation history deduplication", () => {
 
 function conversation(id: string, messageIds: string[], updatedAt: number): Conversation {
   return {
+    schemaVersion: 2,
     id,
     title: id,
     createdAt: 1,
     updatedAt,
     model: "test-model",
     workspaceUri: "file:///workspace",
+    workspaceBinding: testWorkspaceBinding(),
     messages: messageIds.map((messageId, index) => ({
       id: messageId,
       role: index % 2 === 0 ? "user" : "assistant",
       content: messageId,
       createdAt: index + 1,
     })),
+  };
+}
+
+function testWorkspaceBinding() {
+  return {
+    schemaVersion: 1 as const,
+    uri: "file:///workspace",
+    name: "workspace",
+    revision: "test",
+    folders: [],
+    capabilities: { files: true, search: true, git: true, terminal: true },
   };
 }

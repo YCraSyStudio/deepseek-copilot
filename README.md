@@ -15,7 +15,7 @@ The extension is DeepSeek-only by design.
 - Optional thinking mode with separate reasoning events for every tool round.
 - Workspace-scoped conversation history with retention, lazy loading, deletion confirmation, and Undo.
 - Type `./` in the chat input to autocomplete workspace paths.
-- Explorer and editor commands for attaching files, folders, and exact selections.
+- Explorer and editor commands for attaching files and exact selections; external files are added only as bounded read-only snapshots.
 - Tools for reading, listing, searching, creating, editing, patching, and running terminal commands.
 - Structured, non-interactive terminal execution with timeout, bounded output, and process-tree cancellation.
 - Permission selector in Chat and per-tool modes in Settings.
@@ -150,7 +150,7 @@ Useful scripts:
 - DeepSeek is the only supported AI provider.
 - Tool execution depends on workspace permissions and user confirmation.
 - Terminal tools are deliberately non-interactive and cannot answer prompts or provide a TTY.
-- FIM support follows DeepSeek beta API behavior and may require the beta base URL.
+- The extension uses the stable Chat Completions endpoint. DeepSeek beta-only strict tool schemas, chat-prefix completion, and FIM are not exposed; custom base URLs are never rewritten to a beta route.
 - This is a beta release. Review tool permissions before using it on important workspaces.
 
 ## Release Notes
