@@ -52,12 +52,18 @@ export class HistoryHandler {
       return;
     }
     await this.onBeforeConversationDelete?.(id);
-    await this.historyManager.delete(id);
+    if (!await this.historyManager.delete(id, deleted.updatedAt)) {
+      await webviewView.webview.postMessage({ type: "historyError", error: "The conversation changed in another window and was not deleted." });
+      await this.getHistory(webviewView);
+      return;
+    }
     this.onConversationDeleted?.(id);
     await webviewView.webview.postMessage({ type: "conversationDeleted", id });
     await this.getHistory(webviewView);
     if ((await vscode.window.showInformationMessage("Conversation deleted.", "Undo")) === "Undo") {
-      await this.historyManager.save(deleted);
+      if (!await this.historyManager.saveIfAbsent(deleted)) {
+        await webviewView.webview.postMessage({ type: "historyError", error: "Undo was skipped because a newer conversation with the same ID exists." });
+      }
       await this.getHistory(webviewView);
     }
   }
@@ -89,14 +95,14 @@ export class HistoryHandler {
       return;
     }
     await Promise.all(ids.map((id) => this.onBeforeConversationDelete?.(id)));
-    await this.historyManager.deleteMany(ids);
-    await Promise.all(ids.map(async (id) => {
+    const deletedIds = await this.historyManager.deleteMany(deleted.map((conversation) => ({ id: conversation.id, expectedUpdatedAt: conversation.updatedAt })));
+    await Promise.all(deletedIds.map(async (id) => {
       this.onConversationDeleted?.(id);
       await webviewView.webview.postMessage({ type: "conversationDeleted", id });
     }));
     await this.getHistory(webviewView);
     if (deleted.length > 0 && (await vscode.window.showInformationMessage(`${deleted.length} conversation(s) deleted.`, "Undo")) === "Undo") {
-      await Promise.all(deleted.map((conversation) => this.historyManager.save(conversation)));
+      await Promise.all(deleted.filter((conversation) => deletedIds.includes(conversation.id)).map((conversation) => this.historyManager.saveIfAbsent(conversation)));
       await this.getHistory(webviewView);
     }
   }

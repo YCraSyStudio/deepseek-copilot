@@ -1,0 +1,99 @@
+name: Production gates
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  MIN_VSCODE_VERSION: 1.125.0
+
+jobs:
+  quality-and-package:
+    name: Quality, security, and VSIX
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: node scripts/prepare-test-results.mjs
+      - run: npm run compile
+      - run: npm run lint
+      - run: npm run test:unit
+      - name: Audit runtime dependencies
+        run: npm audit --omit=dev --audit-level=high
+      - name: Audit build chain
+        run: npm audit --audit-level=critical
+      - run: npm run build
+      - run: npm run package:vsix
+      - run: npm run verify:vsix
+      - run: node scripts/write-artifact-checksum.mjs artifacts/*.vsix artifacts/sha256.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: production-vsix
+          path: artifacts/
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: quality-test-results
+          path: test-results/
+          if-no-files-found: warn
+
+  extension-host:
+    name: Extension host (${{ matrix.os }}, VS Code ${{ matrix.vscode }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        vscode: [1.125.0, stable]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: node scripts/prepare-test-results.mjs
+      - name: Run extension-host integration tests
+        if: runner.os != 'Linux'
+        run: npm run test:integration -- --code-version ${{ matrix.vscode }} --reporter xunit --reporter-option output=test-results/integration.xml
+      - name: Run extension-host integration tests (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a npm run test:integration -- --code-version ${{ matrix.vscode }} --reporter xunit --reporter-option output=test-results/integration.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: extension-host-${{ matrix.os }}-${{ matrix.vscode }}
+          path: test-results/
+          if-no-files-found: warn
+
+  packaged-smoke:
+    name: Installed VSIX smoke (VS Code ${{ matrix.vscode }})
+    needs: quality-and-package
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        vscode: [1.125.0, stable]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          name: production-vsix
+          path: artifacts
+      - run: npm run prepare:integration
+      - run: xvfb-run -a node scripts/test-packaged-vsix.mjs artifacts/*.vsix ${{ matrix.vscode }}

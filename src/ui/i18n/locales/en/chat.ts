@@ -2,6 +2,7 @@ import type { TranslationCatalog } from "../Types";
 
 export const chat = {
   chat: {
+    incognitoActive: "Incognito mode is active. This chat will be lost when the extension reloads.",
     applyingPermissions: "Applying permissions...",
     apiKeyMissing: "API key missing",
     askAnythingAboutYourCode: "Ask anything about your code...",
@@ -37,6 +38,20 @@ export const chat = {
     interruptAndGuide: "Interrupt and guide",
     recoveredDrafts: "Drafts recovered after VS Code closed:",
     restoreDraft: "Restore",
-    attachContext: "Attach context files"
+    attachContext: "Attach context files",
+    usage: {
+      title: "Usage",
+      conversation: "Conversation usage",
+      requests: "Requests",
+      reported: "Reported",
+      input: "Input",
+      output: "Output",
+      reasoning: "Reasoning",
+      cacheHit: "Cache hit",
+      cacheMiss: "Cache miss",
+      total: "Total",
+      cost: "Cost",
+      unavailable: "Unavailable"
+    }
   }
 } satisfies TranslationCatalog;

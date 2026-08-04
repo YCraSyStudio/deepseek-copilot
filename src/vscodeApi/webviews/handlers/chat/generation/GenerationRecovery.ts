@@ -16,6 +16,13 @@ export async function recoverGenerationCheckpoints(
     queuedAt: number;
   }>>,
 ): Promise<void> {
+  if (!SettingsManager.load().historyEnabled) {
+    if (!SettingsManager.getPersistenceError()) {
+      await checkpointStore.clearAll();
+    }
+    recoveredDrafts.clear();
+    return;
+  }
   const checkpoints = await checkpointStore.recover();
   for (const checkpoint of checkpoints) {
     if (checkpoint.queue.length > 0) {

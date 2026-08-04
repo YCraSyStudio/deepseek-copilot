@@ -5,6 +5,7 @@ import { isWorkspaceBinding } from "@/core/chat/ConversationValidation";
 import { isProviderTranscript, type ProviderTranscript } from "@/core/chat/ProviderTranscript";
 import { writeJsonFileAtomic } from "./JsonFileStorage";
 import { getCorruptGenerationCheckpointDirectory, getGenerationCheckpointDirectory } from "./UserDataPaths";
+import { SettingsManager } from "./SettingsManager";
 
 export interface GenerationCheckpoint {
   schemaVersion: 1;
@@ -28,13 +29,22 @@ export interface GenerationCheckpoint {
 export class GenerationCheckpointStore {
   private readonly revisions = new Map<string, number>();
   private readonly queues = new Map<string, Promise<void>>();
+  private epoch = 0;
 
   async save(checkpoint: Omit<GenerationCheckpoint, "schemaVersion" | "revision">): Promise<GenerationCheckpoint> {
     const revision = (this.revisions.get(checkpoint.conversationId) ?? 0) + 1;
     this.revisions.set(checkpoint.conversationId, revision);
     const value: GenerationCheckpoint = { schemaVersion: 1, revision, ...checkpoint };
+    const epoch = this.epoch;
+    if (!SettingsManager.load().historyEnabled) {
+      return value;
+    }
     await this.enqueue(checkpoint.conversationId, async () => {
-      if ((this.revisions.get(checkpoint.conversationId) ?? 0) !== revision) {
+      if (
+        epoch !== this.epoch ||
+        !SettingsManager.load().historyEnabled ||
+        (this.revisions.get(checkpoint.conversationId) ?? 0) !== revision
+      ) {
         return;
       }
       await writeJsonFileAtomic(this.getPath(checkpoint.conversationId), value);
@@ -52,6 +62,10 @@ export class GenerationCheckpointStore {
   }
 
   async recover(): Promise<GenerationCheckpoint[]> {
+    if (!SettingsManager.load().historyEnabled) {
+      await this.clearAll();
+      return [];
+    }
     const directory = getGenerationCheckpointDirectory();
     await mkdir(directory, { recursive: true });
     const entries = await readdir(directory, { withFileTypes: true });
@@ -74,6 +88,18 @@ export class GenerationCheckpointStore {
       }
     }
     return checkpoints;
+  }
+
+  async clearAll(): Promise<void> {
+    this.epoch += 1;
+    this.revisions.clear();
+    await this.flush();
+    const directory = getGenerationCheckpointDirectory();
+    await mkdir(directory, { recursive: true });
+    const entries = await readdir(directory, { withFileTypes: true });
+    await Promise.all(entries
+      .filter((entry) => entry.isFile() && entry.name.endsWith(".json"))
+      .map((entry) => rm(path.join(directory, entry.name), { force: true })));
   }
 
   private getPath(conversationId: string): string {

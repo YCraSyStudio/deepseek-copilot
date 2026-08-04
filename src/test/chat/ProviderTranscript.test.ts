@@ -71,6 +71,14 @@ suite("canonical provider transcript", () => {
       updatedAt: 1,
       model: "deepseek-v4-flash",
       workspaceUri: "file:///workspace",
+      workspaceBinding: {
+        schemaVersion: 1,
+        uri: "file:///workspace",
+        name: "workspace",
+        revision: "test",
+        folders: [],
+        capabilities: { files: true, search: true, git: true, terminal: true },
+      },
       contextSummary: {
         schemaVersion: 1,
         provider: "local",

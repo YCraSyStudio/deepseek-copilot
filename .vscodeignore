@@ -1,7 +1,7 @@
 .vscode/**
 .github/**
 .vscode-test/**
-deepseek-copilot.wiki/**
+wiki/**
 web-doc/**
 docs/**
 node_modules/**
@@ -11,11 +11,14 @@ src/**
 scripts/**
 .tmp/**
 out/**
+test-results/**
+artifacts/**
 .gitignore
 .yarnrc
 package-lock.json
 esbuild.js
 vsc-extension-quickstart.md
+testingPrompt.md
 *.vsix
 *.log
 **/tsconfig.json

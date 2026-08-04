@@ -6,7 +6,7 @@
 
 1. VS Code activates the extension from the contributions declared in `package.json`.
 2. `src/Extension.ts` creates the VS Code tool host.
-3. `WebviewProvider.initialize()` migrates temporary legacy conversation data and recovers generation checkpoints.
+3. `WebviewProvider.initialize()` validates versioned conversation storage and recovers generation checkpoints.
 4. Interrupted partial output is saved with `generationStatus: interrupted`; unfinished tool calls become `cancelled`, and queued prompts are exposed as recoverable drafts.
 5. It registers `WebviewProvider.viewType = "yrs-dpsk-copilot.chatView"`, commands, and the chat view.
 

@@ -1,14 +1,15 @@
 import type { AssistantTimelineEvent, ConversationMessage, DangerConfirmationData, StoredToolCall, WorkspaceBinding } from "@/adapters";
 import type { StoredConversation } from "./ProviderTranscript";
+import { isUsageAggregate } from "@/shared/usage/Usage";
 
 export function isConversation(value: unknown): value is StoredConversation {
   if (!isRecord(value) || !isBoundedString(value.id, 512) || !isBoundedString(value.title, 4096) || !isBoundedString(value.model, 256) || !isBoundedString(value.workspaceUri, 32_768)) {
     return false;
   }
-  if (value.schemaVersion !== 2 && value.schemaVersion !== undefined) {
+  if (value.schemaVersion !== 2) {
     return false;
   }
-  if (value.workspaceBinding !== undefined && !isWorkspaceBinding(value.workspaceBinding)) {
+  if (!isWorkspaceBinding(value.workspaceBinding)) {
     return false;
   }
   if (value.workspaceRebindings !== undefined && (
@@ -68,7 +69,9 @@ function isConversationMessage(value: unknown): value is ConversationMessage {
   if (value.toolCalls !== undefined && (!Array.isArray(value.toolCalls) || value.toolCalls.length > 1_000 || !value.toolCalls.every(isStoredToolCall))) {
     return false;
   }
-  return (value.toolCallId === undefined || isBoundedString(value.toolCallId, 512)) && (value.toolName === undefined || isBoundedString(value.toolName, 256));
+  return (value.toolCallId === undefined || isBoundedString(value.toolCallId, 512)) &&
+    (value.toolName === undefined || isBoundedString(value.toolName, 256)) &&
+    (value.usage === undefined || isUsageAggregate(value.usage));
 }
 
 function isTimelineEvent(value: unknown): value is AssistantTimelineEvent {

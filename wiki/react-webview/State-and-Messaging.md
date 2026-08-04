@@ -23,6 +23,12 @@ The UI uses `src/ui/VsCodeApi.ts` and `postMessage`.
 - Backend errors should be shown without blocking the whole UI.
 - Local state should be rebuildable from `configLoaded`, `history`, `conversationLoaded`, and `generationSnapshot`.
 - Chat state remains mounted while switching between Chat, History, and Settings so pending generation and tool confirmations are not lost.
+- Switching between Chat, History, and Settings does not recreate the webview
+  and therefore does not discard an incognito session. A real webview or
+  extension-host recreation does discard it.
+- Webview state schema v3 is mode-discriminated. Persistent mode may retain the
+  draft, references, presentation messages, and conversation id; Incognito mode
+  stores only `{ schemaVersion: 3, mode: "incognito" }`.
 - Stream and tool events are accepted only for the active `generationId`; events from background or superseded runs must not mutate the selected chat.
 - Cancelling preserves the user message and partial assistant output as an interrupted turn.
 - Queued prompts recovered after shutdown are offered as drafts and removed from the checkpoint recovery list only when consumed.

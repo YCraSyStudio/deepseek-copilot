@@ -63,6 +63,7 @@ export function useChatMessagesController({
                 content: rest.content,
                 toolCalls: rest.toolCalls as StoredToolCall[] | undefined,
                 timeline: rest.timeline,
+              usage: rest.usage,
               }];
             }
             return updateStreamedAssistant(current, streamingMessageIdRef.current, rest.toolCalls, rest.timeline);
@@ -76,6 +77,7 @@ export function useChatMessagesController({
               content: rest.content,
               toolCalls: rest.toolCalls as StoredToolCall[] | undefined,
               timeline: rest.timeline,
+              usage: rest.usage,
             },
           ];
         });
@@ -125,13 +127,14 @@ export function useChatMessagesController({
           return;
         }
 
-        if (info.finish_reason === "insufficient_system_resource") {
-          console.warn("[ChatView] Stream ended because of insufficient system resources");
+        const incompleteMessage = getIncompleteFinishMessage(info.finish_reason);
+        if (incompleteMessage) {
+          setMessages((current) => [...current, { id: nextMessageId(), role: "error", content: incompleteMessage }]);
         }
 
         focusInput();
       },
-      [focusInput, setMessages, setProcessing, resetStreaming, onGenerationCancelled, flushTimelineDeltas],
+      [focusInput, setMessages, setProcessing, resetStreaming, onGenerationCancelled, flushTimelineDeltas, nextMessageId],
     ),
 
     onStreamError: useCallback(
@@ -163,14 +166,61 @@ export function useChatMessagesController({
           reasoning: config.thinkingMode === false ? "off" : config.reasoningEffort === "max" ? "max" : "high",
           model: config.model ?? undefined,
           permissionMode: config.permissionMode,
+          historyEnabled: config.historyEnabled,
+          usageBreakdown: config.usageBreakdown,
         });
       },
       [onConfigLoaded],
     ),
+    onUsageWarning: useCallback(
+      (data) => {
+        setMessages((current) => [...current, {
+          id: nextMessageId(),
+          role: "error",
+          content: data.warning.message,
+          generationId: data.generationId,
+        }]);
+      },
+      [nextMessageId, setMessages],
+    ),
+
+    onAssistantUsageUpdated: useCallback(
+      (data) => {
+        setMessages((current) => {
+          const targetIndex = findAssistantIndex(current, data.generationId);
+          if (targetIndex < 0) {
+            return current;
+          }
+          return current.map((message, index) => (index === targetIndex ? { ...message, usage: data.usage } : message));
+        });
+      },
+      [setMessages],
+    ),
+
     onConfigUpdateResult: useCallback((message) => onConfigUpdateResult?.(message), [onConfigUpdateResult]),
   };
 
   return { messages, isProcessing, listRef, dispatcher };
+}
+
+function findAssistantIndex(messages: ChatMessage[], generationId: string | undefined): number {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message.role === "assistant" && (generationId === undefined || message.generationId === generationId)) {
+      return index;
+    }
+  }
+  return -1;
+}
+
+function getIncompleteFinishMessage(finishReason: string | undefined): string | undefined {
+  if (finishReason === "length") {return "DeepSeek reached the output limit. The visible response is incomplete.";}
+  if (finishReason === "content_filter") {return "DeepSeek stopped because content was filtered. The visible response is incomplete.";}
+  if (finishReason === "insufficient_system_resource") {return "DeepSeek stopped because provider resources were insufficient. You can retry the request.";}
+  if (finishReason && finishReason !== "stop" && finishReason !== "tool_calls") {
+    return `DeepSeek stopped with finish reason "${finishReason}". The visible response may be incomplete.`;
+  }
+  return undefined;
 }
 
 function updateStreamedAssistant(

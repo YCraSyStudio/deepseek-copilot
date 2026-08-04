@@ -1,8 +1,10 @@
 import { createSystemMessage, ensureSingleSystemPrompt } from "@/adapters/deepseek/Chat";
 import type { ChatMessage } from "@/adapters";
+import type { ProviderUsage } from "@/shared/usage/Usage";
 import { chatCompletion } from "../Chat";
 import { createToolResultMessage, validateToolCall } from "./ToolCallMessages";
 import { buildToolCallRequest } from "./ToolCallRequest";
+import { assertUniqueToolCallIds } from "../ChatResponseValidation";
 import { streamToolCallRound } from "./ToolCallStreaming";
 import type {
   RunToolCallCycleOptions,
@@ -19,6 +21,7 @@ export async function runToolCallCycle(options: RunToolCallCycleOptions): Promis
   const transcript: ChatMessage[] = [];
   let toolCallsExecuted = 0;
   const executedSignatures = new Set<string>();
+  const seenProviderToolCallIds = new Set<string>();
 
   for (let round = 0; ; round++) {
     if (cycleOptions.signal?.aborted) {
@@ -28,9 +31,15 @@ export async function runToolCallCycle(options: RunToolCallCycleOptions): Promis
     const reasoningTools = await cycleOptions.getToolsForRound?.("reasoning", round + 1) ?? tools;
     cycleOptions.validateRequestBudget?.(messages, reasoningTools);
     const shouldStream = cycleOptions.streamFinalResponse === true;
-    const response = shouldStream
-      ? await streamToolCallRound({ messages, tools: reasoningTools, model, apiKey, baseUrl, cycleOptions, emitStreamEvents: true })
-      : await chatCompletion(
+    let response: Awaited<ReturnType<typeof chatCompletion>>;
+    if (shouldStream) {
+      // The streaming implementation reports once in a finally block so usage
+      // is retained even when the terminal marker is missing.
+      response = await streamToolCallRound({ messages, tools: reasoningTools, model, apiKey, baseUrl, cycleOptions, emitStreamEvents: true });
+    } else {
+      let usage: ProviderUsage | undefined;
+      try {
+        response = await chatCompletion(
           buildToolCallRequest({
             model,
             messages,
@@ -41,7 +50,11 @@ export async function runToolCallCycle(options: RunToolCallCycleOptions): Promis
           apiKey,
           baseUrl,
         );
-
+        usage = response.usage;
+      } finally {
+        cycleOptions.onUsage?.(usage);
+      }
+    }
     const message = response.choices[0].message;
     if (!message.tool_calls || message.tool_calls.length === 0) {
       transcript.push(structuredClone(message));
@@ -55,6 +68,8 @@ export async function runToolCallCycle(options: RunToolCallCycleOptions): Promis
       };
     }
 
+    assertUniqueToolCallIds(message.tool_calls, seenProviderToolCallIds);
+    for (const toolCall of message.tool_calls) {seenProviderToolCallIds.add(toolCall.id);}
     assertValidToolArguments(message);
     const toolRoundTools = await cycleOptions.getToolsForRound?.("tools", round + 1) ?? reasoningTools;
     const availableTools = new Map(toolRoundTools.map((tool) => [tool.function.name, tool]));

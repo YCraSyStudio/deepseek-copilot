@@ -75,6 +75,8 @@ export class StreamEventEmitter {
         break;
       case "tool_call":
         break;
+      case "usage":
+        break;
     }
   }
 

@@ -1,6 +1,7 @@
 import type { AppConfig, ChatCompletionRequest, ChatCompletionResponse, ToolCall } from "@/adapters";
 import type { ConfirmationRequiredResult } from "@/core/tools/Types";
 import { chatCompletion } from "@/deepseekApi/providers/deepseek/features/Chat";
+import type { ProviderUsage } from "@/shared/usage/Usage";
 import { collectCommandFileContext } from "./CommandFileContext";
 import * as path from "node:path";
 
@@ -32,6 +33,7 @@ export interface CommandSafetyReviewOptions {
   workspaceRoot?: string;
   signal?: AbortSignal;
   complete?: (signal: AbortSignal, request: ChatCompletionRequest) => Promise<ChatCompletionResponse>;
+  onUsage?: (usage?: ProviderUsage) => void;
 }
 
 export const REVIEW_SYSTEM_PROMPT = `You are a security approval gate for a VS Code coding agent.
@@ -106,14 +108,20 @@ export async function reviewCommandSafety(options: CommandSafetyReviewOptions): 
       temperature: 0,
       thinking: { type: "disabled" },
     };
-    const response = options.complete
-      ? await options.complete(signal, request)
-      : await chatCompletion(request, options.providerConfig.apiKey, options.providerConfig.baseUrl, signal);
-    return preferSafeScaffoldingRevision(
-      parseCommandSafetyReview(response.choices[0]?.message.content),
-      command,
-      options.localAnalysis,
-    );
+    let usage: ProviderUsage | undefined;
+    try {
+      const response = options.complete
+        ? await options.complete(signal, request)
+        : await chatCompletion(request, options.providerConfig.apiKey, options.providerConfig.baseUrl, signal);
+      usage = response.usage;
+      return preferSafeScaffoldingRevision(
+        parseCommandSafetyReview(response.choices[0]?.message.content),
+        command,
+        options.localAnalysis,
+      );
+    } finally {
+      options.onUsage?.(usage);
+    }
   } catch (error: unknown) {
     if (options.signal?.aborted) {
       throw error;

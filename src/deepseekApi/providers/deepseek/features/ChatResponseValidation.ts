@@ -1,4 +1,5 @@
 import type { ChatCompletionResponse, ChatMessage, ToolCall } from "@/adapters";
+import { parseProviderUsage } from "@/shared/usage/Usage";
 
 const FINISH_REASONS = new Set(["stop", "length", "tool_calls", "content_filter", "insufficient_system_resource", null]);
 
@@ -7,6 +8,7 @@ export function parseChatCompletionResponse(value: unknown): ChatCompletionRespo
     throw new Error("DeepSeek returned an invalid chat completion response");
   }
 
+  const usage = parseProviderUsage(value.usage);
   const choices = value.choices.map((choice) => {
     if (!isRecord(choice) || !Number.isSafeInteger(choice.index) || !isChatMessage(choice.message) || !FINISH_REASONS.has(choice.finish_reason as never)) {
       throw new Error("DeepSeek returned an invalid chat completion choice");
@@ -25,6 +27,7 @@ export function parseChatCompletionResponse(value: unknown): ChatCompletionRespo
     created: value.created,
     model: value.model,
     choices,
+    ...(usage !== undefined ? { usage } : {}),
   };
 }
 
@@ -62,10 +65,27 @@ function isChatMessage(value: unknown): value is ChatMessage {
   if (value.reasoning_content !== undefined && value.reasoning_content !== null && !isString(value.reasoning_content)) {
     return false;
   }
-  if (value.tool_calls !== undefined && (!Array.isArray(value.tool_calls) || !value.tool_calls.every(isToolCall))) {
+  if (value.tool_calls !== undefined && (
+    !Array.isArray(value.tool_calls) ||
+    !value.tool_calls.every(isToolCall) ||
+    !hasUniqueNonEmptyToolCallIds(value.tool_calls)
+  )) {
     return false;
   }
   return (value.tool_call_id === undefined || isString(value.tool_call_id)) && (value.name === undefined || isString(value.name));
+}
+
+export function assertUniqueToolCallIds(toolCalls: readonly ToolCall[], previouslySeen: ReadonlySet<string> = new Set()): void {
+  const seen = new Set(previouslySeen);
+  for (const toolCall of toolCalls) {
+    if (!toolCall.id.trim()) {
+      throw new Error("DeepSeek returned an empty tool-call ID");
+    }
+    if (seen.has(toolCall.id)) {
+      throw new Error(`DeepSeek returned duplicate tool-call ID "${toolCall.id}"`);
+    }
+    seen.add(toolCall.id);
+  }
 }
 
 function isToolCall(value: unknown): value is ToolCall {
@@ -78,6 +98,15 @@ function isToolCall(value: unknown): value is ToolCall {
     isString(value.function.arguments) &&
     (value.index === undefined || Number.isSafeInteger(value.index))
   );
+}
+
+function hasUniqueNonEmptyToolCallIds(toolCalls: ToolCall[]): boolean {
+  try {
+    assertUniqueToolCallIds(toolCalls);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

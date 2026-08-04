@@ -1,6 +1,6 @@
 import * as assert from "node:assert";
 import { randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { readdir } from "node:fs/promises";
 import * as path from "node:path";
 import * as vscode from "vscode";
 import { searchContentHandler } from "@/core/tools/definitions/SearchContent";
@@ -8,6 +8,7 @@ import { runWithToolWorkspaceHost } from "@/core/tools/ToolWorkspace";
 import { createVsCodeToolWorkspace } from "@/vscodeApi/tools/VsCodeToolWorkspace";
 import { captureCurrentWorkspaceBinding, type WorkspaceRunSnapshot } from "@/vscodeApi/workspace";
 import { getPathCompletionItems } from "@/vscodeApi/editor/EditorActions";
+import { HistoryManager } from "@/vscodeApi/storage/HistoryManager";
 
 suite("Extension integration", () => {
   test("activates under the Marketplace identifier and registers its main command", async () => {
@@ -17,22 +18,17 @@ suite("Extension integration", () => {
     const testDataDirectory = process.env.DEEPSEEK_COPILOT_USER_DATA_DIR;
     assert.ok(testDataDirectory);
     const historyDirectory = path.join(testDataDirectory, "history");
-    const legacyPath = path.join(historyDirectory, "legacy-integration.json");
+    const unversionedPath = path.join(historyDirectory, "unversioned-integration.json");
 
     await extension.activate();
 
     assert.strictEqual(extension.isActive, true);
-    const migrated = JSON.parse(await readFile(legacyPath, "utf8")) as {
-      schemaVersion?: number;
-      workspaceBinding?: { revision?: string; folders?: Array<{ alias?: string; uri?: string }> };
-      messages?: Array<{ role?: string; generationId?: string; generationStatus?: string }>;
-    };
-    assert.strictEqual(migrated.schemaVersion, 2);
-    assert.ok(migrated.workspaceBinding?.revision);
-    assert.strictEqual(migrated.workspaceBinding?.folders?.length, 1);
-    assert.ok(migrated.messages?.[0].generationId);
-    assert.strictEqual(migrated.messages?.[1].generationId, migrated.messages?.[0].generationId);
-    assert.strictEqual(migrated.messages?.[1].generationStatus, "completed");
+    const manager = new HistoryManager(extension.exports?.context ?? createHistoryTestContext());
+    await manager.initialize();
+    await manager.getSummaries();
+    await assert.rejects(readdir(unversionedPath), /ENOTDIR|ENOENT/);
+    const isolated = await readdir(path.join(historyDirectory, "corrupt"));
+    assert.ok(isolated.some((name) => name.endsWith("unversioned-integration.json")));
     const commands = await vscode.commands.getCommands(true);
     assert.ok(commands.includes("yrs-dpsk-copilot.openChat"));
   });
@@ -100,6 +96,62 @@ suite("Extension integration", () => {
     assert.match(Buffer.from(preview.tail!).toString("utf8"), /}\s*$/);
   });
 
+  test("reads and edits the authoritative open buffer with undo support", async () => {
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    assert.ok(workspaceFolder);
+    const fileName = `open-buffer-${randomUUID()}.txt`;
+    const uri = vscode.Uri.joinPath(workspaceFolder.uri, fileName);
+    await vscode.workspace.fs.writeFile(uri, Buffer.from("saved\n"));
+
+    try {
+      const document = await vscode.workspace.openTextDocument(uri);
+      await vscode.window.showTextDocument(document);
+      const userEdit = new vscode.WorkspaceEdit();
+      userEdit.replace(uri, new vscode.Range(document.positionAt(0), document.positionAt(document.getText().length)), "unsaved user text\n");
+      assert.strictEqual(await vscode.workspace.applyEdit(userEdit), true);
+      assert.strictEqual(document.isDirty, true);
+
+      const host = createVsCodeToolWorkspace();
+      assert.strictEqual(Buffer.from(await host.readFile(fileName)).toString("utf8"), "unsaved user text\n");
+      await host.writeFile(fileName, Buffer.from("unsaved user text plus tool change\n"));
+      assert.strictEqual(document.getText(), "unsaved user text plus tool change\n");
+      assert.strictEqual(document.isDirty, true);
+
+      await vscode.commands.executeCommand("undo");
+      assert.strictEqual(document.getText(), "unsaved user text\n");
+    } finally {
+      await vscode.commands.executeCommand("workbench.action.revertAndCloseActiveEditor");
+      await vscode.workspace.fs.delete(uri, { useTrash: false });
+    }
+  });
+
+  test("rejects a stale conversation save from another manager instance", async () => {
+    const extension = vscode.extensions.getExtension("yarcrasy.yrs-dpsk-copilot");
+    assert.ok(extension);
+    const first = new HistoryManager(extension.exports?.context ?? createHistoryTestContext());
+    const second = new HistoryManager(extension.exports?.context ?? createHistoryTestContext());
+    await Promise.all([first.initialize(), second.initialize()]);
+    const binding = captureCurrentWorkspaceBinding();
+    const id = `concurrent-${randomUUID()}`;
+    const now = Date.now();
+    const base = {
+      schemaVersion: 2 as const,
+      id,
+      title: "Concurrent test",
+      createdAt: now,
+      model: "deepseek-v4-flash",
+      workspaceUri: binding.uri,
+      workspaceBinding: binding,
+      messages: [],
+    };
+    try {
+      await first.save({ ...base, updatedAt: now + 2 });
+      await assert.rejects(second.save({ ...base, updatedAt: now + 1 }), /changed in another VS Code window/);
+    } finally {
+      await first.delete(id);
+    }
+  });
+
   test("searches literal workspace content through the VS Code filesystem without exposing sensitive files", async () => {
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     assert.ok(workspaceFolder, "The integration test must run with the repository open as a workspace.");
@@ -138,3 +190,7 @@ suite("Extension integration", () => {
     }
   });
 });
+
+function createHistoryTestContext(): vscode.ExtensionContext {
+  return { workspaceState: { keys: () => [], get: () => undefined, update: async () => undefined } } as unknown as vscode.ExtensionContext;
+}

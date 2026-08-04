@@ -139,12 +139,13 @@ export function createVsCodeToolWorkspace(
 
     async readFile(relativePath: string): Promise<Uint8Array> {
       const externalPath = resolveAllowedExternalPath(snapshot, relativePath, options.allowOutsideWorkspace === true);
-      if (externalPath) {
-        return vscode.workspace.fs.readFile(vscode.Uri.file(externalPath));
-      }
-      const resolved = resolveLogicalPath(snapshot, relativePath);
-      await validateResolvedPath(resolved, options.unrestricted === true);
-      return vscode.workspace.fs.readFile(toLogicalUri(resolved));
+      const uri = externalPath
+        ? vscode.Uri.file(externalPath)
+        : toLogicalUri(await resolveAndValidateLogicalPath(snapshot, relativePath, options.unrestricted === true));
+      const openDocument = findOpenTextDocument(uri);
+      return openDocument
+        ? Buffer.from(openDocument.getText(), "utf8")
+        : vscode.workspace.fs.readFile(uri);
     },
 
     async readFilePreview(relativePath: string, maxBytes: number): Promise<ToolWorkspaceFilePreview> {
@@ -184,14 +185,20 @@ export function createVsCodeToolWorkspace(
 
     async writeFile(relativePath: string, content: Uint8Array): Promise<void> {
       const externalPath = resolveAllowedExternalPath(snapshot, relativePath, options.allowOutsideWorkspace === true);
-      if (externalPath) {
-        await vscode.workspace.fs.writeFile(vscode.Uri.file(externalPath), content);
-        inlinePreview.clear();
-        return;
+      const uri = externalPath
+        ? vscode.Uri.file(externalPath)
+        : toLogicalUri(await resolveAndValidateLogicalPath(snapshot, relativePath, true));
+      const openDocument = findOpenTextDocument(uri);
+      if (openDocument) {
+        const replacement = decodeTextEdit(content, relativePath);
+        const edit = new vscode.WorkspaceEdit();
+        edit.replace(uri, new vscode.Range(openDocument.positionAt(0), openDocument.positionAt(openDocument.getText().length)), replacement);
+        if (!await vscode.workspace.applyEdit(edit)) {
+          throw new Error(`VS Code rejected the edit for open document "${relativePath}". No content was changed.`);
+        }
+      } else {
+        await vscode.workspace.fs.writeFile(uri, content);
       }
-      const resolved = resolveLogicalPath(snapshot, relativePath);
-      await validateResolvedPath(resolved, true);
-      await vscode.workspace.fs.writeFile(toLogicalUri(resolved), content);
       inlinePreview.clear();
     },
 
@@ -239,4 +246,17 @@ export function createVsCodeToolWorkspace(
       inlinePreview.clear();
     },
   };
+}
+
+function findOpenTextDocument(uri: vscode.Uri): vscode.TextDocument | undefined {
+  const target = uri.toString(true);
+  return vscode.workspace.textDocuments.find((document) => document.uri.toString(true) === target);
+}
+
+function decodeTextEdit(content: Uint8Array, relativePath: string): string {
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(content);
+  } catch {
+    throw new Error(`Cannot apply binary or invalid UTF-8 content to open document "${relativePath}". Close the editor or use a text-safe change.`);
+  }
 }

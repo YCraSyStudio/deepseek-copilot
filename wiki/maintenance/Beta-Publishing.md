@@ -4,7 +4,7 @@
 
 ## Target release
 
-The current target is `0.1.5` pre-release. Use the version declared in
+The current target is `0.1.6` pre-release. Use the version declared in
 `package.json` and keep the root lockfile aligned.
 
 ## Marketplace metadata
@@ -71,6 +71,11 @@ extension as a preview product but does not replace the `--pre-release` channel.
 - Close and reopen VS Code during active and queued work; verify partial output is saved and queued prompts appear as recoverable drafts.
 - Open a file from a tool result.
 - Verify Settings tooltips and select controls render correctly.
+- Enable Incognito mode, verify the chat survives in memory without history/checkpoints, then test both explicit save and discard transitions.
+- Enable the usage breakdown and verify request/report coverage, reasoning, cache hit/miss, conversation totals, and official V4 cost estimates after a normal and a tool-assisted generation.
+- Verify custom API origins do not receive DeepSeek-specific `stream_options` automatically and never show an estimated currency.
+- Trigger a low auxiliary-call warning budget and verify the warning is visible without interrupting the generation.
+- Open Diagnostics and verify generation/conversation usage summaries contain counts and phases but no prompt, response, command, or path content.
 
 ## Known beta constraints
 

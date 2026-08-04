@@ -12,6 +12,7 @@ pnpm-debug.log*
 dist/
 build/
 out/
+artifacts/
 !docs/
 deepseek-copilot.wiki/
 .vscode-test/

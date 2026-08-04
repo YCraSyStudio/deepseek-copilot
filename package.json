@@ -2,7 +2,7 @@
   "name": "yrs-dpsk-copilot",
   "displayName": "Yar's Deepseek copilot - A VS Code copilot specialized on Deepseek.",
   "description": "A deeply integrated VS Code coding assistant specialized in DeepSeek.",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "preview": true,
   "publisher": "yarcrasy",
   "license": "MIT",
@@ -36,6 +36,16 @@
     "theme": "dark"
   },
   "main": "./dist/extension.js",
+  "capabilities": {
+    "virtualWorkspaces": {
+      "supported": false,
+      "description": "File, search, Git, and terminal tools require a local file-backed workspace."
+    },
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "Chat remains available, but workspace tools fail closed until the workspace is trusted."
+    }
+  },
   "contributes": {
     "commands": [
       {
@@ -66,6 +76,16 @@
         "title": "Yar's DeepSeek Copilot: Review Changes",
         "category": "Yar's DeepSeek Copilot",
         "icon": "$(git-pull-request)"
+      },
+      {
+        "command": "yrs-dpsk-copilot.showDiagnostics",
+        "title": "Yar's DeepSeek Copilot: Show Diagnostics",
+        "category": "Yar's DeepSeek Copilot"
+      },
+      {
+        "command": "yrs-dpsk-copilot.clearDiagnostics",
+        "title": "Yar's DeepSeek Copilot: Clear Diagnostics",
+        "category": "Yar's DeepSeek Copilot"
       }
     ],
     "menus": {
@@ -128,7 +148,10 @@
     "lint": "eslint src",
     "test": "npm run test:unit && npm run test:integration",
     "test:unit": "node scripts/run-unit-tests.mjs",
-    "test:integration": "npm run build && node ./node_modules/esbuild/bin/esbuild src/test/integration/Extension.test.ts --bundle --platform=node --format=cjs --external:vscode --outfile=out/test/Extension.test.js && vscode-test"
+    "prepare:integration": "npm run build && node ./node_modules/esbuild/bin/esbuild src/test/integration/Extension.test.ts src/test/integration/PackagedSmoke.test.ts src/test/integration/PackagedRunner.ts --bundle --platform=node --format=cjs --external:vscode --external:mocha --outdir=out/test",
+    "test:integration": "npm run prepare:integration && vscode-test",
+    "package:vsix": "node scripts/prepare-artifacts.mjs && vsce package --pre-release --no-dependencies --out artifacts/yrs-dpsk-copilot.vsix",
+    "verify:vsix": "node scripts/assert-vsix-contents.mjs artifacts/yrs-dpsk-copilot.vsix"
   },
   "dependencies": {
     "@vscode/codicons": "^0.0.45",
@@ -141,7 +164,7 @@
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",
-    "@types/node": "26.x",
+    "@types/node": "24.x",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@types/vscode": "^1.125.0",
@@ -154,7 +177,8 @@
     "mocha": "^11.7.6",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.65.0",
-    "vite": "^8.1.5"
+    "vite": "^8.1.5",
+    "yauzl": "^3.2.0"
   },
   "allowScripts": {
     "esbuild@0.28.1": true,

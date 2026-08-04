@@ -3,7 +3,7 @@ import { existsSync } from "fs";
 import { mkdtemp, rm } from "fs/promises";
 import { tmpdir } from "os";
 import * as path from "path";
-import { executeWorkspaceCommand } from "@/core/tools/definitions/ShellExecution";
+import { executeWorkspaceCommand, shutdownOwnedProcesses } from "@/core/tools/definitions/ShellExecution";
 import { setToolWorkspaceHost, type ToolWorkspaceHost } from "@/core/tools/ToolWorkspace";
 
 suite("shell execution", () => {
@@ -28,8 +28,20 @@ suite("shell execution", () => {
     const execution = executeWorkspaceCommand(`"${process.execPath}" -e "setInterval(() => {}, 1000)"`, { signal: controller.signal });
     setTimeout(() => controller.abort(), 100);
 
-    await assert.rejects(execution, (error: unknown) => error instanceof Error && error.name === "AbortError");
+    await assert.rejects(execution, (error: unknown) =>
+      error instanceof Error && error.name === "AbortError" && (error as Error & { terminationConfirmed?: boolean }).terminationConfirmed === true
+    );
     assert.ok(Date.now() - startedAt < 5_000, "cancelled command should not wait for the normal timeout");
+  });
+
+  test("terminates registered commands during extension shutdown", async () => {
+    setToolWorkspaceHost(createUnusedWorkspaceHost(process.cwd()));
+    const startedAt = Date.now();
+    const execution = executeWorkspaceCommand(`"${process.execPath}" -e "setInterval(() => {}, 1000)"`);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    await shutdownOwnedProcesses();
+    await execution;
+    assert.ok(Date.now() - startedAt < 5_000, "shutdown should settle an owned command instead of leaving it running");
   });
 
   test("terminates descendants when a command is cancelled", async () => {

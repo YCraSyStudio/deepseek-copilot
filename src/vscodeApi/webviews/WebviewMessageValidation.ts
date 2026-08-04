@@ -1,12 +1,12 @@
-import { MAX_OUTPUT_TOKENS, type AppConfig, type WebviewToHandlerMessage } from "@/adapters";
+import { MAX_OUTPUT_TOKENS, WEBVIEW_INPUT_LIMITS, type AppConfig, type WebviewToHandlerMessage } from "@/adapters";
 import { isAllowedApiBaseUrl } from "@/shared/security/ApiOrigin";
 
-const MAX_CHAT_TEXT = 1024 * 1024;
+const MAX_CHAT_TEXT = WEBVIEW_INPUT_LIMITS.chatText;
 const MAX_CODE_TEXT = 2 * 1024 * 1024;
 const MAX_CHANGE_DIFF_TEXT = 2 * 1024 * 1024;
-const MAX_REFERENCE_CONTENT = 1024 * 1024;
-const MAX_TOTAL_REFERENCE_CONTENT = 5 * 1024 * 1024;
-const MAX_REFERENCES = 50;
+const MAX_REFERENCE_CONTENT = WEBVIEW_INPUT_LIMITS.referenceContent;
+const MAX_TOTAL_REFERENCE_CONTENT = WEBVIEW_INPUT_LIMITS.totalReferenceContent;
+const MAX_REFERENCES = WEBVIEW_INPUT_LIMITS.references;
 
 export function isWebviewToHandlerMessage(value: unknown): value is WebviewToHandlerMessage {
   if (!isRecord(value) || typeof value.type !== "string") {
@@ -14,6 +14,8 @@ export function isWebviewToHandlerMessage(value: unknown): value is WebviewToHan
   }
 
   switch (value.type) {
+    case "initializeProtocol":
+      return hasOnlyKeys(value, ["type", "protocolVersion"]) && value.protocolVersion === 1;
     case "getConfig":
     case "newConversation":
     case "getHistory":
@@ -34,6 +36,10 @@ export function isWebviewToHandlerMessage(value: unknown): value is WebviewToHan
     case "resetConfig":
     case "deleteApiKey":
       return hasOnlyKeys(value, ["type", "requestId"]) && isNonEmptyBoundedString(value.requestId, 128);
+    case "resolveHistoryTransition":
+      return hasOnlyKeys(value, ["type", "requestId", "decision"]) &&
+        isNonEmptyBoundedString(value.requestId, 128) &&
+        (value.decision === "stop" || value.decision === "save" || value.decision === "discard" || value.decision === "cancel");
     case "cancelGeneration":
       return hasOnlyKeys(value, ["type", "generationId"]) && isNonEmptyBoundedString(value.generationId, 512);
     case "consumeRecoveredDraft":
@@ -184,8 +190,9 @@ const APP_CONFIG_KEYS = [
   "historyEnabled",
   "historyRetentionDays",
   "includeHomeAgents",
-  "enableBetaFeatures",
   "userId",
+  "usageBreakdown",
+  "usageBudgets",
 ] as const satisfies readonly (keyof AppConfig)[];
 
 function isAppConfigPatch(value: unknown): value is Partial<AppConfig> {
@@ -211,9 +218,19 @@ function isAppConfigPatch(value: unknown): value is Partial<AppConfig> {
     isOptionalBoolean(value.historyEnabled) &&
     (value.historyRetentionDays === undefined || (Number.isSafeInteger(value.historyRetentionDays) && (value.historyRetentionDays as number) >= 0 && (value.historyRetentionDays as number) <= 3650)) &&
     isOptionalBoolean(value.includeHomeAgents) &&
-    isOptionalBoolean(value.enableBetaFeatures) &&
+    isOptionalBoolean(value.usageBreakdown) &&
+    (value.usageBudgets === undefined || isUsageBudgets(value.usageBudgets)) &&
     isOptionalBoundedString(value.userId, 256)
   );
+}
+
+function isUsageBudgets(value: unknown): boolean {
+  if (!isRecord(value) || !hasOnlyKeys(value, ["auxiliaryCalls", "cacheMissInputTokens", "outputTokens", "totalCostUsd"])) {
+    return false;
+  }
+  return [value.auxiliaryCalls, value.cacheMissInputTokens, value.outputTokens]
+    .every((budget) => budget === undefined || (Number.isSafeInteger(budget) && (budget as number) >= 0)) &&
+    (value.totalCostUsd === undefined || (typeof value.totalCostUsd === "number" && Number.isFinite(value.totalCostUsd) && value.totalCostUsd >= 0));
 }
 
 function isToolExecutionModes(value: unknown): boolean {

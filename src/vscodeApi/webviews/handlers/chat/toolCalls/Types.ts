@@ -7,6 +7,7 @@ import type { StreamEventEmitter } from "../StreamEventEmitter";
 import type { DangerTrustScope } from "./DangerTrustStore";
 import type { ProviderTranscript } from "@/core/chat/ProviderTranscript";
 import type { CommandSafetyReview } from "@/deepseekApi/security/commandReview";
+import type { ProviderUsage, UsagePhase } from "@/shared/usage/Usage";
 
 export interface PendingToolCallCycle {
   toolCalls: Map<string, ToolCall>;
@@ -59,6 +60,7 @@ export interface ToolCallRunOptions {
   capturePermissionSnapshot: () => Promise<PermissionSnapshot>;
   onPermissionSnapshot?: (snapshot: PermissionSnapshot) => void;
   onTranscriptUpdate?: (transcript: ProviderTranscript) => void;
+  onUsage?: (phase: UsagePhase, usage?: ProviderUsage) => void;
   exposeReasoning: boolean;
   signal?: AbortSignal;
   isCancelling: () => boolean;

@@ -1,4 +1,5 @@
 import { logWarning } from "@/shared/logging/Logger";
+import type { ProviderUsage } from "@/shared/usage/Usage";
 
 export type MessageRole = "system" | "user" | "assistant" | "tool";
 
@@ -89,6 +90,7 @@ export interface ChatCompletionRequest {
   model: string;
   messages: ChatMessage[];
   stream?: boolean;
+  stream_options?: { include_usage: boolean };
   max_tokens?: number;
   temperature?: number;
   top_p?: number;
@@ -111,13 +113,15 @@ export interface ChatCompletionResponse {
     finish_reason: "stop" | "length" | "tool_calls" | "content_filter" | "insufficient_system_resource" | null;
     logprobs?: unknown;
   }>;
+  usage?: ProviderUsage;
 }
 
 export interface StreamChunk {
-  type: "content" | "reasoning" | "tool_call" | "done" | "error";
+  type: "content" | "reasoning" | "tool_call" | "usage" | "done" | "error";
   content?: string;
   reasoning_content?: string;
   finish_reason?: string;
   error?: string;
   tool_calls?: ToolCall[];
+  usage?: ProviderUsage;
 }

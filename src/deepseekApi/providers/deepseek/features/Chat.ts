@@ -4,6 +4,8 @@ import { readSSEStream } from "@/deepseekApi/streaming/ReadSSEStream";
 import type { AppConfig, ChatCompletionRequest, ChatCompletionResponse, StreamChunk } from "@/adapters";
 import { DEEPSEEK_DEFAULTS } from "../DeepSeekConfig";
 import { parseChatCompletionResponse, parseStreamToolCalls } from "./ChatResponseValidation";
+import type { ProviderUsage } from "@/shared/usage/Usage";
+import { isOfficialDeepSeekEndpoint, parseProviderUsage } from "@/shared/usage/Usage";
 
 interface DeepSeekChatRequest extends ChatCompletionRequest {
   user_id?: string;
@@ -12,6 +14,8 @@ interface DeepSeekChatRequest extends ChatCompletionRequest {
 export type ChatRequest = DeepSeekChatRequest;
 export type ChatResponse = ChatCompletionResponse;
 export type ChatStreamChunk = StreamChunk;
+const MAX_STREAM_CONTENT_BYTES = 8 * 1024 * 1024;
+const MAX_STREAM_REASONING_BYTES = 8 * 1024 * 1024;
 
 export function buildChatBody(request: Partial<ChatRequest>, config: AppConfig): Partial<ChatRequest> {
   const body: Partial<ChatRequest> = {
@@ -49,7 +53,13 @@ export function buildChatBody(request: Partial<ChatRequest>, config: AppConfig):
     body.stop = request.stop;
   }
   if (request.tools) {
-    body.tools = request.tools;
+    // DeepSeek strict tool schemas require the beta endpoint and a narrower
+    // JSON-Schema subset. The extension does not expose that endpoint yet, so
+    // never leak local validation metadata as an unsupported provider option.
+    body.tools = request.tools.map((tool) => {
+      const { strict: _strict, ...providerFunction } = tool.function;
+      return { ...tool, function: providerFunction };
+    });
   }
   if (request.tool_choice) {
     body.tool_choice = request.tool_choice;
@@ -91,6 +101,8 @@ export async function chatCompletionStream(options: ChatCompletionStreamOptions)
   const url = buildChatUrl(baseUrl);
   let finishReason = "stop";
   let emittedDone = false;
+  let contentBytes = 0;
+  let reasoningBytes = 0;
 
   const emitDone = () => {
     if (emittedDone) {
@@ -106,7 +118,11 @@ export async function chatCompletionStream(options: ChatCompletionStreamOptions)
     baseUrl,
     requestInit: {
       method: "POST",
-      body: JSON.stringify({ ...request, stream: true }),
+      body: JSON.stringify({
+        ...request,
+        stream: true,
+        ...(isOfficialDeepSeekEndpoint(baseUrl) ? { stream_options: { include_usage: true } } : {}),
+      }),
       signal,
     },
   });
@@ -120,6 +136,10 @@ export async function chatCompletionStream(options: ChatCompletionStreamOptions)
   await readSSEStream({
     reader,
     onChunk: (data: unknown) => {
+      const usage = getStreamUsage(data);
+      if (usage) {
+        onChunk({ type: "usage", usage });
+      }
       const chunk = getDeepSeekStreamChoice(data);
       const delta = chunk?.delta;
       const finish_reason = chunk?.finish_reason;
@@ -136,9 +156,13 @@ export async function chatCompletionStream(options: ChatCompletionStreamOptions)
       }
 
       if (typeof delta.reasoning_content === "string") {
+        reasoningBytes += Buffer.byteLength(delta.reasoning_content, "utf8");
+        if (reasoningBytes > MAX_STREAM_REASONING_BYTES) {throw new Error("DeepSeek reasoning stream exceeded its size limit");}
         onChunk({ type: "reasoning", reasoning_content: delta.reasoning_content });
       }
       if (typeof delta.content === "string") {
+        contentBytes += Buffer.byteLength(delta.content, "utf8");
+        if (contentBytes > MAX_STREAM_CONTENT_BYTES) {throw new Error("DeepSeek content stream exceeded its size limit");}
         onChunk({ type: "content", content: delta.content });
       }
       if (Array.isArray(delta.tool_calls)) {
@@ -159,6 +183,13 @@ interface DeepSeekStreamDelta {
 interface DeepSeekStreamChoice {
   delta?: DeepSeekStreamDelta;
   finish_reason?: string;
+}
+
+function getStreamUsage(data: unknown): ProviderUsage | undefined {
+  if (!data || typeof data !== "object") {
+    return undefined;
+  }
+  return parseProviderUsage((data as { usage?: unknown }).usage);
 }
 
 function getDeepSeekStreamChoice(data: unknown): DeepSeekStreamChoice | undefined {

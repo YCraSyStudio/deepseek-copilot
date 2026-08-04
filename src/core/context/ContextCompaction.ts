@@ -2,6 +2,7 @@ import type { ChatCompletionRequest, ChatCompletionResponse, ReferencedFile } fr
 import { createHash } from "crypto";
 import type { ApiContextUnit } from "@/core/chat/ConversationState";
 import type { ConversationContextSummary } from "@/core/chat/ProviderTranscript";
+import type { ProviderUsage, UsagePhase } from "@/shared/usage/Usage";
 
 const AUXILIARY_MAX_TOKENS = 4096;
 const MAX_RANGE_COUNT = 12;
@@ -18,6 +19,7 @@ export class ContextCompactor {
     private readonly model: string,
     private readonly signal: AbortSignal,
     private readonly maxCalls = 4,
+    private readonly onUsage?: (phase: UsagePhase, usage?: ProviderUsage) => void,
   ) {}
 
   async summarize(
@@ -34,7 +36,7 @@ export class ContextCompactor {
     ].filter((id, index, all) => all.indexOf(id) === index);
 
     try {
-      const content = await this.complete([
+      const content = await this.complete("context_summary", [
         {
           role: "system",
           content: "Summarize coding conversation context faithfully and compactly. Preserve decisions, constraints, unresolved work, errors, file names, symbols and exact user requirements. Never invent facts. Return only the summary.",
@@ -65,7 +67,7 @@ export class ContextCompactor {
         compacted.push(file);
         continue;
       }
-      const ranges = await this.selectRanges(file.path, lines, prompt);
+      const ranges = await this.selectRanges("file_compaction", file.path, lines, prompt);
       compacted.push({
         ...file,
         content: extractLiteralRanges(lines, ranges),
@@ -74,10 +76,10 @@ export class ContextCompactor {
     return compacted;
   }
 
-  private async selectRanges(path: string, lines: string[], prompt: string): Promise<LineRange[]> {
+  private async selectRanges(phase: UsagePhase, path: string, lines: string[], prompt: string): Promise<LineRange[]> {
     const numbered = lines.map((line, index) => `${index + 1}: ${line}`).join("\n");
     try {
-      const raw = await this.complete([
+      const raw = await this.complete(phase, [
         {
           role: "system",
           content: `Select only line ranges relevant to the user's coding request. Return strict JSON as {"ranges":[{"start":1,"end":20}]}. Use 1-based inclusive lines, at most ${MAX_RANGE_COUNT} ranges. Do not reproduce or rewrite source code.`,
@@ -96,7 +98,7 @@ export class ContextCompactor {
     }
   }
 
-  private async complete(messages: ChatCompletionRequest["messages"]): Promise<string> {
+  private async complete(phase: UsagePhase, messages: ChatCompletionRequest["messages"]): Promise<string> {
     if (this.calls >= this.maxCalls) {
       throw new Error("Auxiliary compaction call limit reached");
     }
@@ -104,17 +106,23 @@ export class ContextCompactor {
       throw createAbortError();
     }
     this.calls += 1;
-    const response = await this.provider.chatCompletion({
-      model: this.model,
-      messages,
-      thinking: { type: "disabled" },
-      tool_choice: "none",
-      max_tokens: AUXILIARY_MAX_TOKENS,
-    }, this.signal);
-    if (this.signal.aborted) {
-      throw createAbortError();
+    let usage: ProviderUsage | undefined;
+    try {
+      const response = await this.provider.chatCompletion({
+        model: this.model,
+        messages,
+        thinking: { type: "disabled" },
+        tool_choice: "none",
+        max_tokens: AUXILIARY_MAX_TOKENS,
+      }, this.signal);
+      usage = response.usage;
+      if (this.signal.aborted) {
+        throw createAbortError();
+      }
+      return response.choices[0]?.message.content ?? "";
+    } finally {
+      this.onUsage?.(phase, usage);
     }
-    return response.choices[0]?.message.content ?? "";
   }
 }
 

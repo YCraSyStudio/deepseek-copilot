@@ -46,9 +46,7 @@ export class ToolCallSession {
     this.activePermissionSnapshot = options.permissionSnapshot;
     let streamedContent = "";
     const executedToolCalls = new Map<string, StoredExecution>();
-    const enabledTools = getRunnableToolsForPermissionSnapshot(options.tools, options.permissionSnapshot).map((tool) =>
-      options.providerConfig.enableBetaFeatures ? { ...tool, function: { ...tool.function, strict: true } } : tool,
-    );
+    const enabledTools = getRunnableToolsForPermissionSnapshot(options.tools, options.permissionSnapshot);
     const stream = new StreamEventEmitter(options.webviewView);
 
     try {
@@ -65,9 +63,7 @@ export class ToolCallSession {
             this.activePermissionSnapshot = snapshot;
             this.activeTrustScope = { ...options.trustScope, configFingerprint: snapshot.fingerprint };
             options.onPermissionSnapshot?.(snapshot);
-            return getRunnableToolsForPermissionSnapshot(options.tools, snapshot).map((tool) =>
-              options.providerConfig.enableBetaFeatures ? { ...tool, function: { ...tool.function, strict: true } } : tool,
-            );
+            return getRunnableToolsForPermissionSnapshot(options.tools, snapshot);
           },
           maxRounds: options.providerConfig.maxToolRounds,
           signal: options.signal,
@@ -90,6 +86,7 @@ export class ToolCallSession {
               stream.reasoning(reasoning);
             }
           },
+          onUsage: (usage) => options.onUsage?.("tool_round", usage),
           onTranscriptUpdate: (messages, status) => {
             options.onTranscriptUpdate?.(createProviderTranscript(messages, status));
           },
@@ -253,6 +250,7 @@ export class ToolCallSession {
           localAnalysis: confirmationResult,
           providerConfig: options.providerConfig,
           originalUserRequest: getOriginalUserRequest(options.messages),
+          onUsage: (usage) => options.onUsage?.("security_review", usage),
           workspaceRoot: confirmationResult.workspaceRoot ?? getToolWorkspaceHost().getRootPath?.(),
           signal: options.signal,
         }),
@@ -304,15 +302,16 @@ export class ToolCallSession {
       });
     }
 
-    stream.done({
-      finish_reason: result.response.choices[0]?.finish_reason ?? "stop",
-    });
+    const finishReason = result.response.choices[0]?.finish_reason;
+    const complete = finishReason === "stop";
+    stream.done({ finish_reason: finishReason ?? undefined });
 
     return {
       content: hasStreamedContent ? streamedContent : (result.finalMessage.content ?? ""),
       timeline,
       toolCalls: toolCallResults.length > 0 ? toolCallResults : undefined,
-      providerTranscript: createProviderTranscript(result.transcript, "complete"),
+      partial: !complete,
+      providerTranscript: createProviderTranscript(result.transcript, complete ? "complete" : "incomplete"),
     };
   }
 
@@ -364,8 +363,45 @@ export class ToolCallSession {
         : undefined;
     }
 
+    for (const execution of executedToolCalls.values()) {
+      if (execution.status === "pending" || execution.status === "awaiting_confirmation" || execution.status === "running") {
+        execution.status = "error";
+        execution.isError = true;
+        execution.requiresConfirmation = false;
+        execution.result ??= "Tool execution ended because the generation failed.";
+        void options.webviewView.webview.postMessage({
+          type: "toolCallResult",
+          toolCallId: execution.toolCallId,
+          toolName: execution.toolName,
+          result: execution.result,
+          isError: true,
+          status: "error",
+        });
+      }
+    }
+    const partialToolCalls = Array.from(executedToolCalls.values());
+    const timeline = stream.getTimeline();
+    if (partialToolCalls.length > 0) {
+      options.webviewView.webview.postMessage({
+        type: "addMessage",
+        message: {
+          role: "assistant",
+          content: streamedContent,
+          wasStreamed: timeline.length > 0,
+          toolCalls: partialToolCalls,
+          timeline,
+        },
+      });
+    }
     stream.error(`Error en tool calls: ${getErrorMessage(err)}`);
-    return undefined;
+    return partialToolCalls.length > 0 || timeline.length > 0
+      ? {
+          content: streamedContent,
+          timeline,
+          toolCalls: partialToolCalls.length > 0 ? partialToolCalls : undefined,
+          partial: true,
+        }
+      : undefined;
   }
 }
 

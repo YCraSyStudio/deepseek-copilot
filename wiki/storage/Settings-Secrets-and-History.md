@@ -51,7 +51,7 @@ It should support:
 - deleting a conversation.
 - serializing mutations per conversation.
 - persisting completed, interrupted, and error generation outcomes with their `generationId`.
-- atomically migrating valid unversioned files, partially migrated schema-v2 files, and legacy `workspaceState` envelopes to complete schema v2.
+- isolating unversioned or malformed files instead of interpreting or rewriting them.
 - assigning deterministic `generationId` values to historical turns and terminal `generationStatus` values to historical assistant and error messages.
 - storing complete canonical DeepSeek transcripts host-side for new tool-enabled generations while exposing only presentation messages to the webview.
 - storing an internal context summary with the atomic generation IDs it replaces; legacy conversations remain replayable as visible user/assistant text without inventing tool protocol.
@@ -59,6 +59,12 @@ It should support:
 Legacy compatibility has no date-based runtime cutoff. It remains active until the cleanup tracked by issue draft 019 is released.
 
 History should avoid storing temporary data that can be rebuilt from the UI.
+
+When `historyEnabled` is false the product enters **Incognito mode**. Existing
+history files remain untouched, but reads and writes are unavailable. New turns
+stay in an explicitly incognito `ConversationState` and can reach history only
+through the confirmed "Save and leave" transition. Enabling history by itself
+must never promote an incognito session.
 
 ## `GenerationCheckpointStore`
 
@@ -70,5 +76,7 @@ Stores one atomic checkpoint per conversation under `~/.yrs-dpsk-copilot/generat
 - Activation preserves a checkpoint already marked complete with its valid transcript. Partial work becomes an interrupted history turn, unfinished tools become `cancelled`, and queued prompts return as user-selectable drafts.
 - Invalid checkpoints are isolated under `generation-checkpoints/corrupt/`.
 - Completing or deleting a conversation removes its checkpoint.
+- Incognito mode invalidates pending checkpoint writes, clears live checkpoint
+  files, and disables generation, queue, recovery, and shutdown checkpointing.
 
 [Back](INDEX.md)

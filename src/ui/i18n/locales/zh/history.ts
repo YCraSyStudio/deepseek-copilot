@@ -2,6 +2,7 @@ import type { TranslationCatalog } from "../Types";
 
 export const history = {
   history: {
+    incognitoActive: "无痕模式启用时历史记录不可用。已有会话仍会保留，并将在退出无痕模式后重新显示。",
     historyControls: "历史记录控件",
     searchLabel: "搜索历史",
     searchPlaceholder: "搜索历史…",

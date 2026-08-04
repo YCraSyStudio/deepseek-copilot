@@ -1,3 +1,5 @@
+import { EMPTY_USAGE_BUDGETS, type UsageBudgets } from "@/shared/usage/Usage";
+
 export type ToolExecutionMode = "disabled" | "enabled" | "auto_approve";
 export type ToolExecutionModes = Record<string, ToolExecutionMode>;
 export type PermissionMode = "default" | "read-only" | "custom" | "auto-approve" | "full-access";
@@ -45,7 +47,8 @@ export interface AppConfig {
   historyEnabled: boolean;
   historyRetentionDays: number;
   includeHomeAgents: boolean;
-  enableBetaFeatures: boolean;
+  usageBreakdown: boolean;
+  usageBudgets: UsageBudgets;
 
   userId?: string;
 }
@@ -76,5 +79,6 @@ export const DEFAULT_CONFIG: AppConfig = {
   historyEnabled: true,
   historyRetentionDays: 30,
   includeHomeAgents: false,
-  enableBetaFeatures: false,
+  usageBreakdown: false,
+  usageBudgets: EMPTY_USAGE_BUDGETS,
 };

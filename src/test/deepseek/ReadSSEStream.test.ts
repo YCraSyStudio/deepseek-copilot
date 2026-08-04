@@ -22,4 +22,27 @@ suite("SSE reader", () => {
     const stream = new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(new TextEncoder().encode("data: {bad}\n\n")); controller.close(); } });
     await assert.rejects(readSSEStream({ reader: stream.getReader(), onChunk: () => undefined, onDone: () => undefined }), /Malformed SSE JSON/);
   });
+
+  test("rejects EOF without the terminal marker", async () => {
+    const stream = new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(new TextEncoder().encode("data: {\"value\":1}\n\n")); controller.close(); } });
+    await assert.rejects(readSSEStream({ reader: stream.getReader(), onChunk: () => undefined, onDone: () => undefined }), /before the \[DONE\] marker/);
+  });
+
+  test("bounds an unterminated event buffer", async () => {
+    const stream = new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(new TextEncoder().encode(`data: ${"x".repeat(65)}`)); controller.close(); } });
+    await assert.rejects(
+      readSSEStream({ reader: stream.getReader(), onChunk: () => undefined, onDone: () => undefined, maxBufferBytes: 64 }),
+      /SSE buffer exceeded 64 bytes/,
+    );
+  });
+
+  test("times out an inactive stream and cancels its reader", async () => {
+    let cancelled = false;
+    const stream = new ReadableStream<Uint8Array>({ cancel() {cancelled = true;} });
+    await assert.rejects(
+      readSSEStream({ reader: stream.getReader(), onChunk: () => undefined, onDone: () => undefined, inactivityTimeoutMs: 20 }),
+      /inactive for 20 ms/,
+    );
+    assert.strictEqual(cancelled, true);
+  });
 });

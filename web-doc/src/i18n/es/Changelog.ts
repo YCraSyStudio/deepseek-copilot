@@ -4,8 +4,17 @@ export const changelog: PageContent = {
   navTitle: "Changelog",
   title: "Changelog",
   description: "Cambios relevantes y estado preview.",
-  lead: "La versión 0.1.5 es un hotfix de empaquetado que impide incluir logs de diagnóstico locales en los artefactos VSIX y Marketplace.",
+  lead: "La versión 0.1.6 añade privacidad en modo incógnito, controles de fiabilidad para producción y observabilidad de tokens, caché y coste informada por el proveedor.",
   sections: [
+    {
+      title: "0.1.6 privacidad, fiabilidad y observabilidad de uso",
+      items: [
+        "Añadido el modo Incógnito para chats efímeros: prompts, referencias, checkpoints y uso permanecen en memoria hasta que el usuario guarda o descarta explícitamente la conversación.",
+        "Añadido uso informado por el proveedor por fase, generación y conversación, incluidos tokens de razonamiento anidados y valores separados de acierto y fallo de caché. Los valores ausentes se muestran como no disponibles, nunca como cero.",
+        "Añadidas estimaciones con los precios oficiales actuales de DeepSeek V4 Flash/Pro y versión de catálogo persistida, desglose local, diagnósticos redactados y presupuestos de aviso para llamadas auxiliares, entrada sin caché, salida y coste de generación.",
+        "Reforzados la integridad de tool calls, buffers sin guardar, almacenamiento concurrente, streams parciales, cierre de procesos, protocolo de webview, validación del proveedor, diagnósticos, CI y controles del VSIX empaquetado.",
+      ],
+    },
     {
       title: "0.1.5 hotfix de empaquetado",
       items: [

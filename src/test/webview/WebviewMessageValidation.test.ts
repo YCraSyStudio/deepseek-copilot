@@ -4,12 +4,17 @@ import { isWebviewToHandlerMessage } from "@/vscodeApi/webviews/WebviewMessageVa
 suite("webview message validation", () => {
   test("accepts every valid message shape", () => {
     const messages = [
+      { type: "initializeProtocol", protocolVersion: 1 },
       { type: "getConfig" },
       { type: "saveConfig", requestId: "config-1", config: { interfaceLanguage: "es", permissionMode: "auto-approve", temperature: 1, maxTokens: 384_000, toolExecutionModes: { read_file: "auto_approve" } } },
       { type: "saveConfig", requestId: "config-custom", config: { permissionMode: "custom", toolExecutionModes: { read_file: "enabled", create_file: "disabled" } } },
       { type: "saveConfig", requestId: "config-default", config: { permissionMode: "default" } },
       { type: "saveConfig", requestId: "config-read-only", config: { permissionMode: "read-only" } },
       { type: "resetConfig", requestId: "config-2" },
+      { type: "resolveHistoryTransition", requestId: "history-1", decision: "stop" },
+      { type: "resolveHistoryTransition", requestId: "history-2", decision: "save" },
+      { type: "resolveHistoryTransition", requestId: "history-3", decision: "discard" },
+      { type: "resolveHistoryTransition", requestId: "history-4", decision: "cancel" },
       { type: "deleteApiKey", requestId: "credential-1" },
       { type: "testConnection", apiKey: "secret", baseUrl: "https://api.deepseek.com", model: "deepseek-v4-flash" },
       { type: "testConnection", baseUrl: "https://api.deepseek.com", model: "deepseek-v4-flash" },
@@ -46,8 +51,12 @@ suite("webview message validation", () => {
   test("rejects malformed, oversized and unexpected payloads", () => {
     const messages = [
       null,
+      { type: "initializeProtocol", protocolVersion: 0 },
+      { type: "initializeProtocol", protocolVersion: 1, injected: true },
       { type: "getConfig", injected: true },
       { type: "resetConfig" },
+      { type: "resolveHistoryTransition", requestId: "history", decision: "wait" },
+      { type: "resolveHistoryTransition", decision: "cancel" },
       { type: "deleteApiKey" },
       { type: "deleteApiKey", requestId: "credential-1", injected: true },
       { type: "sendMessage", text: "", modelId: "model", reasoning: "high" },
@@ -71,6 +80,15 @@ suite("webview message validation", () => {
       { type: "copyCode", code: "x".repeat(2 * 1024 * 1024 + 1) },
       { type: "rebindConversationWorkspace", conversationId: "" },
       { type: "selectContextFiles", injected: true },
+      { type: "sendMessage", clientRequestId: "large", text: "x".repeat(1024 * 1024 + 1), modelId: "model", reasoning: "high" },
+      {
+        type: "sendMessage",
+        clientRequestId: "references",
+        text: "hello",
+        modelId: "model",
+        reasoning: "high",
+        referencedFiles: Array.from({ length: 51 }, (_, index) => ({ path: `file-${index}`, type: "file" })),
+      },
     ];
 
     for (const message of messages) {

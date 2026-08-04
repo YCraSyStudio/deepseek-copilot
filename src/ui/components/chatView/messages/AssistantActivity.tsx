@@ -17,20 +17,26 @@ export function AssistantActivity({
   timeline,
   toolCallGroups,
   renderToolCallGroups,
+  isActive = false,
+  generationStatus,
 }: {
   timeline: AssistantTimelineEvent[];
   toolCallGroups: ToolCallGroup[];
   renderToolCallGroups?: (groups: ToolCallGroup[]) => React.ReactNode;
+  isActive?: boolean;
+  generationStatus?: ChatMessage["generationStatus"];
 }) {
+  const blocks = groupAssistantTimeline(timeline);
   return (
     <div className="chronologicalAssistant">
-      {groupAssistantTimeline(timeline).map((block) =>
+      {blocks.map((block, index) =>
         block.type === "activity" ? (
           <ActivityPanel
             key={block.id}
             block={block}
             toolCallGroups={toolCallGroups}
             renderToolCallGroups={renderToolCallGroups}
+            missingToolStatus={getMissingToolStatus(blocks, index, isActive, generationStatus)}
           />
         ) : (
           <MarkdownMessage key={block.id} content={block.content} role="assistant" />
@@ -44,10 +50,12 @@ function ActivityPanel({
   block,
   toolCallGroups,
   renderToolCallGroups,
+  missingToolStatus,
 }: {
   block: Extract<AssistantTimelineBlock, { type: "activity" }>;
   toolCallGroups: ToolCallGroup[];
   renderToolCallGroups?: (groups: ToolCallGroup[]) => React.ReactNode;
+  missingToolStatus: ToolCallStatus;
 }) {
   const storageKey = `deepseek.activity.expanded.${block.id}`;
   const [open, setOpen] = React.useState(() => {
@@ -57,7 +65,7 @@ function ActivityPanel({
       return false;
     }
   });
-  const summary = summarizeActivity(block.events, toolCallGroups);
+  const summary = summarizeActivity(block.events, toolCallGroups, missingToolStatus);
 
   return (
     <details
@@ -103,6 +111,18 @@ function ActivityPanel({
       </div>
     </details>
   );
+}
+
+function getMissingToolStatus(
+  blocks: AssistantTimelineBlock[],
+  blockIndex: number,
+  isActive: boolean,
+  generationStatus: ChatMessage["generationStatus"],
+): ToolCallStatus {
+  if (generationStatus === "completed") {return "completed";}
+  if (blocks.slice(blockIndex + 1).some((block) => block.type === "content")) {return "completed";}
+  if (isActive) {return "pending";}
+  return generationStatus === "error" ? "error" : "cancelled";
 }
 
 function formatActivityStatus(status: ToolCallStatus): string {

@@ -58,7 +58,7 @@ Configuration consumers likewise ignore acknowledgements older than the latest a
 
 ## Conversation schema
 
-New conversations are written with `schemaVersion: 2` and a `workspaceBinding` containing logical identity, deterministic root aliases, composition revision, and capabilities. `workspaceUri` remains temporarily for migration compatibility. User and assistant messages carry `generationId`; assistant and error messages may carry a terminal `generationStatus` of `completed`, `interrupted`, or `error`. Activation atomically upgrades valid unversioned and partially migrated conversations as described in [Migration Status](../maintenance/Migration-Status.md). Compatibility has no date-based runtime cutoff.
+Conversations require `schemaVersion: 2` and a `workspaceBinding` containing logical identity, deterministic root aliases, composition revision, and capabilities. User and assistant messages carry `generationId`; assistant and error messages may carry a terminal `generationStatus` of `completed`, `interrupted`, or `error`. Unversioned or malformed files are isolated and are never rewritten during activation.
 
 ## Compatibility
 

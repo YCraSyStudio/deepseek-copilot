@@ -1,5 +1,4 @@
 import { mkdir, readdir, readFile, rename, rm, stat } from "node:fs/promises";
-import { createHash } from "node:crypto";
 import * as path from "node:path";
 import * as vscode from "vscode";
 import type { Conversation, ConversationSummary } from "@/adapters";
@@ -7,14 +6,14 @@ import { createConversationTitle } from "@/core/chat/ConversationTitle";
 import { findDuplicateConversationIds } from "@/core/chat/ConversationDeduplication";
 import { isConversation } from "@/core/chat/ConversationValidation";
 import { isConversationContextSummary, sanitizeStoredTranscript } from "@/core/chat/ProviderTranscript";
-import { CONVERSATION_STORAGE_KEY } from "@/shared/constants";
 import { SettingsManager } from "./SettingsManager";
-import { writeJsonFileAtomic } from "./JsonFileStorage";
+import { withFileLock, writeJsonFileAtomic } from "./JsonFileStorage";
 import { getCorruptHistoryDirectory, getHistoryDirectory } from "./UserDataPaths";
-import { captureCurrentWorkspaceBinding, createLegacyWorkspaceBinding } from "@/vscodeApi/workspace";
+import { captureCurrentWorkspaceBinding } from "@/vscodeApi/workspace";
 
 const MAX_CONVERSATIONS = 100;
 const MAX_TOTAL_BYTES = 24 * 1024 * 1024;
+const MAX_CONVERSATION_BYTES = MAX_TOTAL_BYTES;
 
 interface StoredConversationRecord {
   conversation: StoredConversationData;
@@ -25,15 +24,12 @@ interface StoredConversationRecord {
 type StoredConversationData = import("@/core/chat/ProviderTranscript").StoredConversation;
 
 export class HistoryManager {
-  private readonly legacyHistoryCleared: Promise<void>;
   private mutationQueue: Promise<void> = Promise.resolve();
 
-  constructor(private readonly context: vscode.ExtensionContext) {
-    this.legacyHistoryCleared = initializeLegacyHistory(context.workspaceState);
-  }
+  constructor(_context: vscode.ExtensionContext) {}
 
   async initialize(): Promise<void> {
-    await this.legacyHistoryCleared;
+    await mkdir(getHistoryDirectory(), { recursive: true });
   }
 
   getWorkspaceUri(): string {
@@ -47,33 +43,78 @@ export class HistoryManager {
   async getSummaries(): Promise<ConversationSummary[]> {
     if (!SettingsManager.load().historyEnabled) {return [];}
     await this.waitForPendingMutations();
-    const records = await this.readAll();
-    const retained = await this.applyRetentionAndLimits(records);
-    return retained.map(toSummary).sort((a, b) => b.updatedAt - a.updatedAt);
+    return withFileLock(getHistoryMutationTarget(), async () => {
+      const records = await this.readAll();
+      const retained = await this.applyRetentionAndLimits(records);
+      return retained.map(toSummary).sort((a, b) => b.updatedAt - a.updatedAt);
+    });
   }
 
   async save(conversation: StoredConversationData): Promise<void> {
     if (!SettingsManager.load().historyEnabled) {return;}
     const normalized = normalizeConversation(conversation);
+    if (Buffer.byteLength(JSON.stringify(normalized), "utf8") > MAX_CONVERSATION_BYTES) {
+      throw new Error("Conversation is too large to save safely. Reduce its retained context before continuing.");
+    }
     await this.enqueueMutation(async () => {
+      const current = await readConversationFile(normalized.id);
+      if (current && (
+        current.updatedAt > normalized.updatedAt ||
+        (current.updatedAt === normalized.updatedAt && JSON.stringify(current) !== JSON.stringify(normalized))
+      )) {
+        throw new Error("Conversation changed in another VS Code window. Reload it before saving more messages.");
+      }
       await writeJsonFileAtomic(getConversationPath(normalized.id), normalized);
       await this.applyRetentionAndLimits(await this.readAll());
     });
   }
 
-  async delete(id: string): Promise<void> {
-    await this.deleteMany([id]);
+  async delete(id: string, expectedUpdatedAt?: number): Promise<boolean> {
+    const deleted = await this.deleteMany([{ id, expectedUpdatedAt }]);
+    return deleted.includes(id);
   }
 
-  async deleteMany(ids: string[]): Promise<void> {
-    const uniqueIds = [...new Set(ids)];
-    await this.enqueueMutation(() => Promise.all(uniqueIds.map((id) => rm(getConversationPath(id), { force: true }))).then(() => undefined));
+  async deleteMany(entries: Array<string | { id: string; expectedUpdatedAt?: number }>): Promise<string[]> {
+    if (!SettingsManager.load().historyEnabled) {return [];}
+    const uniqueEntries = [...new Map(entries.map((entry) => {
+      const normalized = typeof entry === "string" ? { id: entry } : entry;
+      return [normalized.id, normalized];
+    })).values()];
+    const deleted: string[] = [];
+    await this.enqueueMutation(async () => {
+      for (const entry of uniqueEntries) {
+        if (entry.expectedUpdatedAt !== undefined) {
+          const current = await readConversationFile(entry.id);
+          if (!current || current.updatedAt !== entry.expectedUpdatedAt) {continue;}
+        }
+        await rm(getConversationPath(entry.id), { force: true });
+        deleted.push(entry.id);
+      }
+    });
+    return deleted;
+  }
+
+  async saveIfAbsent(conversation: StoredConversationData): Promise<boolean> {
+    if (!SettingsManager.load().historyEnabled) {return false;}
+    let saved = false;
+    await this.enqueueMutation(async () => {
+      if (await readConversationFile(conversation.id)) {return;}
+      await writeJsonFileAtomic(getConversationPath(conversation.id), normalizeConversation(conversation));
+      saved = true;
+    });
+    return saved;
   }
 
   async getById(id: string): Promise<StoredConversationData | undefined> {
+    if (!SettingsManager.load().historyEnabled) {return undefined;}
     await this.waitForPendingMutations();
     const filePath = getConversationPath(id);
     try {
+      const metadata = await stat(filePath);
+      if (metadata.size > MAX_CONVERSATION_BYTES) {
+        await isolateCorruptHistoryFile(filePath);
+        return undefined;
+      }
       const parsed = JSON.parse(await readFile(filePath, "utf8")) as unknown;
       if (!isConversation(parsed) || parsed.id !== id) {
         await isolateCorruptHistoryFile(filePath);
@@ -88,7 +129,6 @@ export class HistoryManager {
   }
 
   private async readAll(): Promise<StoredConversationRecord[]> {
-    await this.legacyHistoryCleared;
     await mkdir(getHistoryDirectory(), { recursive: true });
     const entries = await readdir(getHistoryDirectory(), { withFileTypes: true });
     const records = await Promise.all(
@@ -101,7 +141,12 @@ export class HistoryManager {
 
   private async readStoredConversation(filePath: string): Promise<StoredConversationRecord | undefined> {
     try {
-      const [raw, metadata] = await Promise.all([readFile(filePath, "utf8"), stat(filePath)]);
+      const metadata = await stat(filePath);
+      if (metadata.size > MAX_CONVERSATION_BYTES) {
+        await isolateCorruptHistoryFile(filePath);
+        return undefined;
+      }
+      const raw = await readFile(filePath, "utf8");
       const parsed = JSON.parse(raw) as unknown;
       if (!isConversation(parsed)) {
         await isolateCorruptHistoryFile(filePath);
@@ -142,20 +187,32 @@ export class HistoryManager {
   }
 
   private async waitForPendingMutations(): Promise<void> {
-    await this.legacyHistoryCleared;
     await this.mutationQueue;
   }
 
   private enqueueMutation(operation: () => Promise<void>): Promise<void> {
     const next = this.mutationQueue.then(async () => {
-      await this.legacyHistoryCleared;
-      await operation();
+      await withFileLock(getHistoryMutationTarget(), operation);
     }, async () => {
-      await this.legacyHistoryCleared;
-      await operation();
+      await withFileLock(getHistoryMutationTarget(), operation);
     });
     this.mutationQueue = next.catch(() => undefined);
     return next;
+  }
+}
+
+function getHistoryMutationTarget(): string {
+  return path.join(getHistoryDirectory(), ".mutations");
+}
+
+async function readConversationFile(id: string): Promise<StoredConversationData | undefined> {
+  try {
+    const filePath = getConversationPath(id);
+    if ((await stat(filePath)).size > MAX_CONVERSATION_BYTES) {return undefined;}
+    const parsed = JSON.parse(await readFile(filePath, "utf8")) as unknown;
+    return isConversation(parsed) && parsed.id === id ? normalizeConversation(parsed) : undefined;
+  } catch {
+    return undefined;
   }
 }
 
@@ -175,55 +232,6 @@ function toSummary(record: StoredConversationRecord): ConversationSummary {
     sizeBytes,
     workspaceUri: conversation.workspaceUri,
   };
-}
-
-async function clearLegacyWorkspaceHistory(workspaceState: vscode.Memento): Promise<void> {
-  const keys = workspaceState.keys().filter((key) => key.startsWith(CONVERSATION_STORAGE_KEY));
-  const bodyPrefix = `${CONVERSATION_STORAGE_KEY}.body.`;
-  for (const key of keys.filter((candidate) => candidate.startsWith(bodyPrefix))) {
-    const stored = workspaceState.get<unknown>(key);
-    const envelope = stored && typeof stored === "object" ? stored as { schemaVersion?: unknown; conversation?: unknown } : undefined;
-    if (envelope?.schemaVersion === 1 && isConversation(envelope.conversation)) {
-      try {
-        const migrated = migrateLegacyConversation(envelope.conversation);
-        const target = getConversationPath(migrated.id);
-        await writeJsonFileAtomic(target, migrated);
-        const verified = JSON.parse(await readFile(target, "utf8")) as unknown;
-        if (!isConversation(verified) || verified.schemaVersion !== 2 || verified.id !== migrated.id) {
-          continue;
-        }
-      } catch {
-        continue;
-      }
-    }
-    await workspaceState.update(key, undefined);
-  }
-  await Promise.all(keys.filter((key) => !key.startsWith(bodyPrefix)).map((key) => workspaceState.update(key, undefined)));
-}
-
-async function initializeLegacyHistory(workspaceState: vscode.Memento): Promise<void> {
-  await clearLegacyWorkspaceHistory(workspaceState);
-  await mkdir(getHistoryDirectory(), { recursive: true });
-  const entries = await readdir(getHistoryDirectory(), { withFileTypes: true });
-  for (const entry of entries) {
-    if (!entry.isFile() || !entry.name.endsWith(".json")) {
-      continue;
-    }
-    const filePath = path.join(getHistoryDirectory(), entry.name);
-    try {
-      const parsed = JSON.parse(await readFile(filePath, "utf8")) as unknown;
-      if (!isConversation(parsed) || !needsLegacyConversationMigration(parsed)) {
-        continue;
-      }
-      await writeJsonFileAtomic(filePath, migrateLegacyConversation(parsed));
-      const verified = JSON.parse(await readFile(filePath, "utf8")) as unknown;
-      if (!isConversation(verified) || verified.schemaVersion !== 2) {
-        throw new Error("Conversation migration verification failed");
-      }
-    } catch {
-      // The normal history reader will isolate malformed data without blocking activation.
-    }
-  }
 }
 
 async function isolateCorruptHistoryFile(filePath: string): Promise<void> {
@@ -248,59 +256,16 @@ function normalizeConversation(conversation: StoredConversationData): StoredConv
     timeline: message.timeline ?? undefined,
     providerTranscript: sanitizeStoredTranscript(message.providerTranscript),
   }));
-  const workspaceBinding = conversation.workspaceBinding ?? createLegacyWorkspaceBinding(conversation.workspaceUri);
   return {
     ...conversation,
     schemaVersion: 2,
-    workspaceUri: workspaceBinding.uri,
-    workspaceBinding,
+    workspaceUri: conversation.workspaceBinding.uri,
     title: createConversationTitle(messages, conversation.title),
     messages,
     contextSummary: isConversationContextSummary(conversation.contextSummary)
       ? structuredClone(conversation.contextSummary)
       : undefined,
   };
-}
-
-function needsLegacyConversationMigration(conversation: StoredConversationData): boolean {
-  if (conversation.schemaVersion !== 2) {
-    return true;
-  }
-  if (!conversation.workspaceBinding) {
-    return true;
-  }
-  return conversation.messages.some((message) =>
-    (message.role === "user" || message.role === "assistant" || message.role === "error") &&
-    (!message.generationId || ((message.role === "assistant" || message.role === "error") && !message.generationStatus)),
-  );
-}
-
-function migrateLegacyConversation(conversation: StoredConversationData): StoredConversationData {
-  let currentGenerationId: string | undefined;
-  const messages = conversation.messages.map((message, index) => {
-    if (message.role === "user") {
-      currentGenerationId = message.generationId ?? createLegacyGenerationId(conversation.id, message.id, index);
-      return { ...message, generationId: currentGenerationId };
-    }
-
-    if (message.role === "assistant" || message.role === "error") {
-      currentGenerationId = message.generationId ?? currentGenerationId ?? createLegacyGenerationId(conversation.id, message.id, index);
-      return {
-        ...message,
-        generationId: currentGenerationId,
-        generationStatus: message.generationStatus ?? (message.role === "error" ? "error" : "completed"),
-      };
-    }
-
-    return currentGenerationId && !message.generationId ? { ...message, generationId: currentGenerationId } : message;
-  });
-  const workspaceBinding = conversation.workspaceBinding ?? createLegacyWorkspaceBinding(conversation.workspaceUri);
-  return normalizeConversation({ ...conversation, schemaVersion: 2, workspaceUri: workspaceBinding.uri, workspaceBinding, messages });
-}
-
-function createLegacyGenerationId(conversationId: string, messageId: string, index: number): string {
-  const digest = createHash("sha256").update(`${conversationId}\0${messageId}\0${index}`).digest("hex").slice(0, 32);
-  return `legacy-${digest}`;
 }
 
 function normalizeToolCall<T extends NonNullable<Conversation["messages"][number]["toolCalls"]>[number]>(toolCall: T): T {

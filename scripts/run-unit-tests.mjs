@@ -1,4 +1,4 @@
-import { readdirSync, rmSync } from "node:fs";
+import { mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import * as esbuild from "esbuild";
 import Mocha from "mocha";
@@ -35,9 +35,19 @@ for (const entryPoint of entryPoints) {
 
 await mocha.loadFilesAsync();
 
+const runner = mocha.run();
 const failures = await new Promise((resolveRun) => {
-  mocha.run((failureCount) => resolveRun(failureCount));
+  runner.once("end", () => resolveRun(runner.failures));
 });
+
+mkdirSync(resolve("test-results"), { recursive: true });
+writeFileSync(resolve("test-results", "unit-summary.json"), JSON.stringify({
+  tests: runner.stats?.tests ?? 0,
+  passes: runner.stats?.passes ?? 0,
+  failures: runner.stats?.failures ?? failures,
+  pending: runner.stats?.pending ?? 0,
+  durationMs: runner.stats?.duration ?? 0,
+}, null, 2));
 
 if (failures) {
   process.exitCode = 1;

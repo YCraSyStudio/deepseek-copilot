@@ -1,4 +1,4 @@
-import type { ChatMessage, ConversationMessage, WorkspaceBinding } from "@/adapters";
+import type { ChatMessage, ChatPersistenceMode, ConversationMessage, WorkspaceBinding } from "@/adapters";
 import { randomUUID } from "crypto";
 import { createConversationTitle } from "./ConversationTitle";
 import type {
@@ -33,14 +33,38 @@ export interface SaveConversationMessagesOptions {
 export class ConversationState {
   private activeConversation: StoredConversation | null = null;
 
-  constructor(private readonly conversationStore: ConversationStore) {}
+  constructor(
+    private readonly conversationStore: ConversationStore,
+    private persistenceMode: ChatPersistenceMode = "persistent",
+  ) {}
 
   load(conversation: StoredConversation): void {
     this.activeConversation = conversation;
   }
 
-  reset(): void {
+  reset(mode: ChatPersistenceMode = this.persistenceMode): void {
     this.activeConversation = null;
+    this.persistenceMode = mode;
+  }
+
+  getPersistenceMode(): ChatPersistenceMode {
+    return this.persistenceMode;
+  }
+
+  isIncognito(): boolean {
+    return this.persistenceMode === "incognito";
+  }
+
+  hasMessages(): boolean {
+    return (this.activeConversation?.messages.length ?? 0) > 0;
+  }
+
+  async promoteIncognito(): Promise<void> {
+    if (this.persistenceMode !== "incognito" || !this.activeConversation) {
+      return;
+    }
+    await this.conversationStore.save(structuredClone(this.activeConversation));
+    this.persistenceMode = "persistent";
   }
 
   forget(id: string): boolean {
@@ -98,7 +122,7 @@ export class ConversationState {
   createMessage(
     role: ConversationMessage["role"],
     content: string,
-    extra: Pick<StoredConversationMessage, "timeline" | "toolCalls" | "generationId" | "generationStatus" | "providerTranscript"> = {},
+    extra: Pick<StoredConversationMessage, "timeline" | "toolCalls" | "generationId" | "generationStatus" | "providerTranscript" | "usage"> = {},
   ): StoredConversationMessage {
     return {
       id: randomUUID(),
@@ -124,6 +148,7 @@ export class ConversationState {
     const now = Date.now();
     const existing = this.activeConversation;
     const nextMessages = [...(existing?.messages ?? []), ...options.messages];
+    const workspaceBinding = existing?.workspaceBinding ?? this.conversationStore.getWorkspaceBinding?.() ?? createUnknownWorkspaceBinding();
     const conversation: StoredConversation = {
       schemaVersion: 2,
       id: existing?.id ?? randomUUID(),
@@ -131,15 +156,17 @@ export class ConversationState {
       createdAt: existing?.createdAt ?? now,
       updatedAt: now,
       model: options.model,
-      workspaceUri: existing?.workspaceUri ?? this.conversationStore.getWorkspaceBinding?.().uri ?? this.conversationStore.getWorkspaceUri?.() ?? "workspace:unknown",
-      workspaceBinding: existing?.workspaceBinding ?? this.conversationStore.getWorkspaceBinding?.(),
+      workspaceUri: existing?.workspaceUri ?? workspaceBinding.uri,
+      workspaceBinding,
       workspaceRebindings: existing?.workspaceRebindings,
       contextSummary: existing?.contextSummary,
       messages: nextMessages,
     };
 
     this.activeConversation = conversation;
-    await this.conversationStore.save(conversation);
+    if (this.persistenceMode === "persistent") {
+      await this.conversationStore.save(conversation);
+    }
   }
 
   async saveContextSummary(summary: ConversationContextSummary): Promise<void> {
@@ -151,8 +178,21 @@ export class ConversationState {
       contextSummary: structuredClone(summary),
       updatedAt: Date.now(),
     };
-    await this.conversationStore.save(this.activeConversation);
+    if (this.persistenceMode === "persistent") {
+      await this.conversationStore.save(this.activeConversation);
+    }
   }
+}
+
+function createUnknownWorkspaceBinding(): WorkspaceBinding {
+  return {
+    schemaVersion: 1,
+    uri: "workspace:unknown",
+    name: "Unknown workspace",
+    revision: "unknown",
+    folders: [],
+    capabilities: { files: false, search: false, git: false, terminal: false },
+  };
 }
 
 function toVisibleContextText(messages: StoredConversationMessage[]): string {

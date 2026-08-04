@@ -1,4 +1,5 @@
 import type { ToolCall } from "../deepseek/Chat";
+import type { UsageAggregate, UsageWarning } from "@/shared/usage/Usage";
 import type {
   AssistantTimelineEvent,
   AvailableToolInfo,
@@ -13,10 +14,22 @@ import type {
   StoredToolCall,
   WebviewConfig,
   WorkspaceContextStatus,
+  HistoryTransitionPhase,
 } from "./WebviewModels";
 
 export type HandlerToWebviewMessage =
+  | { type: "protocolReady"; protocolVersion: 1 }
+  | { type: "protocolError"; supportedVersion: 1; error: string }
+  | { type: "requestRejected"; requestId?: string; action?: string; error: string }
   | { type: "configLoaded"; revision: number; config: Partial<WebviewConfig> }
+  | {
+      type: "historyTransitionRequired";
+      requestId: string;
+      phase: HistoryTransitionPhase;
+      direction: "enter-incognito" | "exit-incognito";
+      activeGenerations: number;
+      queuedMessages: number;
+    }
   | {
       type: "configUpdateResult";
       requestId: string;
@@ -50,6 +63,7 @@ export type HandlerToWebviewMessage =
         timeline?: AssistantTimelineEvent[];
         toolCallId?: string;
         toolName?: string;
+        usage?: UsageAggregate;
       };
     }
   | { type: "clearChat" }
@@ -87,4 +101,6 @@ export type HandlerToWebviewMessage =
       autoExecute: boolean;
       dangerConfirmation?: DangerConfirmationData;
     }
-  | { type: "availableTools"; tools: AvailableToolInfo[] };
+  | { type: "availableTools"; tools: AvailableToolInfo[] }
+  | { type: "usageWarning"; generationId?: string; conversationId?: string; warning: UsageWarning }
+  | { type: "assistantUsageUpdated"; generationId?: string; conversationId?: string; usage: UsageAggregate };

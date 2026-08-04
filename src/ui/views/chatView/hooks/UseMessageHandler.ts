@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { VsCodeApi } from "@webview/VsCodeApi";
-import type { AssistantTimelineEvent, HandlerToWebviewMessage, AppConfig, StoredToolCall, ToolCall } from "@/adapters";
+import { WEBVIEW_PROTOCOL_VERSION, type AssistantTimelineEvent, type HandlerToWebviewMessage, type AppConfig, type StoredToolCall, type ToolCall } from "@/adapters";
+import type { UsageAggregate, UsageWarning } from "@/shared/usage/Usage";
 import type { ApiKeyStatus, DangerConfirmationData, ToolCallStatus } from "../ChatViewTypes";
 import { setInterfaceLanguage } from "@webview/i18n";
 
@@ -24,6 +25,7 @@ export type MessageDispatcher = {
     timeline?: AssistantTimelineEvent[];
     toolCallId?: string;
     toolName?: string;
+    usage?: UsageAggregate;
   }) => void;
   onShowTyping?: (generationId?: string) => void;
   onStreamTimelineDelta?: (data: { generationId?: string; eventId: string; eventType: "reasoning" | "content"; content: string }) => void;
@@ -42,6 +44,8 @@ export type MessageDispatcher = {
   onToolCallLimitReached?: (data: { generationId?: string; completedRounds: number; batchSize: number }) => void;
   onContextCompactionUpdated?: (data: { generationId: string; status: "compacting" | "completed" }) => void;
   onGenerationSnapshot?: (message: Extract<HandlerToWebviewMessage, { type: "generationSnapshot" }>) => void;
+  onUsageWarning?: (data: { generationId?: string; warning: UsageWarning }) => void;
+  onAssistantUsageUpdated?: (data: { generationId?: string; usage: UsageAggregate }) => void;
 };
 
 /**
@@ -155,10 +159,19 @@ export function useMessageHandler(vscode: VsCodeApi | null, dispatcher: MessageD
         case "generationSnapshot":
           dispatcherRef.current.onGenerationSnapshot?.(message);
           break;
+
+        case "usageWarning":
+          dispatcherRef.current.onUsageWarning?.({ generationId: message.generationId, warning: message.warning });
+          break;
+
+        case "assistantUsageUpdated":
+          dispatcherRef.current.onAssistantUsageUpdated?.({ generationId: message.generationId, usage: message.usage });
+          break;
       }
     };
 
     window.addEventListener("message", handleMessage);
+    vscode.postMessage({ type: "initializeProtocol", protocolVersion: WEBVIEW_PROTOCOL_VERSION });
     vscode.postMessage({ type: "getConfig" });
     vscode.postMessage({ type: "getGenerationSnapshot" });
 

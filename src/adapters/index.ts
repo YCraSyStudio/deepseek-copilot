@@ -22,6 +22,9 @@ export type {
   WorkspaceContextStatus,
   WorkspaceRebinding,
   ReferencedFile,
+  ChatPersistenceMode,
+  HistoryTransitionPhase,
+  HistoryTransitionDecision,
 } from "./messages/Webview";
 export type {
   ChatMessage,
@@ -34,4 +37,5 @@ export type {
   MessageRole,
 } from "./deepseek/Chat";
 export type { DeepSeekModelId, DeepSeekModelInfo, ReasoningEffort, ModelOption } from "./deepseek/Models";
-export { MAX_OUTPUT_TOKENS } from "./deepseek/Models";
+export { MAX_OUTPUT_TOKENS, MODEL_REGISTRY } from "./deepseek/Models";
+export { WEBVIEW_PROTOCOL_VERSION, WEBVIEW_INPUT_LIMITS } from "./messages/WebviewProtocol";

@@ -1,5 +1,12 @@
 # Change Log
 
+## [0.1.6] - 2026-08-04
+
+- Added provider-reported token and cache observability: every attempted request is counted exactly once, valid usage is attributed to `primary`, `tool_round`, `security_review`, `context_summary`, or `file_compaction`, and redacted totals are available per generation and conversation. Missing fields remain unavailable instead of becoming zero. Official DeepSeek V4 Flash/Pro costs use a persisted versioned USD catalog; custom endpoints never receive guessed prices. Optional local breakdowns, auxiliary-call/cache-miss/output/cost warnings, and redacted generation and conversation diagnostics were added.
+- Added Incognito mode as the privacy boundary for disabled history: active work requires confirmation, chat and referenced content stay out of history, checkpoints, and webview persistence, and leaving the mode requires an explicit save-or-discard decision.
+- Hardened production behavior across tool-call integrity, unsaved editor buffers, concurrent JSON storage, partial SSE streams, process-tree shutdown, protocol negotiation, official DeepSeek model validation, managed diagnostics, and removal of legacy conversation migration.
+- Added production CI and packaged-VSIX gates, deterministic release artifacts and checksums, package-content assertions, recursive unit coverage, and extension-host smoke tests.
+
 ## [0.1.5] - 2026-07-30
 
 - Packaging hotfix: excluded `*.log` files from VSIX artifacts.

@@ -63,6 +63,25 @@ export const settings = {
       topP: "Top P"
     },
     history: {
+      incognito: "Modo incógnito",
+      incognitoDescription: "Los chats solo se conservan en memoria y se pierden al recargar la extensión o VS Code.",
+      transition: {
+        workTitle: "¿Entrar en modo incógnito?",
+        workDescription: "Hay {generations} generaciones activas y {queued} mensajes en cola.",
+        workFinished: "El trabajo pendiente ha terminado. Ya puedes entrar en modo incógnito.",
+        exitWorkTitle: "¿Parar el trabajo incógnito antes de salir?",
+        exitWorkFinished: "El trabajo incógnito pendiente ha terminado. Ya puedes continuar saliendo del modo incógnito.",
+        stopAndEnter: "Parar generaciones y entrar en incógnito",
+        stopAndContinue: "Parar generaciones y continuar",
+        enter: "Entrar en incógnito",
+        continueExit: "Continuar",
+        cancelAndWait: "Cancelar y esperar",
+        exitTitle: "¿Salir del modo incógnito?",
+        exitDescription: "Elige si quieres guardar este chat incógnito como una conversación nueva o descartarlo.",
+        saveAndExit: "Guardar y salir",
+        discardAndExit: "Descartar y salir",
+        cancel: "Cancelar"
+      },
       store: "Guardar historial del chat",
       retention: "Días de retención del historial (0 = ilimitado)"
     },
@@ -78,6 +97,15 @@ export const settings = {
     },
     model: {
       label: "Modelo"
+    },
+    usage: {
+      title: "Uso y coste",
+      breakdown: "Mostrar el consumo de tokens bajo las respuestas",
+      budgetsHint: "Avisa cuando se supera un presupuesto (0 = desactivado). Los avisos nunca detienen ni recortan el trabajo.",
+      auxiliaryCalls: "Llamadas auxiliares (revisión de seguridad y compactación)",
+      cacheMissInputTokens: "Tokens de entrada sin caché",
+      outputTokens: "Tokens de salida",
+      totalCostUsd: "Coste total estimado (USD)"
     },
     limits: {
       maxTokens: "Tokens máximos de salida",

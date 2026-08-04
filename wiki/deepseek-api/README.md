@@ -8,7 +8,7 @@ Responsibilities:
 
 - build requests compatible with DeepSeek.
 - run chat completion and streaming.
-- expose FIM when used.
+- keep FIM unavailable until a dedicated beta endpoint and request contract are implemented.
 - support tool calls.
 - map HTTP/SSE errors into errors handlers can consume.
 

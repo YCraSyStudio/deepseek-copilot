@@ -15,7 +15,7 @@ The extension is DeepSeek-only by design.
 - Optional thinking mode with separate reasoning events for every tool round.
 - Workspace-scoped conversation history with retention, lazy loading, deletion confirmation, and Undo.
 - Type `./` in the chat input to autocomplete workspace paths.
-- Explorer and editor commands for attaching files, folders, and exact selections.
+- Explorer and editor commands for attaching files and exact selections; external files are added only as bounded read-only snapshots.
 - Tools for reading, listing, searching, creating, editing, patching, and running terminal commands.
 - Structured, non-interactive terminal execution with timeout, bounded output, and process-tree cancellation.
 - Permission selector in Chat and per-tool modes in Settings.
@@ -28,6 +28,7 @@ The extension is DeepSeek-only by design.
 - `Open file` and per-operation `View change` actions for file tools; successful file reads do not duplicate editor content in Chat.
 - Stop generation restores the cancelled prompt to the input and does not keep it in conversation context.
 - API credentials stored per API origin in VS Code Secret Storage and represented in Settings only by a masked placeholder.
+- Provider-reported token and cache observability: every attempted streaming and non-streaming request is counted once, valid usage is attributed to a phase (`primary`, `tool_round`, `security_review`, `context_summary`, `file_compaction`), and redacted totals are aggregated per generation and conversation without storing prompts, commands, paths, or file contents.
 
 ## Requirements
 
@@ -114,6 +115,16 @@ Available slash commands:
 - `/review`, `/goal [text]`
 - `/summarize`, `/clear-context`
 
+## Usage and Cost Observability
+
+DeepSeek reports usage per request. The extension parses and validates both streaming and non-streaming responses, including `completion_tokens_details.reasoning_tokens`, `prompt_cache_hit_tokens`, and `prompt_cache_miss_tokens`, and attributes every attempted request to a stable phase: `primary`, `tool_round`, `security_review`, `context_summary`, or `file_compaction`. A request whose usage is absent or malformed is still counted, while unavailable fields remain explicitly unavailable instead of being represented as zero.
+
+- Aggregates are stored per assistant message (counts only — never prompts, commands, paths, or response contents), combined into a conversation total, and can be shown from Settings -> General -> Usage & cost.
+- Redacted generation and conversation summaries are written to the Diagnostics output channel; run `Yar's DeepSeek Copilot: Show Diagnostics` to inspect them.
+- Currency is estimated only for the official DeepSeek endpoint when every request supplies cache-hit, cache-miss, and output counts. The persisted `PRICE_CATALOG_VERSION` identifies the price snapshot. Custom endpoints report provider usage without guessing a price or automatically adding DeepSeek-specific stream options.
+- Configurable warning budgets (auxiliary calls, cache-miss input, output, estimated total cost) surface a warning when exceeded. Warnings never truncate or cancel work.
+- Provider-side context caching is best-effort and reuse requires stable request prefixes. Reported usage is authoritative. To measure an optimization, compare like-for-like generations or conversation summaries using the same model and price-catalog version; use cache-miss input as the primary reduction metric and cache-hit divided by total reported input as the hit ratio. Requests without reported cache fields are outside that comparison boundary.
+
 ## Documentation
 
 - Visual documentation source: [`web-doc`](web-doc) with English, Spanish, and Chinese routes.
@@ -150,7 +161,7 @@ Useful scripts:
 - DeepSeek is the only supported AI provider.
 - Tool execution depends on workspace permissions and user confirmation.
 - Terminal tools are deliberately non-interactive and cannot answer prompts or provide a TTY.
-- FIM support follows DeepSeek beta API behavior and may require the beta base URL.
+- The extension uses the stable Chat Completions endpoint. DeepSeek beta-only strict tool schemas, chat-prefix completion, and FIM are not exposed; custom base URLs are never rewritten to a beta route.
 - This is a beta release. Review tool permissions before using it on important workspaces.
 
 ## Release Notes

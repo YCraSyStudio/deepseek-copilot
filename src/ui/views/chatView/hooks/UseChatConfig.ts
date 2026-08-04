@@ -22,6 +22,8 @@ export function useChatConfig() {
   const [reasoning, setReasoning] = useState<string>("high");
   const [selectedModel, setSelectedModel] = useState<string>(MODEL_OPTIONS[0]?.value ?? "");
   const [permissionMode, setPermissionMode] = useState<PermissionMode>("default");
+  const [historyEnabled, setHistoryEnabled] = useState<boolean | undefined>(undefined);
+  const [usageBreakdown, setUsageBreakdown] = useState(false);
   const [isPermissionUpdatePending, setPermissionUpdatePending] = useState(false);
   const [configUpdateError, setConfigUpdateError] = useState<string | null>(null);
 
@@ -39,7 +41,7 @@ export function useChatConfig() {
   /**
    * Applies saved config from configLoaded without side effects inside useEffect.
    */
-  const applySavedConfig = useCallback((config: { reasoning?: string; model?: string; permissionMode?: PermissionMode }, revision?: number) => {
+  const applySavedConfig = useCallback((config: { reasoning?: string; model?: string; permissionMode?: PermissionMode; historyEnabled?: boolean; usageBreakdown?: boolean }, revision?: number) => {
     if (revision !== undefined) {
       if (!shouldApplyConfigRevision(revisionRef.current, revision)) {
         return;
@@ -57,6 +59,12 @@ export function useChatConfig() {
     if (config.permissionMode !== undefined) {
       setPermissionMode(config.permissionMode);
     }
+    if (config.historyEnabled !== undefined) {
+      setHistoryEnabled(config.historyEnabled);
+    }
+    if (config.usageBreakdown !== undefined) {
+      setUsageBreakdown(config.usageBreakdown);
+    }
   }, []);
 
   const applyConfigUpdateResult = useCallback((message: Extract<HandlerToWebviewMessage, { type: "configUpdateResult" }>) => {
@@ -64,6 +72,8 @@ export function useChatConfig() {
       reasoning: message.config.thinkingMode === false ? "off" : message.config.reasoningEffort === "max" ? "max" : "high",
       model: message.config.model,
       permissionMode: message.config.permissionMode,
+      historyEnabled: message.config.historyEnabled,
+      usageBreakdown: message.config.usageBreakdown,
     }, message.revision);
     if (pendingPermissionRequestRef.current === message.requestId) {
       pendingPermissionRequestRef.current = undefined;
@@ -108,6 +118,8 @@ export function useChatConfig() {
     selectedModel,
     reasoning,
     permissionMode,
+    historyEnabled,
+    usageBreakdown,
     isPermissionUpdatePending,
     configUpdateError,
     selectedModelRef,

@@ -1,4 +1,9 @@
 import type { AppConfig } from "../Config";
+import type { UsageAggregate } from "@/shared/usage/Usage";
+
+export type ChatPersistenceMode = "persistent" | "incognito";
+export type HistoryTransitionPhase = "stop-work" | "exit-incognito";
+export type HistoryTransitionDecision = "stop" | "save" | "discard" | "cancel";
 
 export type WebviewConfig = Omit<AppConfig, "apiKey">;
 
@@ -48,6 +53,7 @@ export interface ConversationMessage {
   createdAt?: number;
   generationId?: string;
   generationStatus?: "completed" | "interrupted" | "error";
+  usage?: UsageAggregate;
 }
 
 export interface QueuedGenerationMessage {
@@ -105,8 +111,7 @@ export interface GenerationSnapshot {
 }
 
 export interface Conversation {
-  /** Required for new data; optional only during the temporary v1 migration window. */
-  schemaVersion?: 2;
+  schemaVersion: 2;
   id: string;
   title: string;
   createdAt: number;
@@ -114,7 +119,7 @@ export interface Conversation {
   messages: ConversationMessage[];
   model: string;
   workspaceUri: string;
-  workspaceBinding?: WorkspaceBinding;
+  workspaceBinding: WorkspaceBinding;
   workspaceRebindings?: WorkspaceRebinding[];
 }
 

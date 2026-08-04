@@ -1,7 +1,8 @@
 import type { ChatMessage, StreamChunk, ToolCall, ToolDefinition } from "@/adapters";
-import { randomUUID } from "crypto";
 import { chatCompletionStream, type ChatResponse } from "../Chat";
+import type { ProviderUsage } from "@/shared/usage/Usage";
 import { buildToolCallRequest } from "./ToolCallRequest";
+import { assertUniqueToolCallIds } from "../ChatResponseValidation";
 import type { ToolCallCycleOptions } from "./ToolCallTypes";
 
 interface StreamToolCallRoundOptions {
@@ -13,6 +14,8 @@ interface StreamToolCallRoundOptions {
   cycleOptions: ToolCallCycleOptions;
   emitStreamEvents?: boolean;
 }
+
+const MAX_TOOL_ARGUMENT_BYTES = 2 * 1024 * 1024;
 
 export async function streamToolCallRound(options: StreamToolCallRoundOptions): Promise<ChatResponse> {
   const { messages, tools, model, apiKey, baseUrl, cycleOptions, emitStreamEvents = true } = options;
@@ -29,33 +32,44 @@ export async function streamToolCallRound(options: StreamToolCallRoundOptions): 
   let hasToolCallsInStream = false;
   const streamingToolCalls = new Map<number, ToolCall>();
   let finishReason = "stop";
+  let usage: ProviderUsage | undefined;
 
-  await chatCompletionStream({
-    request: streamRequest,
-    apiKey,
-    baseUrl,
-    onChunk: (chunk) => {
-      const state = { finalContent, finalReasoning, hasToolCallsInStream, streamingToolCalls, finishReason };
-      const nextState = applyStreamChunk({ chunk, state, cycleOptions, emitStreamEvents });
-      finalContent = nextState.finalContent;
-      finalReasoning = nextState.finalReasoning;
-      hasToolCallsInStream = nextState.hasToolCallsInStream;
-      finishReason = nextState.finishReason;
-    },
-    signal: cycleOptions.signal,
-  });
+  try {
+    await chatCompletionStream({
+      request: streamRequest,
+      apiKey,
+      baseUrl,
+      onChunk: (chunk) => {
+        if (chunk.type === "usage" && chunk.usage) {
+          usage = chunk.usage;
+        }
+        const state = { finalContent, finalReasoning, hasToolCallsInStream, streamingToolCalls, finishReason };
+        const nextState = applyStreamChunk({ chunk, state, cycleOptions, emitStreamEvents });
+        finalContent = nextState.finalContent;
+        finalReasoning = nextState.finalReasoning;
+        hasToolCallsInStream = nextState.hasToolCallsInStream;
+        finishReason = nextState.finishReason;
+      },
+      signal: cycleOptions.signal,
+    });
+  } finally {
+    cycleOptions.onUsage?.(usage);
+  }
 
+  const toolCalls = hasToolCallsInStream ? sortedToolCalls(streamingToolCalls) : undefined;
+  if (toolCalls) {assertUniqueToolCallIds(toolCalls);}
   const message: ChatMessage = {
     role: "assistant",
     content: finalContent || null,
     reasoning_content: finalReasoning || null,
-    ...(hasToolCallsInStream ? { tool_calls: sortedToolCalls(streamingToolCalls) } : {}),
+    ...(toolCalls ? { tool_calls: toolCalls } : {}),
   };
 
   return {
     id: "",
     object: "Chat.completion",
     created: Date.now(),
+    ...(usage !== undefined ? { usage } : {}),
     model,
     choices: [
       {
@@ -98,6 +112,8 @@ function applyStreamChunk(options: { chunk: StreamChunk; state: StreamState; cyc
     case "tool_call":
       mergeStreamingToolCalls(state.streamingToolCalls, chunk.tool_calls);
       return { ...state, hasToolCallsInStream: true };
+    case "usage":
+      return state;
     case "done":
       return {
         ...state,
@@ -117,8 +133,11 @@ function mergeStreamingToolCalls(streamingToolCalls: Map<number, ToolCall>, part
     const idx = partialTc.index ?? 0;
     const existing = streamingToolCalls.get(idx);
     if (!existing) {
+      if (Buffer.byteLength(partialTc.function?.arguments ?? "", "utf8") > MAX_TOOL_ARGUMENT_BYTES) {
+        throw new Error("DeepSeek tool arguments exceeded their size limit");
+      }
       streamingToolCalls.set(idx, {
-        id: partialTc.id ?? randomUUID(),
+        id: partialTc.id ?? "",
         type: "function",
         function: {
           name: partialTc.function?.name ?? "",
@@ -137,6 +156,9 @@ function mergeStreamingToolCalls(streamingToolCalls: Map<number, ToolCall>, part
     }
     if (partialTc.function?.arguments) {
       existing.function.arguments += partialTc.function.arguments;
+      if (Buffer.byteLength(existing.function.arguments, "utf8") > MAX_TOOL_ARGUMENT_BYTES) {
+        throw new Error("DeepSeek tool arguments exceeded their size limit");
+      }
     }
   }
 }

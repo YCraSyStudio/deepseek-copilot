@@ -2,6 +2,7 @@ import type { TranslationCatalog } from "../Types";
 
 export const chat = {
   chat: {
+    incognitoActive: "无痕模式已启用。重新加载扩展后，本聊天将丢失。",
     applyingPermissions: "正在应用权限...",
     apiKeyMissing: "缺少 API key",
     askAnythingAboutYourCode: "询问任何代码问题...",
@@ -37,6 +38,20 @@ export const chat = {
     interruptAndGuide: "中断并引导",
     recoveredDrafts: "VS Code 关闭后恢复的草稿：",
     restoreDraft: "恢复",
-    attachContext: "附加上下文文件"
+    attachContext: "附加上下文文件",
+    usage: {
+      conversation: "会话用量",
+      reported: "已报告",
+      unavailable: "不可用",
+      title: "用量",
+      requests: "请求数",
+      input: "输入",
+      output: "输出",
+      reasoning: "推理",
+      cacheHit: "缓存命中",
+      cacheMiss: "缓存未命中",
+      total: "总计",
+      cost: "成本"
+    }
   }
 } satisfies TranslationCatalog;

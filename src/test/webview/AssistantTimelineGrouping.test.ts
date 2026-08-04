@@ -72,6 +72,16 @@ suite("assistant activity grouping", () => {
 
     assert.strictEqual(summarizeActivity(activity.events, groups).status, "completed");
   });
+
+  test("uses the recovery fallback when a restored timeline has no tool snapshot", () => {
+    const timeline: AssistantTimelineEvent[] = [
+      { id: "tools-1", type: "tool-group", round: 1, toolCallIds: ["call-1"] },
+    ];
+    const activity = groupAssistantTimeline(timeline)[0];
+    assert.ok(activity?.type === "activity");
+
+    assert.strictEqual(summarizeActivity(activity.events, [], "cancelled").status, "cancelled");
+  });
 });
 
 function createGroup(

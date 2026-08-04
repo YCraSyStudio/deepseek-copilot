@@ -1,5 +1,10 @@
 import { shutdownActiveProvider } from "./ExtensionRuntime";
+import { shutdownOwnedProcesses } from "@/core/tools/builtins/terminal/ShellExecution";
 
 export async function deactivate(): Promise<void> {
-  await shutdownActiveProvider();
+  try {
+    await shutdownActiveProvider();
+  } finally {
+    await shutdownOwnedProcesses();
+  }
 }

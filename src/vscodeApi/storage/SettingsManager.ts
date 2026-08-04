@@ -3,7 +3,8 @@ import type { AppConfig, InterfaceLanguage, PermissionMode, PermissionSnapshot, 
 import { MAX_OUTPUT_TOKENS } from "@/adapters";
 import { DEEPSEEK_DEFAULTS } from "@/deepseekApi";
 import { normalizeApiBaseUrlOrDefault } from "@/shared/security/ApiOrigin";
-import { writeJsonFileAtomic } from "./JsonFileStorage";
+import type { UsageBudgets } from "@/shared/usage/Usage";
+import { withFileLock, writeJsonFileAtomic } from "./JsonFileStorage";
 import { getSettingsFilePath } from "./UserDataPaths";
 
 type StoredSettingKey = Exclude<keyof AppConfig, "apiKey" | "userId">;
@@ -26,7 +27,8 @@ const STORED_SETTING_KEYS = new Set<StoredSettingKey>([
   "historyEnabled",
   "historyRetentionDays",
   "includeHomeAgents",
-  "enableBetaFeatures",
+  "usageBreakdown",
+  "usageBudgets",
 ]);
 
 export class SettingsManager {
@@ -34,6 +36,7 @@ export class SettingsManager {
   private static currentConfig: AppConfig = normalizeConfig({});
   private static revision = 0;
   private static initialized = false;
+  private static persistenceError?: string;
   private static pendingPermissionUpdates = 0;
   private static persistSettings: (settings: StoredSettings) => Promise<void> =
     (settings) => writeJsonFileAtomic(getSettingsFilePath(), settings);
@@ -42,25 +45,41 @@ export class SettingsManager {
     if (SettingsManager.initialized) {
       return;
     }
-    if (existsSync(getSettingsFilePath())) {
-      const storedSettings = readStoredSettings();
-      const normalizedConfig = normalizeConfig(storedSettings);
-      if (
-        isRecord(storedSettings) &&
-        (storedSettings.permissionMode === "workspace" ||
-          storedSettings.permissionMode === "chat" ||
-          storedSettings.permissionMode === "enabled")
-      ) {
-        await SettingsManager.enqueueWrite(() => SettingsManager.persistSettings(toStoredSettings(normalizedConfig)));
-      }
-      SettingsManager.currentConfig = normalizedConfig;
-      SettingsManager.initialized = true;
-      return;
+    try {
+      await SettingsManager.enqueueWrite(() => withFileLock(getSettingsFilePath(), async () => {
+        if (existsSync(getSettingsFilePath())) {
+          const storedSettings = readStoredSettings();
+          const normalizedConfig = normalizeConfig(storedSettings);
+          if (
+            isRecord(storedSettings) &&
+            (storedSettings.permissionMode === "workspace" ||
+              storedSettings.permissionMode === "chat" ||
+              storedSettings.permissionMode === "enabled")
+          ) {
+            await SettingsManager.persistSettings(toStoredSettings(normalizedConfig));
+          }
+          SettingsManager.currentConfig = normalizedConfig;
+          return;
+        }
+        const initialConfig = normalizeConfig(initialSettings);
+        await SettingsManager.persistSettings(toStoredSettings(initialConfig));
+        SettingsManager.currentConfig = initialConfig;
+      }));
+    } catch (error: unknown) {
+      SettingsManager.currentConfig = { ...normalizeConfig(initialSettings), historyEnabled: false };
+      SettingsManager.persistenceError = error instanceof Error ? error.message : String(error);
     }
-    const initialConfig = normalizeConfig(initialSettings);
-    await SettingsManager.enqueueWrite(() => SettingsManager.persistSettings(toStoredSettings(initialConfig)));
-    SettingsManager.currentConfig = initialConfig;
     SettingsManager.initialized = true;
+  }
+
+  static getPersistenceError(): string | undefined {
+    return SettingsManager.persistenceError;
+  }
+
+  static enterDegradedMode(error: unknown): void {
+    SettingsManager.persistenceError = error instanceof Error ? error.message : String(error);
+    SettingsManager.currentConfig = { ...SettingsManager.currentConfig, historyEnabled: false };
+    SettingsManager.revision += 1;
   }
 
   static load(): AppConfig {
@@ -105,28 +124,43 @@ export class SettingsManager {
   }
 
   static save(partial: Partial<AppConfig>): Promise<void> {
-    return SettingsManager.enqueueMutation(isPermissionAffectingPatch(partial), async () => {
+    if (SettingsManager.persistenceError) {
       const next = SettingsManager.load();
-
       for (const [key, value] of Object.entries(partial)) {
-        if (!isStoredSettingKey(key) || value === undefined) {
-          continue;
-        }
+        if (!isStoredSettingKey(key) || value === undefined || key === "historyEnabled") {continue;}
         Object.assign(next, { [key]: normalizeSettingValue(key, value) });
       }
-
-      await SettingsManager.persistSettings(toStoredSettings(next));
-      SettingsManager.currentConfig = normalizeConfig(next);
+      SettingsManager.currentConfig = { ...normalizeConfig(next), historyEnabled: false };
       SettingsManager.revision += 1;
+      return Promise.resolve();
+    }
+    return SettingsManager.enqueueMutation(isPermissionAffectingPatch(partial), async () => {
+      await withFileLock(getSettingsFilePath(), async () => {
+        const next = existsSync(getSettingsFilePath()) ? normalizeConfig(readStoredSettings()) : SettingsManager.load();
+        for (const [key, value] of Object.entries(partial)) {
+          if (!isStoredSettingKey(key) || value === undefined) {continue;}
+          Object.assign(next, { [key]: normalizeSettingValue(key, value) });
+        }
+        await SettingsManager.persistSettings(toStoredSettings(next));
+        SettingsManager.currentConfig = normalizeConfig(next);
+        SettingsManager.revision += 1;
+      });
     });
   }
 
   static reset(): Promise<void> {
-    return SettingsManager.enqueueMutation(true, async () => {
-      const next = normalizeConfig(DEEPSEEK_DEFAULTS);
-      await SettingsManager.persistSettings(toStoredSettings(next));
-      SettingsManager.currentConfig = next;
+    if (SettingsManager.persistenceError) {
+      SettingsManager.currentConfig = { ...normalizeConfig(DEEPSEEK_DEFAULTS), historyEnabled: false };
       SettingsManager.revision += 1;
+      return Promise.resolve();
+    }
+    return SettingsManager.enqueueMutation(true, async () => {
+      await withFileLock(getSettingsFilePath(), async () => {
+        const next = normalizeConfig(DEEPSEEK_DEFAULTS);
+        await SettingsManager.persistSettings(toStoredSettings(next));
+        SettingsManager.currentConfig = next;
+        SettingsManager.revision += 1;
+      });
     });
   }
 
@@ -197,7 +231,8 @@ function normalizeConfig(value: unknown): AppConfig {
     historyEnabled: normalizeBoolean(config.historyEnabled, DEEPSEEK_DEFAULTS.historyEnabled),
     historyRetentionDays: clampInteger(config.historyRetentionDays, 0, 3650, DEEPSEEK_DEFAULTS.historyRetentionDays),
     includeHomeAgents: normalizeBoolean(config.includeHomeAgents, DEEPSEEK_DEFAULTS.includeHomeAgents),
-    enableBetaFeatures: normalizeBoolean(config.enableBetaFeatures, DEEPSEEK_DEFAULTS.enableBetaFeatures),
+    usageBreakdown: normalizeBoolean(config.usageBreakdown, DEEPSEEK_DEFAULTS.usageBreakdown),
+    usageBudgets: normalizeUsageBudgets(config.usageBudgets),
   };
 }
 
@@ -219,7 +254,8 @@ function toStoredSettings(config: AppConfig): StoredSettings {
     historyEnabled: config.historyEnabled,
     historyRetentionDays: config.historyRetentionDays,
     includeHomeAgents: config.includeHomeAgents,
-    enableBetaFeatures: config.enableBetaFeatures,
+    usageBreakdown: config.usageBreakdown,
+    usageBudgets: config.usageBudgets,
   };
 }
 
@@ -232,7 +268,7 @@ function normalizeSettingValue(key: StoredSettingKey, value: unknown): unknown {
   if (key === "toolExecutionModes") {return normalizeToolExecutionModes(value);}
   if (key === "permissionMode") {return normalizePermissionMode(value);}
   if (key === "reasoningEffort") {return normalizeReasoningEffort(value);}
-  if (key === "thinkingMode" || key === "autoContext" || key === "historyEnabled" || key === "includeHomeAgents" || key === "enableBetaFeatures") {
+  if (key === "thinkingMode" || key === "autoContext" || key === "historyEnabled" || key === "includeHomeAgents") {
     return normalizeBoolean(value, DEEPSEEK_DEFAULTS[key]);
   }
   if (key === "model") {return normalizeNonEmptyString(value, DEEPSEEK_DEFAULTS.model);}
@@ -243,6 +279,7 @@ function normalizeSettingValue(key: StoredSettingKey, value: unknown): unknown {
   if (key === "maxToolRounds") {return clampInteger(value, 1, 20, DEEPSEEK_DEFAULTS.maxToolRounds);}
   if (key === "maxConcurrentGenerations") {return clampInteger(value, 1, 16, DEEPSEEK_DEFAULTS.maxConcurrentGenerations);}
   if (key === "historyRetentionDays") {return clampInteger(value, 0, 3650, DEEPSEEK_DEFAULTS.historyRetentionDays);}
+  if (key === "usageBudgets") {return normalizeUsageBudgets(value);}
   return value;
 }
 
@@ -282,6 +319,22 @@ function normalizeToolExecutionModes(value: unknown): ToolExecutionModes {
 
 function isToolExecutionMode(value: unknown): value is ToolExecutionMode {
   return value === "disabled" || value === "enabled" || value === "auto_approve";
+}
+
+function normalizeUsageBudgets(value: unknown): UsageBudgets {
+  const budgets = isRecord(value) ? value : {};
+  return {
+    auxiliaryCalls: clampInteger(budgets.auxiliaryCalls ?? budgets.auxiliaryTokens, 0, Number.MAX_SAFE_INTEGER, 0),
+    cacheMissInputTokens: clampInteger(budgets.cacheMissInputTokens, 0, Number.MAX_SAFE_INTEGER, 0),
+    outputTokens: clampInteger(budgets.outputTokens, 0, Number.MAX_SAFE_INTEGER, 0),
+    totalCostUsd: clampNonNegativeNumber(budgets.totalCostUsd, 0),
+  };
+}
+
+function clampNonNegativeNumber(value: unknown, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0
+    ? Math.min(Number.MAX_SAFE_INTEGER, value)
+    : fallback;
 }
 
 function normalizeBoolean(value: unknown, fallback: boolean): boolean {

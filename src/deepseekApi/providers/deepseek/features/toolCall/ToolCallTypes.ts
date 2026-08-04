@@ -1,4 +1,5 @@
 import type { ChatMessage, ToolCall, ToolDefinition } from "@/adapters";
+import type { ProviderUsage } from "@/shared/usage/Usage";
 import type { ChatResponse } from "../Chat";
 
 export interface ToolCallResult {
@@ -14,6 +15,7 @@ export interface ToolCallCycleOptions {
   onRoundStart?: (round: number, toolCalls: ToolCall[]) => Promise<void> | void;
   onToolResult?: (toolCallId: string, result: string) => void;
   onTranscriptUpdate?: (messages: ChatMessage[], status: "complete" | "incomplete") => void;
+  onUsage?: (usage?: ProviderUsage) => void;
   validateRequestBudget?: (messages: ChatMessage[], tools: ToolDefinition[]) => void;
   signal?: AbortSignal;
   streamFinalResponse?: boolean;

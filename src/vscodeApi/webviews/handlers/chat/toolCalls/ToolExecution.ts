@@ -343,9 +343,11 @@ function createErrorResult(toolCall: ToolCall, result: string): ExecutionResult 
 
 function postToolCallResult(
   ctx: ToolExecutionContext,
-  result: ExecutionResult & { rejected?: boolean; status?: StoredExecution["status"] },
+  result: ExecutionResult & { rejected?: boolean },
 ): void {
-  const status = result.status ?? (result.rejected ? "rejected" : result.isError ? "error" : "completed");
+  const status: StoredExecution["status"] = result.status === "confirmation_required"
+    ? "awaiting_confirmation"
+    : result.status;
   ctx.webviewView.webview.postMessage({
     type: "toolCallResult",
     toolCallId: result.toolCallId,

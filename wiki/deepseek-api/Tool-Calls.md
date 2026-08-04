@@ -48,6 +48,6 @@ Official reference:
 - Persistence replays only complete `assistant(tool_calls) -> tool results -> assistant` sequences. Interrupted sequences retain their visible partial answer but are not replayed as provider messages.
 - The webview receives the presentation timeline, never the canonical transcript or its hidden reasoning.
 - A request budget counts system text, tool schemas, exact transcripts, references, output allowance, and safety margin. Active cycles and JSON arguments are rejected rather than truncated.
-- `strict` mode is beta and requires the beta base URL and compatible schemas.
+- `strict` mode is beta and requires the beta base URL and compatible schemas. The extension deliberately omits `strict` from stable-endpoint requests until it has a separately tested beta transport.
 
 [Back](INDEX.md)

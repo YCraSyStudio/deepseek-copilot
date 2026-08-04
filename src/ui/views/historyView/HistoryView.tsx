@@ -16,6 +16,7 @@ function HistoryView() {
   const [page, setPage] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [historyEnabled, setHistoryEnabled] = useState<boolean | undefined>(undefined);
 
   const requestHistory = useCallback(() => {
     setIsLoading(true);
@@ -41,11 +42,16 @@ function HistoryView() {
         setError(message.error || t("history.historyCouldNotBeLoaded"));
       } else if (message.type === "conversationDeleted") {
         setConversations((current) => current.filter((conversation) => conversation.id !== message.id));
+      } else if (message.type === "configLoaded" || message.type === "configUpdateResult") {
+        if (message.config.historyEnabled !== undefined) {
+          setHistoryEnabled(message.config.historyEnabled);
+        }
       }
     };
 
     window.addEventListener("message", handleMessage);
     requestHistory();
+    vscode.postMessage({ type: "getConfig" });
     return () => window.removeEventListener("message", handleMessage);
   }, [vscode, requestHistory]);
 
@@ -79,7 +85,7 @@ function HistoryView() {
 
   return (
     <div className="historyView">
-      <div className="historyToolbar" aria-label={t("history.historyControls")}>
+      <div className="historyToolbar" aria-label={t("history.historyControls")} hidden={historyEnabled === false}>
         <div className="searchBar">
           <label className="srOnly" htmlFor="historySearch">{t("history.searchLabel")}</label>
           <input type="search" id="historySearch" placeholder={t("history.searchPlaceholder")} value={query} onChange={(event) => setQuery(event.target.value)} />
@@ -112,18 +118,19 @@ function HistoryView() {
       </div>
 
       <div className="historyList" aria-busy={isLoading} aria-live="polite">
-        {isLoading ? <div className="historyState" role="status">{t("history.loadingHistory")}</div> : null}
-        {!isLoading && error ? (
+        {historyEnabled === false ? <div className="historyState">{t("history.incognitoActive")}</div> : null}
+        {historyEnabled !== false && isLoading ? <div className="historyState" role="status">{t("history.loadingHistory")}</div> : null}
+        {historyEnabled !== false && !isLoading && error ? (
           <div className="historyState historyError" role="alert">
             <span>{t("history.historyCouldNotBeLoaded")}</span>
             <small>{error}</small>
             <button type="button" className="btn-secondary" onClick={requestHistory}>{t("settings.retry")}</button>
           </div>
         ) : null}
-        {!isLoading && !error && visibleConversations.length === 0 ? (
+        {historyEnabled !== false && !isLoading && !error && visibleConversations.length === 0 ? (
           <div className="historyState">{query ? t("history.noConversationsMatchYourSearch") : t("history.noHistoryYet")}</div>
         ) : null}
-        {!isLoading && !error ? paginatedConversations.map((conversation) => (
+        {historyEnabled !== false && !isLoading && !error ? paginatedConversations.map((conversation) => (
           <HistoryListItem
             key={conversation.id}
             title={conversation.title}
@@ -136,7 +143,7 @@ function HistoryView() {
         )) : null}
       </div>
 
-      {!isLoading && !error && visibleConversations.length > PAGE_SIZE ? (
+      {historyEnabled !== false && !isLoading && !error && visibleConversations.length > PAGE_SIZE ? (
         <nav className="historyPagination" aria-label={t("history.historyPages")}>
           <button type="button" className="btn-secondary" disabled={currentPage === 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>{t("history.previous")}</button>
           <span aria-live="polite">{t("history.pageSummary", { page: currentPage, pages: pageCount, count: visibleConversations.length })}</span>

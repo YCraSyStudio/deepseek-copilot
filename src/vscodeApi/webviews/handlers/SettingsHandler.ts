@@ -6,12 +6,35 @@ import type { AppConfig, WebviewConfig, WebviewToHandlerMessage } from "@/adapte
 import { deepseekFetch } from "@/deepseekApi/client/DeepSeekFetch";
 import { getApiOrigin, normalizeApiBaseUrl } from "@/shared/security/ApiOrigin";
 import { toWebviewConfig } from "@/vscodeApi/webviews/WebviewConfig";
+import type { ChatHandler } from "./chat/ChatHandler";
 
-type SettingsMessage = Extract<WebviewToHandlerMessage, { type: "getConfig" | "saveConfig" | "resetConfig" | "deleteApiKey" | "testConnection" }>;
+type SettingsMessage = Extract<WebviewToHandlerMessage, { type: "getConfig" | "saveConfig" | "resetConfig" | "resolveHistoryTransition" | "deleteApiKey" | "testConnection" }>;
 type TestConnectionMessage = Extract<WebviewToHandlerMessage, { type: "testConnection" }>;
 
+interface PendingHistoryTransition {
+  requestId: string;
+  operation: "save" | "reset";
+  targetEnabled: boolean;
+  phase: "stop-work" | "exit-incognito";
+  config?: Partial<AppConfig>;
+  webviewView: vscode.WebviewView;
+  resolving?: boolean;
+}
+
 export class SettingsHandler {
-  constructor(private context: vscode.ExtensionContext) {}
+  private pendingHistoryTransition?: PendingHistoryTransition;
+
+  constructor(
+    private context: vscode.ExtensionContext,
+    private readonly chatHandler: ChatHandler,
+  ) {}
+
+  handleWebviewRecreation(): void {
+    const pending = this.pendingHistoryTransition;
+    if (!pending) {return;}
+    this.chatHandler.cancelHistoryTransition(pending.requestId);
+    this.pendingHistoryTransition = undefined;
+  }
 
   handle(message: SettingsMessage, webviewView: vscode.WebviewView): void {
     switch (message.type) {
@@ -23,6 +46,9 @@ export class SettingsHandler {
         break;
       case "resetConfig":
         void this._resetConfig(message.requestId, webviewView);
+        break;
+      case "resolveHistoryTransition":
+        void this._resolveHistoryTransition(message.requestId, message.decision, webviewView);
         break;
       case "deleteApiKey":
         void this._deleteApiKey(message.requestId, webviewView);
@@ -50,6 +76,18 @@ export class SettingsHandler {
   }
 
   private async _saveConfig(requestId: string, config: Partial<AppConfig>, webviewView: vscode.WebviewView): Promise<void> {
+    const currentHistoryEnabled = SettingsManager.load().historyEnabled;
+    if (config.historyEnabled !== undefined && config.historyEnabled !== currentHistoryEnabled) {
+      await this._requestHistoryTransition({
+        requestId,
+        operation: "save",
+        targetEnabled: config.historyEnabled,
+        phase: "stop-work",
+        config,
+        webviewView,
+      });
+      return;
+    }
     if (
       config.permissionMode === "full-access" &&
       SettingsManager.load().permissionMode !== "full-access" &&
@@ -100,6 +138,17 @@ export class SettingsHandler {
       return;
     }
 
+    if (!SettingsManager.load().historyEnabled) {
+      await this._requestHistoryTransition({
+        requestId,
+        operation: "reset",
+        targetEnabled: true,
+        phase: "stop-work",
+        webviewView,
+      });
+      return;
+    }
+
     try {
       await SettingsManager.reset();
       await this._postUpdateResult(webviewView, requestId, "reset", "success");
@@ -107,6 +156,141 @@ export class SettingsHandler {
       logWarning(`[SettingsHandler] Failed to reset settings: ${getErrorMessage(error)}`);
       await this._postUpdateResult(webviewView, requestId, "reset", "error", getErrorMessage(error));
     }
+  }
+
+  private async _requestHistoryTransition(pending: PendingHistoryTransition): Promise<void> {
+    const counts = this.chatHandler.beginHistoryTransition(
+      pending.requestId,
+      pending.targetEnabled ? "exit-incognito" : "enter-incognito",
+    );
+    if (!counts) {
+      await this._postUpdateResult(
+        pending.webviewView,
+        pending.requestId,
+        pending.operation,
+        "error",
+        "Another incognito-mode change is already pending.",
+      );
+      return;
+    }
+    this.pendingHistoryTransition = pending;
+    if (counts.activeGenerations > 0 || counts.queuedMessages > 0) {
+      await this._postHistoryTransitionRequired(pending, counts);
+      return;
+    }
+    await this._continueHistoryTransitionWithoutWork(pending);
+  }
+
+  private async _resolveHistoryTransition(
+    requestId: string,
+    decision: "stop" | "save" | "discard" | "cancel",
+    webviewView: vscode.WebviewView,
+  ): Promise<void> {
+    const pending = this.pendingHistoryTransition;
+    if (!pending || pending.requestId !== requestId || pending.webviewView !== webviewView) {
+      return;
+    }
+    if (pending.resolving) {return;}
+    pending.resolving = true;
+    if (decision === "cancel") {
+      this.pendingHistoryTransition = undefined;
+      this.chatHandler.cancelHistoryTransition(requestId);
+      await this._postUpdateResult(webviewView, requestId, pending.operation, "cancelled");
+      return;
+    }
+    if (pending.phase === "stop-work") {
+      if (decision !== "stop") {
+        pending.resolving = false;
+        return;
+      }
+      if (!pending.targetEnabled) {
+        await this._commitEnterIncognito(pending);
+        return;
+      }
+      await this.chatHandler.stopPendingWork();
+      await this._continueHistoryTransitionWithoutWork(pending);
+      return;
+    }
+    if (decision === "save" || decision === "discard") {
+      await this._commitExitIncognito(pending, decision);
+    } else {
+      pending.resolving = false;
+    }
+  }
+
+  private async _continueHistoryTransitionWithoutWork(pending: PendingHistoryTransition): Promise<void> {
+    if (!pending.targetEnabled) {
+      await this._commitEnterIncognito(pending);
+      return;
+    }
+    if (this.chatHandler.hasIncognitoMessages()) {
+      pending.phase = "exit-incognito";
+      pending.resolving = false;
+      this.chatHandler.setHistoryTransitionPhase("exit-incognito");
+      await this._postHistoryTransitionRequired(pending, { activeGenerations: 0, queuedMessages: 0 });
+      return;
+    }
+    await this._commitExitIncognito(pending, "discard");
+  }
+
+  private async _commitEnterIncognito(pending: PendingHistoryTransition): Promise<void> {
+    try {
+      await this._persistHistoryTransition(pending);
+      await pending.webviewView.webview.postMessage({
+        type: "configLoaded",
+        revision: SettingsManager.getRevision(),
+        config: await this._getCurrentConfig(),
+      });
+      await this.chatHandler.enterIncognito(pending.requestId);
+      this.pendingHistoryTransition = undefined;
+      await this._postUpdateResult(pending.webviewView, pending.requestId, pending.operation, "success");
+    } catch (error: unknown) {
+      this.pendingHistoryTransition = undefined;
+      this.chatHandler.cancelHistoryTransition(pending.requestId);
+      await this._postUpdateResult(pending.webviewView, pending.requestId, pending.operation, "error", getErrorMessage(error));
+    }
+  }
+
+  private async _commitExitIncognito(
+    pending: PendingHistoryTransition,
+    decision: "save" | "discard",
+  ): Promise<void> {
+    try {
+      await this._persistHistoryTransition(pending);
+      if (decision === "save") {
+        await this.chatHandler.promoteIncognito(pending.requestId);
+      } else {
+        this.chatHandler.discardIncognito(pending.requestId);
+      }
+      this.pendingHistoryTransition = undefined;
+      await this._postUpdateResult(pending.webviewView, pending.requestId, pending.operation, "success");
+    } catch (error: unknown) {
+      await SettingsManager.save({ historyEnabled: false }).catch(() => undefined);
+      this.pendingHistoryTransition = undefined;
+      this.chatHandler.cancelHistoryTransition(pending.requestId);
+      await this._postUpdateResult(pending.webviewView, pending.requestId, pending.operation, "error", getErrorMessage(error));
+    }
+  }
+
+  private async _persistHistoryTransition(pending: PendingHistoryTransition): Promise<void> {
+    if (pending.operation === "reset") {
+      await SettingsManager.reset();
+      return;
+    }
+    await SettingsManager.save({ ...pending.config, apiKey: undefined });
+  }
+
+  private async _postHistoryTransitionRequired(
+    pending: PendingHistoryTransition,
+    counts: { activeGenerations: number; queuedMessages: number },
+  ): Promise<void> {
+    await pending.webviewView.webview.postMessage({
+      type: "historyTransitionRequired",
+      requestId: pending.requestId,
+      phase: pending.phase,
+      direction: pending.targetEnabled ? "exit-incognito" : "enter-incognito",
+      ...counts,
+    });
   }
 
   private async _deleteApiKey(requestId: string, webviewView: vscode.WebviewView): Promise<void> {

@@ -21,6 +21,7 @@ import { buildAutoContext } from "../FileContext";
 import type { SendMessagePayload } from "../Types";
 import { appendToolAvailabilityContext } from "../ChatHandlerSupport";
 import type { GenerationRunRecord } from "./GenerationRun";
+import type { ProviderUsage, UsagePhase } from "@/shared/usage/Usage";
 
 interface BuildGenerationMessagesOptions {
   payload: SendMessagePayload;
@@ -108,6 +109,7 @@ interface FitGenerationRequestContextOptions {
   toolExecutionModes: ToolExecutionModes;
   signal: AbortSignal;
   checkpoint: (record: GenerationRunRecord) => Promise<void>;
+  onUsage?: (phase: UsagePhase, usage?: ProviderUsage) => void;
 }
 
 export async function fitGenerationRequestContext(
@@ -131,6 +133,8 @@ export async function fitGenerationRequestContext(
     options.provider,
     options.config.model,
     options.signal,
+    undefined,
+    options.onUsage,
   );
   let candidate = options.messages;
   const historicalUnits = options.state.getApiContextUnits()

@@ -37,6 +37,10 @@ export class ConversationWorkspaceReferences {
     }
   }
 
+  clear(): void {
+    this.externalSnapshots.clear();
+  }
+
   async getBinding(conversationId?: string): Promise<WorkspaceBinding> {
     if (conversationId) {
       const selected = this.dependencies.conversationState.getConversation();

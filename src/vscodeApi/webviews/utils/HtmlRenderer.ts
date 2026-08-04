@@ -1,10 +1,9 @@
 import * as vscode from "vscode";
 import { readFileSync } from "fs";
-import { getCodiconFontFace, getNonce } from "./ViewRendererHelpers";
+import { getNonce } from "./ViewRendererHelpers";
 
-export function getHtmlContent(webview: vscode.Webview, webviewDistUri: vscode.Uri, codiconsDistUri: vscode.Uri): string {
+export function getHtmlContent(webview: vscode.Webview, webviewDistUri: vscode.Uri): string {
   const nonce = getNonce();
-  const codiconFontUri = webview.asWebviewUri(vscode.Uri.joinPath(codiconsDistUri, "codicon.ttf"));
   const htmlPath = vscode.Uri.joinPath(webviewDistUri, "index.html");
 
   let html = readFileSync(htmlPath.fsPath, "utf-8");
@@ -13,7 +12,6 @@ export function getHtmlContent(webview: vscode.Webview, webviewDistUri: vscode.U
     const uri = webview.asWebviewUri(vscode.Uri.joinPath(webviewDistUri, cleanPath));
     return `${attr}="${uri}"`;
   });
-  html = html.replace("</head>", `${getCodiconFontFace(codiconFontUri, nonce)}</head>`);
   html = html.replace(/<script/g, `<script nonce="${nonce}"`);
   html = html.replace(/{{CSP_SOURCE}}/g, webview.cspSource);
   html = html.replace(/{{NONCE}}/g, nonce);

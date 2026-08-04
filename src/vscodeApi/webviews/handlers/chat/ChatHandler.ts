@@ -51,6 +51,11 @@ export class ChatHandler {
   private selectedConversationId?: string;
   private webviewView?: vscode.WebviewView;
   private shuttingDown = false;
+  private historyTransition?: {
+    requestId: string;
+    direction: "enter-incognito" | "exit-incognito";
+    phase: "stop-work" | "exit-incognito";
+  };
   private readonly lastReplayedGeneration = new WeakMap<object, string>();
   private readonly dangerTrustStore = new DangerTrustStore();
   private readonly slashCommands: SlashCommandService;
@@ -72,7 +77,10 @@ export class ChatHandler {
     private readonly context: vscode.ExtensionContext,
     private readonly historyManager: HistoryManager,
   ) {
-    this.conversationState = new ConversationState(this.historyManager);
+    this.conversationState = new ConversationState(
+      this.historyManager,
+      SettingsManager.load().historyEnabled ? "persistent" : "incognito",
+    );
     this.toolRegistry = new ToolRegistry();
     for (const tool of BUILT_IN_TOOLS) {
       this.toolRegistry.register(tool);
@@ -121,6 +129,7 @@ export class ChatHandler {
           conversationId: task.conversationId,
           clientRequestId: task.clientRequestId,
         });
+        this.postHistoryTransitionActivity();
       },
       onQueued: (task, position) => {
         this.post({ type: "messageQueued", conversationId: task.conversationId, clientRequestId: task.clientRequestId, position });
@@ -128,6 +137,7 @@ export class ChatHandler {
       },
       onSettled: (_generationId, task) => {
         void this.checkpointQueuedConversation(task.conversationId);
+        this.postHistoryTransitionActivity();
       },
     });
   }
@@ -208,6 +218,9 @@ export class ChatHandler {
   }
 
   loadConversation(conversation: StoredConversation): void {
+    if (!SettingsManager.load().historyEnabled) {
+      return;
+    }
     this.dangerTrustStore.clear();
     this.conversationState.load(conversation);
     this.selectedConversationId = conversation.id;
@@ -359,12 +372,115 @@ export class ChatHandler {
     this.webviewView = webviewView;
   }
 
+  detachWebview(webviewView: vscode.WebviewView): void {
+    if (this.webviewView === webviewView) {
+      this.webviewView = undefined;
+    }
+  }
+
   async initialize(): Promise<void> {
     await recoverGenerationCheckpoints(
       this.checkpointStore,
       this.historyManager,
       this.recoveredDrafts,
     );
+  }
+
+  beginHistoryTransition(
+    requestId: string,
+    direction: "enter-incognito" | "exit-incognito",
+  ): { activeGenerations: number; queuedMessages: number } | undefined {
+    if (this.historyTransition && this.historyTransition.requestId !== requestId) {
+      return undefined;
+    }
+    this.historyTransition = {
+      requestId,
+      direction,
+      phase: "stop-work",
+    };
+    return this.getPendingWorkCounts();
+  }
+
+  setHistoryTransitionPhase(phase: "stop-work" | "exit-incognito"): void {
+    if (this.historyTransition) {
+      this.historyTransition.phase = phase;
+    }
+  }
+
+  cancelHistoryTransition(requestId: string): void {
+    if (this.historyTransition?.requestId === requestId) {
+      this.historyTransition = undefined;
+    }
+  }
+
+  getPendingWorkCounts(): { activeGenerations: number; queuedMessages: number } {
+    return {
+      activeGenerations: this.coordinator.getActiveGenerations().length,
+      queuedMessages: this.coordinator.getQueuedConversationIds()
+        .reduce((total, id) => total + this.coordinator.getQueue(id).length, 0),
+    };
+  }
+
+  hasIncognitoMessages(): boolean {
+    return this.conversationState.isIncognito() && this.conversationState.hasMessages();
+  }
+
+  async stopPendingWork(): Promise<void> {
+    for (const conversationId of this.coordinator.getQueuedConversationIds()) {
+      this.coordinator.clearQueue(conversationId);
+    }
+    const active = [...this.coordinator.getActiveGenerations()];
+    for (const generation of active) {
+      const record = this.runs.get(generation.generationId);
+      if (record) {
+        record.status = "interrupted";
+        record.session.cancel();
+      }
+      this.coordinator.interrupt(generation.generationId);
+    }
+    await Promise.allSettled(active.map((generation) => generation.completion));
+    this.recoveredDrafts.clear();
+  }
+
+  async enterIncognito(requestId: string): Promise<void> {
+    await this.stopPendingWork();
+    await this.checkpointStore.clearAll().catch(() => undefined);
+    this.dangerTrustStore.clear();
+    this.workspaceReferences.clear();
+    this.conversationState.reset("incognito");
+    this.selectedConversationId = undefined;
+    this.post({ type: "clearChat" });
+    this.workspaceReferences.postContext(captureCurrentWorkspaceBinding());
+    this.postGenerationSnapshot();
+    this.cancelHistoryTransition(requestId);
+  }
+
+  async promoteIncognito(requestId: string): Promise<void> {
+    await this.conversationState.promoteIncognito();
+    this.cancelHistoryTransition(requestId);
+  }
+
+  discardIncognito(requestId: string): void {
+    this.conversationState.reset("persistent");
+    this.selectedConversationId = undefined;
+    this.dangerTrustStore.clear();
+    this.workspaceReferences.clear();
+    this.post({ type: "clearChat" });
+    this.workspaceReferences.postContext(captureCurrentWorkspaceBinding());
+    this.postGenerationSnapshot();
+    this.cancelHistoryTransition(requestId);
+  }
+
+  async discardIncognitoForWebviewRecreation(): Promise<void> {
+    if (!SettingsManager.load().historyEnabled) {
+      await this.stopPendingWork();
+      await this.checkpointStore.clearAll().catch(() => undefined);
+      this.conversationState.reset("incognito");
+      this.selectedConversationId = undefined;
+      this.recoveredDrafts.clear();
+      this.dangerTrustStore.clear();
+      this.workspaceReferences.clear();
+    }
   }
 
   async shutdown(): Promise<void> {
@@ -395,6 +511,10 @@ export class ChatHandler {
       this.post({ type: "streamError", error: "The extension is shutting down." });
       return;
     }
+    if (this.historyTransition) {
+      this.post({ type: "streamError", error: "Finish the incognito-mode decision before sending another message." });
+      return;
+    }
     await SettingsManager.waitForPendingWrites();
     const config = SettingsManager.load();
     const webviewView = this.webviewView;
@@ -405,13 +525,17 @@ export class ChatHandler {
       return;
     }
 
-    await restoreRequestedConversation(
-      payload.conversationId,
-      this.conversationState,
-      this.historyManager,
-      (conversation) => this.loadConversation(conversation),
-    );
-    let conversationId = payload.conversationId ?? this.conversationState.getActiveConversationId();
+    if (!this.conversationState.isIncognito()) {
+      await restoreRequestedConversation(
+        payload.conversationId,
+        this.conversationState,
+        this.historyManager,
+        (conversation) => this.loadConversation(conversation),
+      );
+    }
+    let conversationId = !this.conversationState.isIncognito()
+      ? payload.conversationId ?? this.conversationState.getActiveConversationId()
+      : this.conversationState.getActiveConversationId();
     if (!conversationId) {
       conversationId = randomUUID();
       const now = Date.now();
@@ -462,6 +586,9 @@ export class ChatHandler {
   }
 
   private scheduleCheckpoint(record: GenerationRunRecord): void {
+    if (!SettingsManager.load().historyEnabled || record.state.isIncognito()) {
+      return;
+    }
     scheduleGenerationCheckpoint(record, (target, immediate) => this.checkpointRun(target, immediate));
   }
 
@@ -474,6 +601,9 @@ export class ChatHandler {
   }
 
   private async checkpointQueuedConversation(conversationId: string): Promise<void> {
+    if (this.conversationState.isIncognito()) {
+      return;
+    }
     await checkpointQueuedGeneration(conversationId, this.runs, {
       checkpointStore: this.checkpointStore,
       coordinator: this.coordinator,
@@ -483,6 +613,20 @@ export class ChatHandler {
 
   private postGenerationSnapshot(): void {
     this.post(buildGenerationSnapshot(this.runs, this.recoveredDrafts, this.coordinator));
+  }
+
+  private postHistoryTransitionActivity(): void {
+    const transition = this.historyTransition;
+    if (!transition || transition.phase !== "stop-work") {
+      return;
+    }
+    this.post({
+      type: "historyTransitionRequired",
+      requestId: transition.requestId,
+      phase: transition.phase,
+      direction: transition.direction,
+      ...this.getPendingWorkCounts(),
+    });
   }
 
   private replaySelectedGeneration(): void {

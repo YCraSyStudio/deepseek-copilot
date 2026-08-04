@@ -16,6 +16,17 @@ import { PartialStreamError } from "@/core/errors/PartialStreamError";
 import { ToolExecutor, type ToolRegistry } from "@/core/tools";
 import { runWithToolWorkspaceHost } from "@/core/tools/ToolWorkspace";
 import { createDeepSeekProvider } from "@/deepseekApi/ProviderFactory";
+import {
+  aggregateUsageAggregates,
+  checkUsageBudgets,
+  createUsageAggregate,
+  formatUsageSummary,
+  isOfficialDeepSeekEndpoint,
+  recordUsage,
+  type ProviderUsage,
+  type UsageAggregate,
+} from "@/shared/usage/Usage";
+import { logInfo, logWarning } from "@/shared/logging/Logger";
 import type {
   GenerationCheckpointStore,
   HistoryManager,
@@ -59,6 +70,7 @@ interface SaveAssistantResultOptions {
   generationId: string;
   status: "completed" | "interrupted" | "error";
   providerTranscript?: ProviderTranscript;
+  usage?: UsageAggregate;
   webviewView: vscode.WebviewView;
 }
 
@@ -164,7 +176,13 @@ export class GenerationExecutor {
           ? activeConversationState.getConversation()
           : undefined
       );
-    const runState = new ConversationState(historyManager);
+    const selectedMode = activeConversationState.getActiveConversationId() === task.conversationId
+      ? activeConversationState.getPersistenceMode()
+      : undefined;
+    const runState = new ConversationState(
+      historyManager,
+      selectedMode ?? (config.historyEnabled ? "persistent" : "incognito"),
+    );
     if (sourceConversation) {
       runState.load(sourceConversation);
     } else {
@@ -222,6 +240,10 @@ export class GenerationExecutor {
       reasoningEffort: mapReasoningEffort(payload.reasoning),
     };
     const provider = createDeepSeekProvider(providerConfig);
+    const usageAggregate = createUsageAggregate(isOfficialDeepSeekEndpoint(providerConfig.baseUrl), providerConfig.model);
+    const recordPrimaryUsage = (usage: ProviderUsage | undefined): void => {
+      recordUsage(usageAggregate, "primary", usage);
+    };
     const stream = new StreamEventEmitter(webviewView);
     const userMessage = runState.createMessage("user", payload.text, { generationId });
     record.userMessage = userMessage;
@@ -289,6 +311,7 @@ export class GenerationExecutor {
         toolExecutionModes,
         signal,
         checkpoint: (run) => this.dependencies.checkpoint(run, true),
+        onUsage: (phase, usage) => recordUsage(usageAggregate, phase, usage),
       });
 
       if (tools.length > 0) {
@@ -304,6 +327,7 @@ export class GenerationExecutor {
             record.permissionSnapshot = snapshot;
             this.dependencies.scheduleCheckpoint(record);
           },
+          onUsage: (phase, usage) => recordUsage(usageAggregate, phase, usage),
           onTranscriptUpdate: (transcript) => {
             record.providerTranscript = transcript;
             void this.dependencies.checkpoint(record, true);
@@ -329,10 +353,12 @@ export class GenerationExecutor {
             generationId,
             status: signal.aborted || result.partial ? "interrupted" : "completed",
             providerTranscript: result.providerTranscript,
+            usage: usageAggregate,
           });
         }
       } else {
         const result = await sendMessageStreaming({
+          onUsage: recordPrimaryUsage,
           messages,
           payload,
           config,
@@ -348,6 +374,7 @@ export class GenerationExecutor {
           state: runState,
           generationId,
           status: "completed",
+          usage: usageAggregate,
           providerTranscript: createProviderTranscript([{
             role: "assistant",
             content: result.content,
@@ -364,8 +391,13 @@ export class GenerationExecutor {
           state: runState,
           generationId,
           status: "interrupted",
+          usage: usageAggregate,
         });
-        stream.done({ cancelled: true });
+        if (error.reason === "cancelled") {
+          stream.done({ cancelled: true });
+        } else {
+          stream.error(error.message);
+        }
         return;
       }
 
@@ -383,6 +415,30 @@ export class GenerationExecutor {
         });
       }
     } finally {
+      if (usageAggregate.count > 0) {
+        webviewView.webview.postMessage({
+          type: "assistantUsageUpdated",
+          generationId,
+          conversationId: task.conversationId,
+          usage: structuredClone(usageAggregate),
+        });
+        for (const warning of checkUsageBudgets(config.usageBudgets, usageAggregate)) {
+          logWarning(`[usage] ${warning.message}`, undefined, { generationId, conversationId: task.conversationId });
+          webviewView.webview.postMessage({
+            type: "usageWarning",
+            generationId,
+            conversationId: task.conversationId,
+            warning,
+          });
+        }
+        logInfo(`[usage] ${formatUsageSummary(usageAggregate)}`, undefined, { generationId, conversationId: task.conversationId });
+        const conversationUsage = aggregateUsageAggregates(
+          runState.getConversation()?.messages.flatMap((message) => message.usage ? [message.usage] : []) ?? [],
+        );
+        if (conversationUsage) {
+          logInfo(`[usage:conversation] ${formatUsageSummary(conversationUsage)}`, undefined, { conversationId: task.conversationId });
+        }
+      }
       if (
         signal.aborted &&
         !runState.getConversation()?.messages.some(
@@ -431,6 +487,7 @@ export class GenerationExecutor {
     generationId,
     status,
     providerTranscript,
+    usage,
   }: SaveAssistantResultOptions): Promise<void> {
     await state.saveMessages({
       messages: [
@@ -440,6 +497,7 @@ export class GenerationExecutor {
           generationId,
           generationStatus: status,
           providerTranscript: status === "completed" ? providerTranscript : undefined,
+          ...(usage !== undefined ? { usage } : {}),
         }),
       ],
       model,

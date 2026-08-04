@@ -3,7 +3,7 @@ import "./AdvancedSection.css";
 import { MAX_OUTPUT_TOKENS } from "@/adapters";
 import { getApiOrigin, isLoopbackApiBaseUrl } from "@/shared/security/ApiOrigin";
 import type { AdvancedSectionProps } from "../model";
-import { Slider, Toggle } from "@webview/components/settingsView";
+import { Slider } from "@webview/components/settingsView";
 import { t } from "@webview/i18n";
 
 function AdvancedSection({ config, updateConfig, saveOnBlur }: AdvancedSectionProps) {
@@ -130,15 +130,6 @@ function AdvancedSection({ config, updateConfig, saveOnBlur }: AdvancedSectionPr
           </div>
         </div>
 
-        <Toggle
-          label={t("settings.beta.enable")}
-          id="enableBetaFeatures"
-          checked={config.enableBetaFeatures}
-          onToggle={(checked) => {
-            updateConfig("enableBetaFeatures", checked);
-            saveOnBlur("enableBetaFeatures", checked);
-          }}
-        />
       </div>
     </div>
   );

@@ -4,8 +4,17 @@ export const changelog: PageContent = {
   navTitle: "Changelog",
   title: "Changelog",
   description: "Relevant changes and preview status.",
-  lead: "Version 0.1.5 is a packaging hotfix that prevents local diagnostic logs from being included in VSIX and Marketplace artifacts.",
+  lead: "Version 0.1.6 adds incognito privacy, production reliability gates, and provider-reported token, cache, and cost observability.",
   sections: [
+    {
+      title: "0.1.6 privacy, reliability, and usage observability",
+      items: [
+        "Added Incognito mode for ephemeral chats: prompts, references, checkpoints, and usage remain in memory until the user explicitly saves or discards the conversation.",
+        "Added provider-reported usage per request phase, generation, and conversation, including nested reasoning tokens and separate cache-hit/cache-miss counts. Missing values remain unavailable rather than becoming zero.",
+        "Added current official DeepSeek V4 Flash/Pro cost estimates with a persisted catalog version, local usage breakdowns, redacted diagnostics, and warning budgets for auxiliary calls, cache-miss input, output, and generation cost.",
+        "Hardened tool-call integrity, unsaved buffers, concurrent storage, partial streams, process shutdown, webview protocol negotiation, provider validation, diagnostics, CI, and packaged-VSIX release gates.",
+      ],
+    },
     {
       title: "0.1.5 packaging hotfix",
       items: [

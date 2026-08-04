@@ -2,6 +2,7 @@ import type { TranslationCatalog } from "../Types";
 
 export const history = {
   history: {
+    incognitoActive: "El historial no está disponible mientras el modo incógnito está activo. Las conversaciones existentes siguen guardadas y reaparecerán al salir.",
     historyControls: "Controles del historial",
     searchLabel: "Buscar en el historial",
     searchPlaceholder: "Buscar en el historial…",

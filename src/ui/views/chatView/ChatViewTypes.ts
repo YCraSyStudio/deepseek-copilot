@@ -13,6 +13,8 @@ export type InitialConfig = {
   reasoning?: string;
   model?: string;
   permissionMode?: PermissionMode;
+  historyEnabled?: boolean;
+  usageBreakdown?: boolean;
 };
 
 /** User action for a tool call. */
@@ -69,4 +71,5 @@ export type MessagesSectionProps = {
   onProcessingChange?: (isProcessing: boolean) => void;
   onFocusInput?: () => void;
   onGenerationCancelled?: () => void;
+  usageBreakdown?: boolean;
 };

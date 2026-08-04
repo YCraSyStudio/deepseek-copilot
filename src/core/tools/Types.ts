@@ -33,6 +33,7 @@ export interface ExecutionResult {
   toolName: string;
   result: string;
   isError: boolean;
+  status: "completed" | "error" | "confirmation_required" | "rejected" | "cancelled";
 }
 
 /** Special handler response requiring user confirmation. */

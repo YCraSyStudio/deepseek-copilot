@@ -49,6 +49,7 @@ export function groupAssistantTimeline(timeline: AssistantTimelineEvent[]): Assi
 export function summarizeActivity(
   events: ActivityEvent[],
   toolCallGroups: ToolCallGroup[],
+  missingToolStatus: ToolCallStatus = "pending",
 ): ActivitySummary {
   const statuses: ToolCallStatus[] = [];
   let stepCount = 0;
@@ -62,7 +63,7 @@ export function summarizeActivity(
     const group = toolCallGroups.find((candidate) => candidate.round === event.round);
     const calls = new Map(group?.toolCalls.map((toolCall) => [toolCall.toolCallId, toolCall]));
     for (const toolCallId of event.toolCallIds) {
-      statuses.push(calls.get(toolCallId)?.status ?? "pending");
+      statuses.push(calls.get(toolCallId)?.status ?? missingToolStatus);
     }
   }
 

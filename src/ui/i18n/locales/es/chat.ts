@@ -2,6 +2,7 @@ import type { TranslationCatalog } from "../Types";
 
 export const chat = {
   chat: {
+    incognitoActive: "El modo incógnito está activo. Este chat se perderá al recargar la extensión.",
     applyingPermissions: "Aplicando permisos...",
     apiKeyMissing: "Falta la API key",
     askAnythingAboutYourCode: "Pregunta cualquier cosa sobre tu código...",
@@ -37,6 +38,20 @@ export const chat = {
     interruptAndGuide: "Interrumpir y guiar",
     recoveredDrafts: "Borradores recuperados tras cerrar VS Code:",
     restoreDraft: "Restaurar",
-    attachContext: "Adjuntar archivos de contexto"
+    attachContext: "Adjuntar archivos de contexto",
+    usage: {
+      title: "Uso",
+      conversation: "Uso de la conversación",
+      requests: "Peticiones",
+      reported: "Informadas",
+      input: "Entrada",
+      output: "Salida",
+      reasoning: "Razonamiento",
+      cacheHit: "Caché acertada",
+      cacheMiss: "Caché fallida",
+      total: "Total",
+      cost: "Coste",
+      unavailable: "No disponible"
+    }
   }
 } satisfies TranslationCatalog;
