@@ -148,7 +148,7 @@
     "lint": "eslint src",
     "test": "npm run test:unit && npm run test:integration",
     "test:unit": "node scripts/run-unit-tests.mjs",
-    "prepare:integration": "npm run build && node ./node_modules/esbuild/bin/esbuild src/test/integration/Extension.test.ts src/test/integration/PackagedSmoke.test.ts src/test/integration/PackagedRunner.ts --bundle --platform=node --format=cjs --external:vscode --external:mocha --outdir=out/test",
+    "prepare:integration": "npm run build && node scripts/build-integration-tests.mjs",
     "test:integration": "npm run prepare:integration && vscode-test",
     "package:vsix": "node scripts/prepare-artifacts.mjs && vsce package --pre-release --no-dependencies --out artifacts/yrs-dpsk-copilot.vsix",
     "verify:vsix": "node scripts/assert-vsix-contents.mjs artifacts/yrs-dpsk-copilot.vsix"

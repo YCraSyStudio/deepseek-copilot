@@ -1,4 +1,5 @@
 import * as assert from "node:assert";
+import { join, resolve } from "node:path";
 import type { AppConfig, ChatCompletionResponse, ToolCall } from "@/adapters";
 import { setToolWorkspaceHost } from "@/core/tools/ToolWorkspace";
 import {
@@ -182,6 +183,8 @@ suite("DeepSeek command safety reviewer", () => {
 
   test("reviews the normalized command with its resolved cwd instead of stale leading cd syntax", async () => {
     let reviewPayload: Record<string, unknown> | undefined;
+    const workspaceRoot = resolve("workspace-fixture");
+    const frontendCwd = join(workspaceRoot, "frontend");
     const review = await reviewCommandSafety({
       toolCall: createToolCall("cd frontend && npm install"),
       localAnalysis: {
@@ -189,15 +192,15 @@ suite("DeepSeek command safety reviewer", () => {
         dangerLevel: "caution",
         warningMessage: "Package manager command",
         command: "npm install",
-        cwd: "C:\\workspace\\frontend",
-        workspaceRoot: "C:\\workspace",
-        shell: "cmd.exe",
+        cwd: frontendCwd,
+        workspaceRoot,
+        shell: process.platform === "win32" ? "cmd.exe" : "bash",
         reasonCode: "package-manager",
         workspaceContained: true,
       },
       providerConfig: createProviderConfig(),
       originalUserRequest: "Create an Astro frontend and install its dependencies.",
-      workspaceRoot: "C:\\workspace",
+      workspaceRoot,
       complete: async (_signal, request) => {
         const userMessage = request.messages.find((message) => message.role === "user");
         reviewPayload = JSON.parse(userMessage?.content || "{}") as Record<string, unknown>;
@@ -208,7 +211,7 @@ suite("DeepSeek command safety reviewer", () => {
     });
 
     assert.strictEqual(reviewPayload?.command, "npm install");
-    assert.strictEqual(reviewPayload?.cwd, "C:\\workspace\\frontend");
+    assert.strictEqual(reviewPayload?.cwd, frontendCwd);
     assert.deepStrictEqual(reviewPayload?.scopeFacts, {
       cwdInsideWorkspace: true,
       cwdRelativeToWorkspace: "frontend",
