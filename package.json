@@ -16,7 +16,7 @@
   },
   "icon": "src/assets/DeepSeekIcon.png",
   "engines": {
-    "vscode": "^1.125.0"
+    "vscode": "^1.131.0"
   },
   "categories": [
     "AI",
@@ -47,6 +47,30 @@
     }
   },
   "contributes": {
+    "configuration": {
+      "title": "Yar's DeepSeek Copilot",
+      "properties": {
+        "yrs-dpsk-copilot.webSearch.engine": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "duckduckgo",
+            "bing",
+            "google",
+            "yahoo"
+          ],
+          "enumDescriptions": [
+            "Prefer VS Code's integrated-browser search engine, then fall back automatically.",
+            "Prefer DuckDuckGo, then fall back automatically.",
+            "Prefer Bing, then fall back automatically.",
+            "Prefer Google, then fall back automatically.",
+            "Prefer Yahoo, then fall back automatically."
+          ],
+          "default": "auto",
+          "description": "Preferred search engine for integrated-browser web search. If it is unavailable or blocked, the extension tries another engine."
+        }
+      }
+    },
     "commands": [
       {
         "command": "yrs-dpsk-copilot.openChat",

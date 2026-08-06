@@ -268,7 +268,10 @@ export class ToolCallSession {
     const snapshot = this.activePermissionSnapshot ?? options.permissionSnapshot;
     const manualToolCalls = snapshot.permissionMode === "auto-approve" || snapshot.permissionMode === "full-access"
       ? []
-      : toolCalls.filter((toolCall) => getToolModeForPermissionSnapshot(snapshot, toolCall.function.name) === "enabled");
+      : toolCalls.filter((toolCall) =>
+          getToolModeForPermissionSnapshot(snapshot, toolCall.function.name) === "enabled" &&
+          this.toolExecutor.getMetadata(toolCall.function.name)?.approvalOwner !== "vscode"
+        );
     if (manualToolCalls.length === 0) {
       return;
     }

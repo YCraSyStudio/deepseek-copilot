@@ -278,13 +278,17 @@ export class GenerationExecutor {
         thinkingMode: true,
         reasoningEffort: providerConfig.reasoningEffort ?? "high",
       };
-      const workspaceTools = workspaceSnapshot.binding.capabilities.files
-        ? allTools.filter(
-          (tool) =>
-            tool.function.name !== "run_terminal_command" ||
-            workspaceSnapshot.binding.capabilities.terminal,
-        )
-        : [];
+      const workspaceTools = allTools.filter((tool) => {
+        const registered = toolRegistry.get(tool.function.name);
+        if (registered?.metadata.scope === "global") {
+          return true;
+        }
+        if (!workspaceSnapshot.binding.capabilities.files) {
+          return false;
+        }
+        return tool.function.name !== "run_terminal_command" ||
+          workspaceSnapshot.binding.capabilities.terminal;
+      });
       const tools = workspaceTools.filter(
         (tool) => toolExecutionModes[tool.function.name] !== "disabled",
       );

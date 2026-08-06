@@ -40,6 +40,11 @@ import {
   getErrorMessage,
   getWorkspaceStatusError,
 } from "./ChatHandlerSupport";
+import {
+  createIntegratedBrowserTools,
+  createVsCodeBrowserToolHost,
+  IntegratedBrowserBridge,
+} from "@/vscodeApi/tools/browser";
 
 export class ChatHandler {
   private readonly conversationState: ConversationState;
@@ -83,6 +88,10 @@ export class ChatHandler {
     );
     this.toolRegistry = new ToolRegistry();
     for (const tool of BUILT_IN_TOOLS) {
+      this.toolRegistry.register(tool);
+    }
+    const browserBridge = new IntegratedBrowserBridge(createVsCodeBrowserToolHost());
+    for (const tool of createIntegratedBrowserTools(browserBridge)) {
       this.toolRegistry.register(tool);
     }
     this.workspaceReferences = new ConversationWorkspaceReferences({

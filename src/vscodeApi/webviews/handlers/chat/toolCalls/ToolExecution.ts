@@ -39,6 +39,12 @@ export async function executeToolCall(toolCall: ToolCall, ctx: ToolExecutionCont
     return TOOL_DISABLED;
   }
 
+  if (mode === "enabled" && isApprovalOwnedByVsCode(toolCall, ctx)) {
+    const result = await ctx.toolExecutor.execute(toolCall, { signal: ctx.signal });
+    postToolCallResult(ctx, result);
+    return result.result;
+  }
+
   if (ctx.fullAccessMode) {
     const result = await ctx.toolExecutor.executeForced(toolCall, { signal: ctx.signal });
     postToolCallResult(ctx, result);
@@ -178,7 +184,9 @@ function getPathArgument(toolCall: ToolCall): string | undefined {
 }
 
 function recordInitialToolCall(toolCall: ToolCall, ctx: ToolExecutionContext): void {
-  const requiresConfirmation = !ctx.autoApproveMode && !ctx.fullAccessMode && ctx.getToolMode(toolCall.function.name) === "enabled";
+  const requiresConfirmation = !ctx.autoApproveMode && !ctx.fullAccessMode &&
+    ctx.getToolMode(toolCall.function.name) === "enabled" &&
+    !isApprovalOwnedByVsCode(toolCall, ctx);
   ctx.executedToolCalls.set(toolCall.id, {
     toolCallId: toolCall.id,
     toolName: toolCall.function.name,
@@ -187,6 +195,11 @@ function recordInitialToolCall(toolCall: ToolCall, ctx: ToolExecutionContext): v
     requiresConfirmation,
     status: requiresConfirmation ? "awaiting_confirmation" : "running",
   });
+}
+
+function isApprovalOwnedByVsCode(toolCall: ToolCall, ctx: ToolExecutionContext): boolean {
+  return typeof ctx.toolExecutor.getMetadata === "function" &&
+    ctx.toolExecutor.getMetadata(toolCall.function.name)?.approvalOwner === "vscode";
 }
 
 async function executeManualToolCall(toolCall: ToolCall, ctx: ToolExecutionContext): Promise<string> {

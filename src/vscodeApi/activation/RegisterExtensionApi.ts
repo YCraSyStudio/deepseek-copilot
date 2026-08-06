@@ -4,6 +4,7 @@ import { registerChatCommands } from "@/vscodeApi/commands/ChatCommands";
 import { WebviewProvider } from "@/vscodeApi/webviews/WebviewProvider";
 import { clearDiagnostics, createSanitizedSupportReport, showDiagnostics } from "@/shared/logging/Logger";
 import { SettingsManager } from "@/vscodeApi/storage";
+import { getIntegratedBrowserDiagnostics } from "@/vscodeApi/tools/browser";
 
 export function registerExtensionApi(context: vscode.ExtensionContext, provider: WebviewProvider): void {
   context.subscriptions.push(
@@ -42,6 +43,7 @@ export function registerExtensionApi(context: vscode.ExtensionContext, provider:
             historyEnabled: config.historyEnabled,
             includeHomeAgents: config.includeHomeAgents,
           },
+          integratedBrowser: getIntegratedBrowserDiagnostics(),
         });
         await vscode.env.clipboard.writeText(report);
         await vscode.window.showInformationMessage("Sanitized diagnostics copied.");

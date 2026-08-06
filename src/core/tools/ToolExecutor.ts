@@ -13,11 +13,16 @@ const workspaceMutationQueues = new Map<string, Promise<void>>();
 export class ToolExecutor {
   constructor(private registry: ToolRegistry) {}
 
+  /** Read-only access to execution metadata used by the permission coordinator. */
+  getMetadata(toolName: string): import("./Types").ToolMetadata | undefined {
+    return this.registry.get(toolName)?.metadata;
+  }
+
   /**
    * Validate and execute a tool call.
    */
   async execute(toolCall: ToolCall, context: ToolHandlerContext = {}): Promise<ExecutionResult> {
-    if (!READ_ONLY_TOOLS.has(toolCall.function.name)) {
+    if (this.shouldSerializeWorkspaceMutation(toolCall.function.name)) {
       return runWorkspaceMutation(() => this.executeInternal(toolCall, context));
     }
     return this.executeInternal(toolCall, context);
@@ -98,10 +103,14 @@ export class ToolExecutor {
    * Execute a tool call after explicit user confirmation.
    */
   async executeForced(toolCall: ToolCall, context: ToolHandlerContext = {}): Promise<ExecutionResult> {
-    if (!READ_ONLY_TOOLS.has(toolCall.function.name)) {
+    if (this.shouldSerializeWorkspaceMutation(toolCall.function.name)) {
       return runWorkspaceMutation(() => this.executeForcedInternal(toolCall, context));
     }
     return this.executeForcedInternal(toolCall, context);
+  }
+
+  private shouldSerializeWorkspaceMutation(toolName: string): boolean {
+    return this.registry.get(toolName)?.metadata.scope !== "global" && !READ_ONLY_TOOLS.has(toolName);
   }
 
   private async executeForcedInternal(toolCall: ToolCall, context: ToolHandlerContext): Promise<ExecutionResult> {

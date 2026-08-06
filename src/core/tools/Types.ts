@@ -8,6 +8,10 @@ export interface ToolMetadata {
   dangerLevel: DangerLevel;
   warningMessage?: string;
   requiresConfirmation: boolean;
+  /** Whether the tool needs a workspace binding or can run globally. */
+  scope?: "workspace" | "global";
+  /** Component responsible for presenting the user confirmation. */
+  approvalOwner?: "extension" | "vscode";
 }
 
 /** Registered tool definition, handler, and metadata. */

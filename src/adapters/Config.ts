@@ -17,7 +17,7 @@ export function resolveToolExecutionMode(
     return "enabled";
   }
   if (permissionMode === "read-only") {
-    return ["read_file", "list_directory", "search_content"].includes(toolName)
+    return ["read_file", "list_directory", "search_content", "read_web_page"].includes(toolName)
       ? "auto_approve"
       : "enabled";
   }
