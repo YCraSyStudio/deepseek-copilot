@@ -61,25 +61,40 @@
             "yahoo"
           ],
           "enumDescriptions": [
-            "Prefer VS Code's integrated-browser search engine, then fall back automatically.",
+            "Choose a recognized provider automatically and fall back when necessary.",
             "Prefer DuckDuckGo, then fall back automatically.",
             "Prefer Bing, then fall back automatically.",
             "Prefer Google, then fall back automatically.",
             "Prefer Yahoo, then fall back automatically."
           ],
           "default": "auto",
-          "description": "Preferred search engine for integrated-browser web search. If it is unavailable or blocked, the extension tries another engine."
+          "description": "Preferred search engine for isolated Chromium web search. If unavailable or blocked, the extension tries another engine."
         },
         "yrs-dpsk-copilot.webSearch.locale": {
           "type": "string",
           "default": "auto",
           "pattern": "^(?:auto|[A-Za-z]{2,3}(?:-[A-Za-z]{4})?(?:-[A-Za-z]{2}|-[0-9]{3})?)$",
           "patternErrorMessage": "Use auto or a BCP-47 locale such as es-ES, es-MX, or en-US.",
-          "description": "Locale used for integrated-browser searches. Auto prefers the operating-system locale before the VS Code display language."
+          "description": "Locale used for isolated Chromium searches. Auto prefers the operating-system locale before the VS Code display language."
         }
       }
     },
     "commands": [
+      {
+        "command": "yrs-dpsk-copilot.installChromiumHeadless",
+        "title": "Yar's DeepSeek Copilot: Install Chromium Headless",
+        "category": "Yar's DeepSeek Copilot"
+      },
+      {
+        "command": "yrs-dpsk-copilot.removeChromiumHeadless",
+        "title": "Yar's DeepSeek Copilot: Remove Chromium Headless",
+        "category": "Yar's DeepSeek Copilot"
+      },
+      {
+        "command": "yrs-dpsk-copilot.updateChromiumHeadless",
+        "title": "Yar's DeepSeek Copilot: Update Chromium Headless",
+        "category": "Yar's DeepSeek Copilot"
+      },
       {
         "command": "yrs-dpsk-copilot.openChat",
         "title": "Yar's DeepSeek Copilot: Open Chat",
@@ -186,13 +201,16 @@
     "verify:vsix": "node scripts/assert-vsix-contents.mjs artifacts/yrs-dpsk-copilot.vsix"
   },
   "dependencies": {
+    "@puppeteer/browsers": "^3.1.0",
     "@vscode/codicons": "^0.0.45",
+    "puppeteer-core": "^25.5.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-markdown": "^10.1.0",
     "refractor": "^5.0.0",
     "rehype-sanitize": "^6.0.0",
-    "remark-gfm": "^4.0.1"
+    "remark-gfm": "^4.0.1",
+    "tldts": "^7.4.10"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",

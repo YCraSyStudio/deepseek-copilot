@@ -6,7 +6,7 @@ import { SettingsManager, SecretsManager } from "@/vscodeApi/storage";
 import { WebviewProvider } from "@/vscodeApi/webviews/WebviewProvider";
 import { setActiveProvider } from "./ExtensionRuntime";
 import { initializeLogger, logInfo } from "@/shared/logging/Logger";
-import { getIntegratedBrowserDiagnostics } from "@/vscodeApi/tools/browser";
+import { getWebRuntimeDiagnostics } from "@/vscodeApi/tools/browser";
 
 type LegacySettingKey = Exclude<keyof AppConfig, "apiKey" | "userId" | "includeHomeAgents" | "interfaceLanguage"> | "responseFormat";
 
@@ -33,7 +33,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // Usage summaries are the only info-level diagnostic events. They are
   // redacted aggregates and must be retained for release comparisons.
   context.subscriptions.push(initializeLogger(diagnostics, "info"));
-  logInfo("[IntegratedBrowser] Capability snapshot", getIntegratedBrowserDiagnostics());
+  logInfo("[HeadlessWeb] Runtime snapshot", getWebRuntimeDiagnostics());
   await initializeUserSettings();
   if (SettingsManager.getPersistenceError()) {
     await vscode.window.showWarningMessage(

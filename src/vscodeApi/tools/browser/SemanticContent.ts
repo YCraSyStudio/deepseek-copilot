@@ -1,4 +1,4 @@
-import { validatePublicHttpsUrl } from "./Validation";
+import { validatePublicWebUrl } from "./NetworkPolicy";
 
 export const MAX_DOCUMENT_CHARS = 64 * 1024;
 export const MAX_WEB_RESPONSE_CHARS = 8 * 1024;
@@ -20,7 +20,7 @@ export function extractSemanticDocument(
 ): NormalizedWebDocument {
   const title = cleanText(/(?:^|\n)Page Title:\s*([^\n]+)/i.exec(snapshot)?.[1] ?? "Web page").slice(0, 300);
   const reportedUrl = /(?:^|\n)(?:Page )?URL:\s*(https:\/\/[^\s\n]+)/i.exec(snapshot)?.[1];
-  const url = validatePublicHttpsUrl(reportedUrl ?? fallbackUrl);
+  const url = validatePublicWebUrl(reportedUrl ?? fallbackUrl).toString();
   const sourceLines = snapshot.split(/\r?\n/);
   const lines = selectMainContent(sourceLines);
   const output: string[] = [];
@@ -198,7 +198,7 @@ function collectDescendantUrl(lines: string[], index: number, indent: number, ba
     if (line.trim() && leadingWhitespace(line) <= indent) {break;}
     const raw = /(?:\/url|url|href):\s*["']?([^"'\s]+)["']?/i.exec(line)?.[1];
     if (!raw) {continue;}
-    try {return validatePublicHttpsUrl(new URL(raw, baseUrl).toString());} catch {return undefined;}
+    try {return validatePublicWebUrl(new URL(raw, baseUrl).toString()).toString();} catch {return undefined;}
   }
   return undefined;
 }

@@ -17,7 +17,8 @@ The extension is DeepSeek-only by design.
 - Type `./` in the chat input to autocomplete workspace paths.
 - Explorer and editor commands for attaching files and exact selections; external files are added only as bounded read-only snapshots.
 - Tools for reading, listing, searching, creating, editing, patching, and running terminal commands.
-- Current web search through VS Code's integrated browser, with localized multi-provider fallback, compact semantic page reads, and no separate search API or MCP cost.
+- Current web search through an isolated headless Chromium runtime with an HTTPS-only SSRF-resistant proxy, localized provider fallback, compact semantic reads, and no native VS Code browser confirmations.
+- Reuses compatible local Edge or Chrome installations and can install a pinned, extension-managed Chromium Headless Shell when neither is available.
 - Structured, non-interactive terminal execution with timeout, bounded output, and process-tree cancellation.
 - Permission selector in Chat and per-tool modes in Settings.
 - Automatic bounded context from the active editor and staged or unstaged Git changes.
@@ -57,6 +58,9 @@ https://platform.deepseek.com/api_keys
 - `Yar's DeepSeek Copilot: Add File to Chat`
 - `Yar's DeepSeek Copilot: Add Selection to Chat`
 - `Yar's DeepSeek Copilot: Review Changes`
+- `Yar's DeepSeek Copilot: Install Chromium Headless`
+- `Yar's DeepSeek Copilot: Update Chromium Headless`
+- `Yar's DeepSeek Copilot: Remove Chromium Headless`
 
 ## Extension Settings
 
@@ -70,7 +74,9 @@ This includes the model, reasoning options, limits, permission mode, per-tool ex
 
 The API key is never written to this file or returned as webview configuration. Credentials remain in VS Code Secret Storage, are isolated by API origin, and appear in Settings only as a masked placeholder. Changing to a different API origin requires explicit confirmation and never copies the existing credential.
 
-Integrated-browser search uses two VS Code settings: `yrs-dpsk-copilot.webSearch.engine` selects `auto`, DuckDuckGo, Bing, Google, or Yahoo; `yrs-dpsk-copilot.webSearch.locale` accepts `auto` or a BCP-47 locale such as `es-ES`. Automatic locale selection prefers the operating-system locale before the VS Code display language. VS Code may request native confirmation when the first search page is opened. The extension then reuses that authorized page through typing, result clicks, and browser history, so normal subsequent searches do not reopen URLs. `workbench.browser.enableChatTools` must not be disabled by policy.
+Web search uses an extension-owned headless runtime, so it never invokes VS Code's native browser tools or their confirmation dialogs. `yrs-dpsk-copilot.webSearch.engine` selects `auto`, DuckDuckGo, Bing, Google, or Yahoo; `yrs-dpsk-copilot.webSearch.locale` accepts `auto` or a BCP-47 locale such as `es-ES`. The runtime prefers a compatible local Edge or Chrome installation. If neither is available, it offers a pinned Chromium Headless Shell download in extension global storage; the browser is not included in the VSIX.
+
+Every web navigation uses a fresh temporary profile and a loopback-only HTTPS CONNECT proxy. The proxy rejects private, local, literal-IP, alternate-port, mixed-DNS, rebinding, third-party and non-HTTPS destinations and enforces request, transfer, redirect, concurrency and timeout limits. Search returns at most five registered organic results; `read_web` accepts only one of those results or an HTTPS URL written literally in the current user request. Extracted text is bounded, active content is removed, and web content is marked as untrusted evidence rather than instructions.
 
 ## Tools and Safety
 
@@ -80,7 +86,7 @@ Yar's DeepSeek Copilot can execute workspace tools when enabled. Tool access is 
 - `read-only`: read, list, and search execute automatically; writing and terminal tools remain available but require confirmation.
 - `custom`: configure every tool as disabled, confirmation required, or auto approved.
 - `auto-approve`: all tools, including workspace-contained terminal commands, execute automatically. External filesystem access and commands that cannot be proven workspace-contained still require confirmation.
-- `full-access`: unrestricted unattended access. Tools and terminal commands may operate anywhere on the computer without confirmation.
+- `full-access`: unrestricted unattended access before web content is consumed. Post-web external, network, credential, publication, remote, destructive, or ambiguous effects still fail closed to manual confirmation.
 
 Tool execution is then controlled per tool:
 
@@ -89,6 +95,8 @@ Tool execution is then controlled per tool:
 - `auto_approve`: execute without confirmation only when the operation is not considered dangerous.
 
 Changing an individual tool while a preset is selected copies that preset into `custom` automatically. Terminal commands are not OS-sandboxed. In `auto-approve`, a conservative local analyzer handles commands it understands; uncertain workspace-contained commands may receive a separate DeepSeek security review using the initial user request and bounded, non-sensitive context from explicitly named workspace files. Automatic approval or replanning requires at least `medium_high` confidence. Credentials, elevation, external or remote mutation, broad process termination, publishing, deployment, and destructive operations are never delegated to that reviewer. Unresolved cases ask the user. Enabling `full-access` shows a global danger warning because it removes workspace containment and confirmation prompts. VS Code Workspace Trust and cancellation remain enforced. Legacy `chat` and transitional `enabled` settings migrate to `default`; legacy `workspace` migrates to `full-access`.
+
+After either web tool succeeds, that generation is marked web-tainted. Reads continue automatically under the selected mode, but file mutations and patches must first pass their normal local preview and workspace-boundary checks, then a content-free automatic review. The reviewer receives the current trusted user request, operation type and path, but never raw web text or proposed file content. Commands with network or external effects are never auto-approved after web access.
 
 Tool calls have one visible lifecycle: awaiting confirmation, running, then completed, rejected, cancelled, or error. Calls within a round execute sequentially and identical repeated calls are skipped. The configured tool-round value is a safety-checkpoint interval: auto-approve and full-access ask DeepSeek to reassess whether to continue, request instructions, or stop; other modes ask the user whether to continue.
 

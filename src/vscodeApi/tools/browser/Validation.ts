@@ -1,6 +1,4 @@
 const MAX_QUERY_CHARS = 500;
-const MAX_URL_CHARS = 4096;
-const MAX_ID_CHARS = 512;
 const MAX_FOCUS_CHARS = 500;
 
 export function validateSearchQuery(value: unknown): string {
@@ -10,54 +8,11 @@ export function validateSearchQuery(value: unknown): string {
   return value.trim();
 }
 
-export function validatePublicHttpsUrl(value: unknown): string {
-  if (typeof value !== "string" || value.length === 0 || value.length > MAX_URL_CHARS) {
-    throw new Error(`url must contain between 1 and ${MAX_URL_CHARS} characters`);
-  }
-  let url: URL;
-  try {
-    url = new URL(value);
-  } catch {
-    throw new Error("url must be an absolute HTTPS URL");
-  }
-  if (url.protocol !== "https:") {
-    throw new Error("Only HTTPS URLs are allowed");
-  }
-  if (url.username || url.password) {
-    throw new Error("URLs containing credentials are not allowed");
-  }
-  if (isPrivateHostname(url.hostname)) {
-    throw new Error("Local, private, and link-local addresses are not allowed");
-  }
-  return url.toString();
-}
-
 export function validateOpaqueId(value: unknown, name: string): string {
   if (typeof value !== "string" || !/^[A-Za-z0-9_-]{1,512}$/.test(value)) {
     throw new Error(`${name} must be an identifier returned by a previous web tool`);
   }
   return value;
-}
-
-export function validatePageId(value: unknown): string {
-  if (typeof value !== "string" || value.trim().length === 0 || value.length > MAX_ID_CHARS) {
-    throw new Error(`page_id must contain between 1 and ${MAX_ID_CHARS} characters`);
-  }
-  return value.trim();
-}
-
-export function validateElementRef(value: unknown): string {
-  if (typeof value !== "string" || !/^[A-Za-z0-9_-]{1,256}$/.test(value)) {
-    throw new Error("ref must be a browser element reference returned by the integrated browser");
-  }
-  return value;
-}
-
-export function validateElementDescription(value: unknown): string {
-  if (typeof value !== "string" || value.trim().length === 0 || value.trim().length > 240) {
-    throw new Error("element must contain between 1 and 240 characters");
-  }
-  return value.trim();
 }
 
 export function validateOptionalFocus(value: unknown): string | undefined {
@@ -69,9 +24,9 @@ export function validateOptionalFocus(value: unknown): string | undefined {
 }
 
 export function validateResultLimit(value: unknown): number {
-  if (value === undefined) {return 6;}
-  if (!Number.isSafeInteger(value) || (value as number) < 3 || (value as number) > 10) {
-    throw new Error("max_results must be an integer between 3 and 10");
+  if (value === undefined) {return 5;}
+  if (!Number.isSafeInteger(value) || (value as number) < 1 || (value as number) > 5) {
+    throw new Error("max_results must be an integer between 1 and 5");
   }
   return value as number;
 }

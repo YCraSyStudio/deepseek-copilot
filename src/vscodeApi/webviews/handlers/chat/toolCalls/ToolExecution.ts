@@ -3,6 +3,7 @@ import { ToolExecutor } from "@/core/tools/ToolExecutor";
 import { getToolWorkspaceHost } from "@/core/tools/ToolWorkspace";
 import { isAutomaticConfidence } from "@/deepseekApi/security/commandReview";
 import type { ExecutionResult } from "@/core/tools/Types";
+import type { ToolHandlerContext } from "@/core/tools/Types";
 import type { HandleExecutionResultOptions, StoredExecution, ToolExecutionContext } from "./Types";
 
 const DANGER_CANCELLED = "Tool call cancelled by user (dangerous operation)";
@@ -40,13 +41,17 @@ export async function executeToolCall(toolCall: ToolCall, ctx: ToolExecutionCont
   }
 
   if (mode === "enabled" && isApprovalOwnedByVsCode(toolCall, ctx)) {
-    const result = await ctx.toolExecutor.execute(toolCall, { signal: ctx.signal });
+    const result = await ctx.toolExecutor.execute(toolCall, handlerContext(ctx));
     postToolCallResult(ctx, result);
     return result.result;
   }
 
+  if ((ctx.fullAccessMode || ctx.autoApproveMode || mode === "auto_approve") && ctx.isWebTainted?.() && MUTATING_TOOLS.has(toolCall.function.name)) {
+    return executeWebTaintedMutation(toolCall, ctx);
+  }
+
   if (ctx.fullAccessMode) {
-    const result = await ctx.toolExecutor.executeForced(toolCall, { signal: ctx.signal });
+    const result = await ctx.toolExecutor.executeForced(toolCall, handlerContext(ctx));
     postToolCallResult(ctx, result);
     return result.result;
   }
@@ -75,13 +80,13 @@ export async function executeToolCall(toolCall: ToolCall, ctx: ToolExecutionCont
   }
 
   if ((ctx.autoApproveMode || mode === "auto_approve") && toolCall.function.name !== "run_terminal_command") {
-    const result = await ctx.toolExecutor.executeForced(toolCall, { signal: ctx.signal });
+    const result = await ctx.toolExecutor.executeForced(toolCall, handlerContext(ctx));
     postToolCallResult(ctx, result);
     return result.result;
   }
 
   if (ctx.autoApproveMode || mode === "auto_approve") {
-    const result = await ctx.toolExecutor.execute(toolCall, { signal: ctx.signal });
+    const result = await ctx.toolExecutor.execute(toolCall, handlerContext(ctx));
     const confirmation = ToolExecutor.isConfirmationRequired(result.result);
     if (confirmation) {
       if (ctx.isDangerTrusted(toolCall, confirmation)) {
@@ -138,7 +143,7 @@ export async function executeToolCall(toolCall: ToolCall, ctx: ToolExecutionCont
     return executeManualToolCall(toolCall, ctx);
   }
 
-  const result = await ctx.toolExecutor.execute(toolCall, { signal: ctx.signal });
+  const result = await ctx.toolExecutor.execute(toolCall, handlerContext(ctx));
   return handleExecutionResult({
     toolCall,
     result,
@@ -216,7 +221,7 @@ async function executeManualToolCall(toolCall: ToolCall, ctx: ToolExecutionConte
     return USER_REJECTED;
   }
 
-  const result = await ctx.toolExecutor.execute(toolCall, { signal: ctx.signal });
+  const result = await ctx.toolExecutor.execute(toolCall, handlerContext(ctx));
   return handleExecutionResult({
     toolCall,
     result,
@@ -333,7 +338,7 @@ function clearFileDiffPreview(): void {
 
 async function executeForcedAfterTrust(toolCall: ToolCall, ctx: ToolExecutionContext, confirmation?: import("@/core/tools/Types").ConfirmationRequiredResult): Promise<string> {
   const forcedToolCall = confirmation?.beforeHash ? withExpectedBeforeHash(toolCall, confirmation.beforeHash) : toolCall;
-  const forcedResult = await ctx.toolExecutor.executeForced(forcedToolCall, { signal: ctx.signal });
+  const forcedResult = await ctx.toolExecutor.executeForced(forcedToolCall, handlerContext(ctx));
   postToolCallResult(ctx, forcedResult);
   updateStoredToolCall(ctx, toolCall.id, { dangerConfirmed: true });
   return forcedResult.result;
@@ -358,6 +363,9 @@ function postToolCallResult(
   ctx: ToolExecutionContext,
   result: ExecutionResult & { rejected?: boolean },
 ): void {
+  if (!result.isError && (result.toolName === "search_web" || result.toolName === "read_web")) {
+    ctx.markWebTainted?.();
+  }
   const status: StoredExecution["status"] = result.status === "confirmation_required"
     ? "awaiting_confirmation"
     : result.status;
@@ -377,6 +385,144 @@ function postToolCallResult(
     requiresConfirmation: false,
     status,
   });
+}
+
+function handlerContext(ctx: ToolExecutionContext): ToolHandlerContext {
+  return {
+    signal: ctx.signal,
+    generationId: ctx.generationId,
+    trustedUserRequest: ctx.trustedUserRequest,
+    authorizedUserUrls: ctx.authorizedUserUrls,
+    webTainted: ctx.isWebTainted?.(),
+  };
+}
+
+async function executeWebTaintedMutation(toolCall: ToolCall, ctx: ToolExecutionContext): Promise<string> {
+  const external = await getExternalAccessConfirmation(toolCall);
+  if (external) {
+    return handleExecutionResult({
+      toolCall,
+      result: createConfirmationResult(toolCall, external),
+      ctx,
+      announceStarted: true,
+      round: ctx.getCurrentRound(),
+    }, external);
+  }
+  if (toolCall.function.name === "run_terminal_command" && hasNetworkOrRemoteEffect(toolCall.function.arguments)) {
+    const confirmation = {
+      requiresConfirmation: true as const,
+      dangerLevel: "dangerous" as const,
+      warningMessage: "Web-tainted generations cannot auto-approve commands with network, credential, publication, or remote effects.",
+      reasonCode: "web-tainted-external-effect",
+      workspaceContained: false,
+    };
+    return handleExecutionResult({ toolCall, result: createConfirmationResult(toolCall, confirmation), ctx, announceStarted: true, round: ctx.getCurrentRound() }, confirmation);
+  }
+  if (toolCall.function.name === "create_file") {
+    const prepared = await prepareWebTaintedCreate(toolCall);
+    if (prepared) {return reviewAnalyzedWebMutation(toolCall, createConfirmationResult(toolCall, prepared), prepared, ctx);}
+  }
+  return executeAnalyzedWebMutation(toolCall, ctx);
+}
+
+async function executeAnalyzedWebMutation(toolCall: ToolCall, ctx: ToolExecutionContext): Promise<string> {
+  const analyzed = await ctx.toolExecutor.execute(toolCall, handlerContext(ctx));
+  const confirmation = ToolExecutor.isConfirmationRequired(analyzed.result);
+  if (!confirmation) {postToolCallResult(ctx, analyzed); return analyzed.result;}
+  const scopedConfirmation = await addProvenFileScope(toolCall, confirmation);
+  return reviewAnalyzedWebMutation(toolCall, analyzed, scopedConfirmation, ctx);
+}
+
+async function addProvenFileScope(
+  toolCall: ToolCall,
+  confirmation: import("@/core/tools/Types").ConfirmationRequiredResult,
+): Promise<import("@/core/tools/Types").ConfirmationRequiredResult> {
+  if (!["create_file", "edit_file", "apply_patch"].includes(toolCall.function.name)) {return confirmation;}
+  const filePath = confirmation.filePath ?? getPathArgument(toolCall);
+  const workspace = getToolWorkspaceHost();
+  const contained = Boolean(filePath && workspace.isPathInsideWorkspace && await workspace.isPathInsideWorkspace(filePath));
+  return {
+    ...confirmation,
+    filePath,
+    workspaceRoot: confirmation.workspaceRoot ?? workspace.getRootPath?.(),
+    workspaceContained: contained,
+    ...(contained ? {} : { reasonCode: "outside-workspace" }),
+  };
+}
+
+async function reviewAnalyzedWebMutation(
+  toolCall: ToolCall,
+  analyzed: ExecutionResult,
+  confirmation: import("@/core/tools/Types").ConfirmationRequiredResult,
+  ctx: ToolExecutionContext,
+): Promise<string> {
+  if (!isDeepSeekReviewEligible(confirmation) || confirmation.workspaceContained !== true) {
+    return handleExecutionResult({ toolCall, result: analyzed, ctx, announceStarted: true, round: ctx.getCurrentRound() });
+  }
+  const review = await reviewDangerousCommandFailClosed(toolCall, confirmation, ctx);
+  if (review.decision === "approve" && isAutomaticConfidence(review.confidence)) {
+    return executeForcedAfterTrust(toolCall, ctx, confirmation);
+  }
+  if (review.decision === "revise" && isAutomaticConfidence(review.confidence)) {
+    clearFileDiffPreview();
+    return rejectCommandForRevision(toolCall, review.reason, ctx);
+  }
+  return handleExecutionResult({ toolCall, result: analyzed, ctx, announceStarted: true, round: ctx.getCurrentRound() }, {
+    ...confirmation,
+    warningMessage: `${confirmation.warningMessage} Automatic review: ${review.reason}`,
+  });
+}
+
+async function prepareWebTaintedCreate(
+  toolCall: ToolCall,
+): Promise<import("@/core/tools/Types").ConfirmationRequiredResult | undefined> {
+  const filePath = getPathArgument(toolCall);
+  const workspace = getToolWorkspaceHost();
+  if (!filePath || !workspace.isPathInsideWorkspace || !await workspace.isPathInsideWorkspace(filePath)) {
+    return {
+      requiresConfirmation: true,
+      dangerLevel: "dangerous",
+      warningMessage: "The workspace boundary for this web-tainted file creation could not be proven.",
+      filePath,
+      reasonCode: "outside-workspace",
+      workspaceContained: false,
+    };
+  }
+  try {
+    await workspace.stat(filePath);
+    return undefined;
+  } catch {
+    let size = 0;
+    try {
+      const args = JSON.parse(toolCall.function.arguments) as Record<string, unknown>;
+      size = Buffer.byteLength(typeof args.content === "string" ? args.content : "", "utf8");
+    } catch { /* Tool validation will report malformed arguments before forced execution. */ }
+    return {
+      requiresConfirmation: true,
+      dangerLevel: "caution",
+      warningMessage: `Create a new workspace file (${size} UTF-8 bytes) after web access. File content is omitted from review.`,
+      filePath,
+      beforeHash: "missing",
+      reasonCode: "web-tainted-workspace-mutation",
+      workspaceRoot: workspace.getRootPath?.(),
+      workspaceContained: true,
+    };
+  }
+}
+
+function hasNetworkOrRemoteEffect(argumentsJson: string): boolean {
+  return /\b(?:curl|wget|invoke-webrequest|invoke-restmethod|irm|iwr|ssh|scp|sftp|ftp|telnet|nc|ncat|netcat|ping|nslookup|resolve-dnsname|test-netconnection|certutil\s+-urlcache|bitsadmin)\b/i.test(argumentsJson) ||
+    /\bgit\b[^\r\n]{0,200}\b(?:push|pull|fetch|clone|ls-remote|submodule)\b/i.test(argumentsJson) ||
+    /\b(?:gh|az|aws|gcloud|kubectl)\s+/i.test(argumentsJson) ||
+    /\b(?:npm|pnpm|yarn|bun)\s+(?:i|install|add|update|upgrade|audit|publish|login|logout|whoami|view|info)\b/i.test(argumentsJson) ||
+    /\b(?:pip|pip3|uv)\s+(?:install|download|sync)\b|\bcargo\s+(?:install|search|publish)\b|\bgo\s+(?:get|install)\b/i.test(argumentsJson) ||
+    /\bdotnet\s+(?:restore|tool\s+install|add\s+\S+\s+package)\b|\b(?:apt|apt-get|dnf|yum|pacman|winget|choco|brew)\s+(?:install|update|upgrade)\b/i.test(argumentsJson) ||
+    /\bdocker\s+(?:push|pull|login)|\bterraform\s+(?:apply|destroy|init)\b/i.test(argumentsJson) ||
+    /(?:https?:\/\/|\\\\[^\\\s]+\\|token|password|secret|api[_-]?key|credential)/i.test(argumentsJson);
+}
+
+function createConfirmationResult(toolCall: ToolCall, confirmation: import("@/core/tools/Types").ConfirmationRequiredResult): ExecutionResult {
+  return { toolCallId: toolCall.id, toolName: toolCall.function.name, result: JSON.stringify(confirmation), isError: false, status: "confirmation_required" };
 }
 
 function updateStoredToolCall(ctx: ToolExecutionContext, toolCallId: string, patch: Partial<StoredExecution>): void {

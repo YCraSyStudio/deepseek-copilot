@@ -33,6 +33,7 @@ import type {
 } from "@/vscodeApi/storage";
 import { SettingsManager, SecretsManager } from "@/vscodeApi/storage";
 import { createVsCodeToolWorkspace } from "@/vscodeApi/tools/VsCodeToolWorkspace";
+import { extractHttpsUrls } from "@/vscodeApi/tools/browser/NetworkPolicy";
 import {
   captureWorkspaceRunSnapshot,
   createLegacyWorkspaceBinding,
@@ -340,6 +341,9 @@ export class GenerationExecutor {
           signal,
           isCancelling: () => signal.aborted,
           isWorkspaceTrusted: () => vscode.workspace.isTrusted,
+          generationId,
+          trustedUserRequest: payload.text,
+          authorizedUserUrls: extractHttpsUrls(payload.text),
           trustScope: {
             conversationId: task.conversationId,
             workspaceUri: normalizeWorkspaceUri(workspaceSnapshot.binding.uri),

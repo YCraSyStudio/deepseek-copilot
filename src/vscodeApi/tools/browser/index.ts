@@ -1,5 +1,5 @@
-export { createIntegratedBrowserTools } from "./BrowserTools";
-export { getIntegratedBrowserDiagnostics } from "./Diagnostics";
-export { IntegratedBrowserBridge } from "./IntegratedBrowserBridge";
-export { createVsCodeBrowserToolHost } from "./VsCodeBrowserToolHost";
-export type { IntegratedBrowserCapabilities, WebDocumentResult, WebSearchResult } from "./Types";
+export { createHeadlessWebTools } from "./BrowserTools";
+export { BrowserManager } from "./BrowserManager";
+export { HeadlessWebRuntime } from "./HeadlessWebRuntime";
+export { configureWebRuntimeDiagnostics, getWebRuntimeDiagnostics } from "./Diagnostics";
+export type { WebDocumentResult, WebSearchResult } from "./Types";

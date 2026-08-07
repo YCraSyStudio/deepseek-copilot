@@ -2,8 +2,10 @@
 
 ## [0.1.7] - 2026-08-07
 
-- Reworked integrated-browser search around one reusable VS Code page: searches type into the active engine, registered results open by click, navigation returns through browser history, and a compatibility mode remains available when newer browser tools are missing.
-- Added localized DuckDuckGo, Bing, Google, and Yahoo fallback; semantic organic-result parsing; Bing redirect decoding; public-HTTPS validation; bounded search/document caches; compact 8 KiB responses; semantic page extraction; and sanitized browser diagnostics.
+- Replaced VS Code's integrated-browser tools with an isolated `puppeteer-core` runtime that reuses compatible Edge or Chrome installations and offers a pinned, extension-managed Chromium Headless Shell fallback.
+- Added an ephemeral HTTPS-only proxy with DNS pinning, public-address validation, SSRF and rebinding protection, registrable-domain concessions, request/transfer/concurrency limits, and sanitized aggregate diagnostics.
+- Added localized DuckDuckGo, Bing, Google, and Yahoo fallback; organic-result parsing; compact 8 KiB responses; semantic active-content-free extraction; prompt-injection markers; and generation-scoped in-memory caches.
+- Added web-tainted generation tracking: workspace mutations receive a content-free automatic safety review, while network, credential, publication, remote, external, or ambiguous effects require manual confirmation.
 - Replaced model-visible page IDs, DOM references, arbitrary navigation, and generic link following with opaque search/document IDs and only two constrained tools: `search_web` and the multi-mode `read_web`.
 - Compact completed conversation context to user/final-answer pairs, retain full provider transcripts only for active or incomplete recovery, and lazily compact duplicate legacy web output when history is saved again.
 

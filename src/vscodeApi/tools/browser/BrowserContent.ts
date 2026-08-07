@@ -3,7 +3,7 @@ import type {
   ResolvedSearchEngine,
   WebSearchResultItem,
 } from "./Types";
-import { validatePublicHttpsUrl } from "./Validation";
+import { validatePublicWebUrl } from "./NetworkPolicy";
 
 const MAX_TITLE_CHARS = 160;
 const MAX_SNIPPET_CHARS = 280;
@@ -121,7 +121,7 @@ export function normalizeSearchResultUrl(
     for (const parameter of [...url.searchParams.keys()]) {
       if (TRACKING_PARAMETERS.test(parameter)) {url.searchParams.delete(parameter);}
     }
-    const validated = validatePublicHttpsUrl(url.toString());
+    const validated = validatePublicWebUrl(url.toString()).toString();
     return validated.length <= 2_048 ? validated : undefined;
   } catch {
     return undefined;
