@@ -1,6 +1,6 @@
 # Change Log
 
-## [Unreleased]
+## [0.1.7] - 2026-08-07
 
 - Reworked integrated-browser search around one reusable VS Code page: searches type into the active engine, registered results open by click, navigation returns through browser history, and a compatibility mode remains available when newer browser tools are missing.
 - Added localized DuckDuckGo, Bing, Google, and Yahoo fallback; semantic organic-result parsing; Bing redirect decoding; public-HTTPS validation; bounded search/document caches; compact 8 KiB responses; semantic page extraction; and sanitized browser diagnostics.

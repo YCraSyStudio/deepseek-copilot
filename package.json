@@ -2,17 +2,17 @@
   "name": "yrs-dpsk-copilot",
   "displayName": "Yar's Deepseek copilot - A VS Code copilot specialized on Deepseek.",
   "description": "A deeply integrated VS Code coding assistant specialized in DeepSeek.",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "preview": true,
   "publisher": "yarcrasy",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/YarCrasy/deepseek-copilot.git"
+    "url": "https://github.com/YCraSyStudio/deepseek-copilot.git"
   },
-  "homepage": "https://yarcrasy.github.io/deepseek-copilot/",
+  "homepage": "https://ycrasystudio.github.io/deepseek-copilot/",
   "bugs": {
-    "url": "https://github.com/YarCrasy/deepseek-copilot/issues"
+    "url": "https://github.com/YCraSyStudio/deepseek-copilot/issues"
   },
   "icon": "src/assets/DeepSeekIcon.png",
   "engines": {
@@ -36,6 +36,7 @@
     "theme": "dark"
   },
   "main": "./dist/extension.js",
+  "activationEvents": [],
   "capabilities": {
     "virtualWorkspaces": {
       "supported": false,

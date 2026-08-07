@@ -4,8 +4,17 @@ export const changelog: PageContent = {
   navTitle: "Changelog",
   title: "Changelog",
   description: "Relevant changes and preview status.",
-  lead: "Version 0.1.6 adds incognito privacy, production reliability gates, and provider-reported token, cache, and cost observability.",
+  lead: "Version 0.1.7 reworks integrated-browser search into one reusable VS Code page with opaque handles and two constrained tools, and compacts completed conversation context.",
   sections: [
+    {
+      title: "0.1.7 integrated-browser search and context compaction",
+      items: [
+        "Reworked integrated-browser search around one reusable VS Code page: searches type into the active engine, registered results open by click, navigation returns through browser history, and a compatibility mode remains available when newer browser tools are missing.",
+        "Added localized DuckDuckGo, Bing, Google, and Yahoo fallback, semantic organic-result parsing, Bing redirect decoding, public-HTTPS validation, bounded caches, compact responses, semantic page extraction, and sanitized browser diagnostics.",
+        "Replaced model-visible page IDs, DOM references, arbitrary navigation, and generic link following with opaque search/document IDs and only two constrained tools: search_web and the multi-mode read_web.",
+        "Compacted completed conversation context to user/final-answer pairs, retaining full provider transcripts only for active or incomplete recovery, and lazily compacted duplicate legacy web output when history is saved again.",
+      ],
+    },
     {
       title: "0.1.6 privacy, reliability, and usage observability",
       items: [

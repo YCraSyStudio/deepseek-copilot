@@ -4,8 +4,17 @@ export const changelog: PageContent = {
   navTitle: "Changelog",
   title: "Changelog",
   description: "Cambios relevantes y estado preview.",
-  lead: "La versión 0.1.6 añade privacidad en modo incógnito, controles de fiabilidad para producción y observabilidad de tokens, caché y coste informada por el proveedor.",
+  lead: "La versión 0.1.7 rediseña la búsqueda web del navegador integrado en una única página reutilizable con identificadores opacos y dos herramientas restringidas, y compacta el contexto de las conversaciones completadas.",
   sections: [
+    {
+      title: "0.1.7 rediseño de la búsqueda web integrada y compactación del contexto",
+      items: [
+        "Rediseñada la búsqueda web del navegador integrado en una única página reutilizable de VS Code: las búsquedas se escriben en el motor activo, los resultados registrados se abren con un clic, la navegación vuelve por el historial del navegador y sigue disponible un modo de compatibilidad cuando faltan las herramientas nuevas del navegador.",
+        "Añadidos fallback localizado para DuckDuckGo, Bing, Google y Yahoo, análisis semántico de resultados orgánicos, decodificación de redirecciones de Bing, validación de HTTPS público, cachés acotadas, respuestas compactas, extracción semántica de páginas y diagnósticos de navegador saneados.",
+        "Sustituidos los IDs de página visibles al modelo, las referencias al DOM, la navegación arbitraria y el seguimiento genérico de enlaces por IDs opacos de búsqueda/documento y solo dos herramientas restringidas: search_web y la read_web multimodo.",
+        "Compactado el contexto de las conversaciones completadas a pares usuario/respuesta final, conservando los transcripts completos solo para la recuperación activa o incompleta, y compactación diferida del contenido web duplicado al guardar de nuevo el historial.",
+      ],
+    },
     {
       title: "0.1.6 privacidad, fiabilidad y observabilidad de uso",
       items: [
