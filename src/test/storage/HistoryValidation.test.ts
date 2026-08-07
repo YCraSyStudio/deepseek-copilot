@@ -25,6 +25,7 @@ suite("history validation", () => {
           id: "assistant-1",
           role: "assistant",
           content: "done",
+          contextContent: "done",
           timeline: [
             { id: "reasoning-1", type: "reasoning", content: "think" },
             { id: "tool-1", type: "tool-group", round: 1, toolCallIds: ["call-1"] },
@@ -39,5 +40,7 @@ suite("history validation", () => {
     assert.strictEqual(isConversation({ ...conversation, schemaVersion: 3 }), false);
     assert.strictEqual(isConversation({ ...conversation, messages: [{ id: "x", role: "root", content: "bad" }] }), false);
     assert.strictEqual(isConversation({ ...conversation, messages: [{ id: "x", role: "assistant", content: "", timeline: [{ id: "x", type: "tool-group", round: 0, toolCallIds: [] }] }] }), false);
+    assert.strictEqual(isConversation({ ...conversation, messages: [{ id: "x", role: "assistant", content: "", contextContent: 42 }] }), false);
+    assert.strictEqual(isConversation({ ...conversation, messages: [{ id: "x", role: "assistant", content: "", providerTranscript: { status: "complete" } }] }), false);
   });
 });

@@ -113,7 +113,7 @@ suite("ConversationState", () => {
     assert.deepStrictEqual(state.getApiMessages(), []);
   });
 
-  test("replays a complete canonical provider transcript as one atomic generation", async () => {
+  test("compacts a completed provider transcript to user and final assistant text", async () => {
     const state = new ConversationState({ save: async () => undefined });
     const transcript = createProviderTranscript([
       {
@@ -163,8 +163,41 @@ suite("ConversationState", () => {
     assert.strictEqual(units[0].generationId, "generation-1");
     assert.deepStrictEqual(units[0].messages, [
       { role: "user", content: "Read it" },
-      ...transcript.messages,
+      { role: "assistant", content: "Done." },
     ]);
+    const storedAssistant = state.getConversation()?.messages[1];
+    assert.strictEqual(storedAssistant?.providerTranscript, undefined);
+    assert.strictEqual(storedAssistant?.contextContent, "Done.");
+    assert.doesNotMatch(units[0].visibleText, /literal result/);
+  });
+
+  test("keeps an incomplete recovery transcript stored but excludes it from future API context", () => {
+    const state = new ConversationState({ save: async () => undefined });
+    const incomplete = createProviderTranscript([{
+      role: "assistant",
+      content: "Visible partial",
+      reasoning_content: "private recovery reasoning",
+    }], "incomplete");
+    state.load({
+      schemaVersion: 2,
+      id: "recovery",
+      title: "Recovery",
+      createdAt: 1,
+      updatedAt: 1,
+      model: "model",
+      workspaceUri: "file:///workspace",
+      workspaceBinding: testWorkspaceBinding(),
+      messages: [{
+        id: "assistant",
+        role: "assistant",
+        content: "Visible partial",
+        generationStatus: "interrupted",
+        providerTranscript: incomplete,
+      }],
+    });
+
+    assert.strictEqual(state.getConversation()?.messages[0]?.providerTranscript?.status, "incomplete");
+    assert.deepStrictEqual(state.getApiMessages(), [{ role: "assistant", content: "Visible partial" }]);
   });
 
   test("keeps interrupted visible content but omits incomplete reasoning and tools from API context", async () => {

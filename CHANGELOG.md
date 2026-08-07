@@ -1,5 +1,12 @@
 # Change Log
 
+## [Unreleased]
+
+- Reworked integrated-browser search around one reusable VS Code page: searches type into the active engine, registered results open by click, navigation returns through browser history, and a compatibility mode remains available when newer browser tools are missing.
+- Added localized DuckDuckGo, Bing, Google, and Yahoo fallback; semantic organic-result parsing; Bing redirect decoding; public-HTTPS validation; bounded search/document caches; compact 8 KiB responses; semantic page extraction; and sanitized browser diagnostics.
+- Replaced model-visible page IDs, DOM references, arbitrary navigation, and generic link following with opaque search/document IDs and only two constrained tools: `search_web` and the multi-mode `read_web`.
+- Compact completed conversation context to user/final-answer pairs, retain full provider transcripts only for active or incomplete recovery, and lazily compact duplicate legacy web output when history is saved again.
+
 ## [0.1.6] - 2026-08-04
 
 - Added provider-reported token and cache observability: every attempted request is counted exactly once, valid usage is attributed to `primary`, `tool_round`, `security_review`, `context_summary`, or `file_compaction`, and redacted totals are available per generation and conversation. Missing fields remain unavailable instead of becoming zero. Official DeepSeek V4 Flash/Pro costs use a persisted versioned USD catalog; custom endpoints never receive guessed prices. Optional local breakdowns, auxiliary-call/cache-miss/output/cost warnings, and redacted generation and conversation diagnostics were added.

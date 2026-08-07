@@ -17,6 +17,7 @@ The extension is DeepSeek-only by design.
 - Type `./` in the chat input to autocomplete workspace paths.
 - Explorer and editor commands for attaching files and exact selections; external files are added only as bounded read-only snapshots.
 - Tools for reading, listing, searching, creating, editing, patching, and running terminal commands.
+- Current web search through VS Code's integrated browser, with localized multi-provider fallback, compact semantic page reads, and no separate search API or MCP cost.
 - Structured, non-interactive terminal execution with timeout, bounded output, and process-tree cancellation.
 - Permission selector in Chat and per-tool modes in Settings.
 - Automatic bounded context from the active editor and staged or unstaged Git changes.
@@ -32,7 +33,7 @@ The extension is DeepSeek-only by design.
 
 ## Requirements
 
-- VS Code `1.125.0` or newer.
+- VS Code `1.131.0` or newer.
 - A DeepSeek API key.
 - Network access to the configured DeepSeek API base URL.
 
@@ -68,6 +69,8 @@ Settings are managed from the extension UI and stored globally in:
 This includes the model, reasoning options, limits, permission mode, per-tool execution modes, history retention, automatic context and global `AGENTS.md` access. Existing VS Code settings are copied to this file once and then removed from VS Code configuration.
 
 The API key is never written to this file or returned as webview configuration. Credentials remain in VS Code Secret Storage, are isolated by API origin, and appear in Settings only as a masked placeholder. Changing to a different API origin requires explicit confirmation and never copies the existing credential.
+
+Integrated-browser search uses two VS Code settings: `yrs-dpsk-copilot.webSearch.engine` selects `auto`, DuckDuckGo, Bing, Google, or Yahoo; `yrs-dpsk-copilot.webSearch.locale` accepts `auto` or a BCP-47 locale such as `es-ES`. Automatic locale selection prefers the operating-system locale before the VS Code display language. VS Code may request native confirmation when the first search page is opened. The extension then reuses that authorized page through typing, result clicks, and browser history, so normal subsequent searches do not reopen URLs. `workbench.browser.enableChatTools` must not be disabled by policy.
 
 ## Tools and Safety
 
@@ -105,7 +108,7 @@ Terminal commands are non-interactive. Results include stdout, stderr, exit code
 
 ## Context and Chat Commands
 
-Context is budgeted before every API request, including system prompts, tool schemas, history, references, output allowance, and a safety margin. Complete older generations are summarized atomically; oversized referenced files are reduced to literal relevant line ranges. Tool-call arguments, required reasoning, and an active tool cycle are never truncated. Referenced content is labeled with workspace-relative paths and delimited as untrusted data.
+Context is budgeted before every API request, including system prompts, tool schemas, history, references, output allowance, and a safety margin. After a generation completes, future requests retain only its user message and final assistant answer; old tool output and provider reasoning remain out of the next turn. Older visible context is summarized when the budget requires it, and oversized referenced files are reduced to literal relevant line ranges. Tool-call arguments, required reasoning, and an active tool cycle are never truncated. Referenced and web content is delimited as untrusted data.
 
 Available slash commands:
 

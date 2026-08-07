@@ -11,7 +11,10 @@ export function createVsCodeBrowserToolHost(): BrowserToolHost {
       vscode.workspace.getConfiguration(EXTENSION_SEARCH_SECTION).get<string>("engine"),
     getNativeSearchEnginePreference: () =>
       vscode.workspace.getConfiguration("workbench.browser").get<string>("searchEngine"),
-    getLocale: () => vscode.env.language || Intl.DateTimeFormat().resolvedOptions().locale || "en",
+    getConfiguredLocale: () =>
+      vscode.workspace.getConfiguration(EXTENSION_SEARCH_SECTION).get<string>("locale"),
+    getSystemLocale: () => Intl.DateTimeFormat().resolvedOptions().locale,
+    getVsCodeLanguage: () => vscode.env.language || "en",
     getChatToolsSetting: () =>
       vscode.workspace.getConfiguration("workbench.browser").get<boolean>("enableChatTools"),
   };

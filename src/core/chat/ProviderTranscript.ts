@@ -21,6 +21,8 @@ export interface ConversationContextSummary {
 
 export interface StoredConversationMessage extends ConversationMessage {
   providerTranscript?: ProviderTranscript;
+  /** Compact assistant text used for future provider context after a generation completes. */
+  contextContent?: string;
 }
 
 export interface StoredConversation extends Omit<Conversation, "messages"> {
@@ -32,8 +34,23 @@ export function toPresentationConversation(conversation: StoredConversation): Co
   const { contextSummary: _contextSummary, messages, ...presentation } = conversation;
   return {
     ...presentation,
-    messages: messages.map(({ providerTranscript: _providerTranscript, ...message }) => message),
+    messages: messages.map(({
+      providerTranscript: _providerTranscript,
+      contextContent: _contextContent,
+      ...message
+    }) => message),
   };
+}
+
+export function getFinalAssistantContent(transcript: ProviderTranscript | undefined): string | undefined {
+  if (transcript?.status !== "complete") {return undefined;}
+  for (let index = transcript.messages.length - 1; index >= 0; index -= 1) {
+    const message = transcript.messages[index];
+    if (message?.role === "assistant" && typeof message.content === "string" && message.content.trim()) {
+      return message.content;
+    }
+  }
+  return undefined;
 }
 
 export function createProviderTranscript(messages: ChatMessage[], status: ProviderTranscript["status"]): ProviderTranscript {

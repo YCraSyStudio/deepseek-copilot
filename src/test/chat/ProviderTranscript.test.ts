@@ -92,6 +92,7 @@ suite("canonical provider transcript", () => {
         role: "assistant",
         content: "Visible",
         createdAt: 1,
+        contextContent: "Visible",
         providerTranscript: createProviderTranscript([
           { role: "assistant", content: "Visible", reasoning_content: "hidden" },
         ], "complete"),
@@ -101,5 +102,6 @@ suite("canonical provider transcript", () => {
     const presentation = toPresentationConversation(conversation);
     assert.strictEqual("contextSummary" in presentation, false);
     assert.strictEqual("providerTranscript" in presentation.messages[0], false);
+    assert.strictEqual("contextContent" in presentation.messages[0], false);
   });
 });

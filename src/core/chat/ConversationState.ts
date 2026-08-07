@@ -6,6 +6,7 @@ import type {
   StoredConversation,
   StoredConversationMessage,
 } from "./ProviderTranscript";
+import { getFinalAssistantContent } from "./ProviderTranscript";
 
 export interface ApiContextUnit {
   generationId: string;
@@ -39,7 +40,7 @@ export class ConversationState {
   ) {}
 
   load(conversation: StoredConversation): void {
-    this.activeConversation = conversation;
+    this.activeConversation = compactCompletedConversation(conversation);
   }
 
   reset(mode: ChatPersistenceMode = this.persistenceMode): void {
@@ -122,7 +123,7 @@ export class ConversationState {
   createMessage(
     role: ConversationMessage["role"],
     content: string,
-    extra: Pick<StoredConversationMessage, "timeline" | "toolCalls" | "generationId" | "generationStatus" | "providerTranscript" | "usage"> = {},
+    extra: Pick<StoredConversationMessage, "timeline" | "toolCalls" | "generationId" | "generationStatus" | "providerTranscript" | "contextContent" | "usage"> = {},
   ): StoredConversationMessage {
     return {
       id: randomUUID(),
@@ -147,7 +148,7 @@ export class ConversationState {
 
     const now = Date.now();
     const existing = this.activeConversation;
-    const nextMessages = [...(existing?.messages ?? []), ...options.messages];
+    const nextMessages = [...(existing?.messages ?? []), ...options.messages].map(compactCompletedMessage);
     const workspaceBinding = existing?.workspaceBinding ?? this.conversationStore.getWorkspaceBinding?.() ?? createUnknownWorkspaceBinding();
     const conversation: StoredConversation = {
       schemaVersion: 2,
@@ -202,20 +203,8 @@ function toVisibleContextText(messages: StoredConversationMessage[]): string {
         return [`User: ${message.content}`];
       }
       if (message.role === "assistant") {
-        const parts = message.content.trim() ? [`Assistant: ${message.content}`] : [];
-        for (const toolCall of message.toolCalls ?? []) {
-          if (toolCall.result?.trim()) {
-            parts.push(`Tool ${toolCall.toolName} result:\n${toolCall.result}`);
-          }
-        }
-        return parts;
-      }
-      if (message.role === "tool") {
-        const results = message.toolCalls
-          ?.map((toolCall) => toolCall.result)
-          .filter((result): result is string => Boolean(result?.trim()))
-          .join("\n");
-        return results ? [`Tool result:\n${results}`] : [];
+        const content = message.contextContent ?? message.content;
+        return content.trim() ? [`Assistant: ${content}`] : [];
       }
       return [];
     })
@@ -223,7 +212,7 @@ function toVisibleContextText(messages: StoredConversationMessage[]): string {
 }
 
 function toApiMessages(messages: StoredConversationMessage[]): ChatMessage[] {
-  return messages.flatMap((message) => {
+  return messages.flatMap((message): ChatMessage[] => {
     if (message.role === "error" || message.role === "tool") {
       return [];
     }
@@ -236,8 +225,28 @@ function toApiMessages(messages: StoredConversationMessage[]): ChatMessage[] {
       return message.content.trim() ? [{ role: "assistant" as const, content: message.content }] : [];
     }
 
-    return message.providerTranscript?.status === "complete"
-      ? structuredClone(message.providerTranscript.messages)
-      : message.content.trim() ? [{ role: "assistant" as const, content: message.content }] : [];
+    const content = message.contextContent ?? message.content;
+    return content.trim() ? [{ role: "assistant" as const, content }] : [];
   });
+}
+
+function compactCompletedConversation(conversation: StoredConversation): StoredConversation {
+  return {
+    ...structuredClone(conversation),
+    messages: conversation.messages.map(compactCompletedMessage),
+  };
+}
+
+function compactCompletedMessage(message: StoredConversationMessage): StoredConversationMessage {
+  if (message.role !== "assistant" || message.providerTranscript?.status !== "complete") {
+    return structuredClone(message);
+  }
+  const {
+    providerTranscript,
+    ...rest
+  } = message;
+  return {
+    ...structuredClone(rest),
+    contextContent: message.contextContent ?? getFinalAssistantContent(providerTranscript) ?? message.content,
+  };
 }

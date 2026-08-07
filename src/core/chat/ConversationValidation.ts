@@ -1,5 +1,5 @@
 import type { AssistantTimelineEvent, ConversationMessage, DangerConfirmationData, StoredToolCall, WorkspaceBinding } from "@/adapters";
-import type { StoredConversation } from "./ProviderTranscript";
+import { isProviderTranscript, type StoredConversation } from "./ProviderTranscript";
 import { isUsageAggregate } from "@/shared/usage/Usage";
 
 export function isConversation(value: unknown): value is StoredConversation {
@@ -71,6 +71,8 @@ function isConversationMessage(value: unknown): value is ConversationMessage {
   }
   return (value.toolCallId === undefined || isBoundedString(value.toolCallId, 512)) &&
     (value.toolName === undefined || isBoundedString(value.toolName, 256)) &&
+    (value.contextContent === undefined || isBoundedString(value.contextContent, 5 * 1024 * 1024)) &&
+    (value.providerTranscript === undefined || isProviderTranscript(value.providerTranscript)) &&
     (value.usage === undefined || isUsageAggregate(value.usage));
 }
 

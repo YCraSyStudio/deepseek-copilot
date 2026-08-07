@@ -75,7 +75,8 @@ export async function recoverGenerationCheckpoints(
           generationId: checkpoint.generationId,
           generationStatus: completed ? "completed" : "interrupted",
           timeline: checkpoint.timeline,
-          providerTranscript: completed ? checkpoint.providerTranscript : undefined,
+          contextContent: completed ? checkpoint.content : undefined,
+          providerTranscript: completed ? undefined : checkpoint.providerTranscript,
           toolCalls: checkpoint.toolCalls.map((tool) =>
             !completed &&
             (

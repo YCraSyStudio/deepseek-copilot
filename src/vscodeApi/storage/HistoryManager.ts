@@ -5,7 +5,11 @@ import type { Conversation, ConversationSummary } from "@/adapters";
 import { createConversationTitle } from "@/core/chat/ConversationTitle";
 import { findDuplicateConversationIds } from "@/core/chat/ConversationDeduplication";
 import { isConversation } from "@/core/chat/ConversationValidation";
-import { isConversationContextSummary, sanitizeStoredTranscript } from "@/core/chat/ProviderTranscript";
+import {
+  getFinalAssistantContent,
+  isConversationContextSummary,
+  sanitizeStoredTranscript,
+} from "@/core/chat/ProviderTranscript";
 import { SettingsManager } from "./SettingsManager";
 import { withFileLock, writeJsonFileAtomic } from "./JsonFileStorage";
 import { getCorruptHistoryDirectory, getHistoryDirectory } from "./UserDataPaths";
@@ -249,13 +253,20 @@ function isFileNotFoundError(error: unknown): boolean {
 }
 
 function normalizeConversation(conversation: StoredConversationData): StoredConversationData {
-  const messages = conversation.messages.map((message) => ({
-    ...message,
-    content: message.content ?? "",
-    toolCalls: message.toolCalls?.map(normalizeToolCall),
-    timeline: message.timeline ?? undefined,
-    providerTranscript: sanitizeStoredTranscript(message.providerTranscript),
-  }));
+  const messages = conversation.messages.map((message) => {
+    const providerTranscript = sanitizeStoredTranscript(message.providerTranscript);
+    const completedContext = message.role === "assistant" && providerTranscript?.status === "complete"
+      ? message.contextContent ?? getFinalAssistantContent(providerTranscript) ?? message.content ?? ""
+      : message.contextContent;
+    return {
+      ...message,
+      content: message.content ?? "",
+      toolCalls: message.toolCalls?.map(normalizeToolCall),
+      timeline: message.timeline ?? undefined,
+      contextContent: completedContext,
+      providerTranscript: providerTranscript?.status === "complete" ? undefined : providerTranscript,
+    };
+  });
   return {
     ...conversation,
     schemaVersion: 2,
@@ -279,5 +290,15 @@ function normalizeToolCall<T extends NonNullable<Conversation["messages"][number
       dangerConfirmation: undefined,
     };
   }
+  if (toolCall.result && isWebTool(toolCall.toolName) && toolCall.result.length > 8 * 1024) {
+    return {
+      ...toolCall,
+      result: `${toolCall.result.slice(0, 8 * 1024 - 32)}\n[Web result compacted]`,
+    };
+  }
   return toolCall;
+}
+
+function isWebTool(name: string): boolean {
+  return ["search_web", "read_web"].includes(name);
 }

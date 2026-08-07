@@ -68,6 +68,13 @@
           ],
           "default": "auto",
           "description": "Preferred search engine for integrated-browser web search. If it is unavailable or blocked, the extension tries another engine."
+        },
+        "yrs-dpsk-copilot.webSearch.locale": {
+          "type": "string",
+          "default": "auto",
+          "pattern": "^(?:auto|[A-Za-z]{2,3}(?:-[A-Za-z]{4})?(?:-[A-Za-z]{2}|-[0-9]{3})?)$",
+          "patternErrorMessage": "Use auto or a BCP-47 locale such as es-ES, es-MX, or en-US.",
+          "description": "Locale used for integrated-browser searches. Auto prefers the operating-system locale before the VS Code display language."
         }
       }
     },
