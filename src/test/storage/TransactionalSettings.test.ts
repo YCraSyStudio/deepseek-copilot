@@ -34,6 +34,16 @@ suite("transactional settings", () => {
     assert.strictEqual(SettingsManager.getRevision(), revision);
   });
 
+  test("persists normalized web search settings with safe defaults", async () => {
+    assert.strictEqual(SettingsManager.load().webSearchEngine, "bing");
+    await SettingsManager.save({ webSearchEngine: "google" });
+    assert.strictEqual(SettingsManager.load().webSearchEngine, "google");
+    const disk = JSON.parse(readFileSync(getSettingsFilePath(), "utf8")) as Record<string, unknown>;
+    assert.strictEqual(Object.prototype.hasOwnProperty.call(disk, "webSearchBrowserVisible"), false);
+    assert.strictEqual(Object.prototype.hasOwnProperty.call(disk, "usageBudgets"), false);
+    await SettingsManager.save({ webSearchEngine: "bing" });
+  });
+
   test("rolls back memory and revision when persistence fails", async () => {
     const before = SettingsManager.load();
     const revision = SettingsManager.getRevision();

@@ -1,233 +1,156 @@
-import { validatePublicHttpsUrl } from "./Validation";
+import { validatePublicWebUrl } from "./NetworkPolicy";
+import type { WebContentSection } from "./Types";
 
 export const MAX_DOCUMENT_CHARS = 64 * 1024;
 export const MAX_WEB_RESPONSE_CHARS = 8 * 1024;
-const MAX_OUTLINE_ITEMS = 24;
-const MAX_LINKS = 12;
+const MAX_SECTION_BYTES = 4 * 1024;
 
 export interface NormalizedWebDocument {
   title: string;
   url: string;
-  content: string;
-  outline: string[];
-  links: Array<{ title: string; url: string }>;
+  sections: WebContentSection[];
   sourceCharacters: number;
 }
 
-export function extractSemanticDocument(
-  snapshot: string,
-  fallbackUrl: string,
+export interface SelectedDocumentSections {
+  sections: WebContentSection[];
+  cursor: number;
+  nextCursor?: number;
+}
+
+export function createNormalizedDocument(
+  title: string,
+  url: string,
+  rawSections: readonly string[],
 ): NormalizedWebDocument {
-  const title = cleanText(/(?:^|\n)Page Title:\s*([^\n]+)/i.exec(snapshot)?.[1] ?? "Web page").slice(0, 300);
-  const reportedUrl = /(?:^|\n)(?:Page )?URL:\s*(https:\/\/[^\s\n]+)/i.exec(snapshot)?.[1];
-  const url = validatePublicHttpsUrl(reportedUrl ?? fallbackUrl);
-  const sourceLines = snapshot.split(/\r?\n/);
-  const lines = selectMainContent(sourceLines);
-  const output: string[] = [];
-  const outline: string[] = [];
-  const links: Array<{ title: string; url: string }> = [];
-  const seenLines = new Set<string>();
-  const seenLinks = new Set<string>();
-  let skippedIndent: number | undefined;
-
-  const push = (value: string): void => {
-    const cleaned = cleanText(value);
-    if (!cleaned) {return;}
-    const key = cleaned.toLowerCase();
-    if (seenLines.has(key)) {return;}
-    seenLines.add(key);
-    output.push(cleaned);
+  const safeTitle = cleanText(title) || "Web page";
+  const safeUrl = validatePublicWebUrl(url).toString();
+  const sourceSections: string[] = [];
+  let remainingCharacters = MAX_DOCUMENT_CHARS;
+  for (const rawSection of rawSections) {
+    const section = cleanText(rawSection);
+    if (!section || remainingCharacters <= 0) {continue;}
+    sourceSections.push(section.slice(0, remainingCharacters));
+    remainingCharacters -= section.length;
+  }
+  const boundedSource = sourceSections.join("\n\n");
+  const fragments = sourceSections.flatMap((section) => splitSection(section, safeTitle));
+  const sections = fragments.map((content, index) => ({ id: index + 1, content }));
+  return {
+    title: safeTitle.slice(0, 300),
+    url: safeUrl,
+    sections: sections.length > 0 ? sections : [{ id: 1, content: safeTitle }],
+    sourceCharacters: boundedSource.length,
   };
+}
 
-  for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index] ?? "";
-    if (!line.trim()) {continue;}
-    const indent = leadingWhitespace(line);
-    if (skippedIndent !== undefined) {
-      if (indent > skippedIndent) {continue;}
-      skippedIndent = undefined;
-    }
-
-    const role = parseRole(line);
-    if (!role) {continue;}
-    if (isSuppressedRole(role.name)) {
-      skippedIndent = indent;
+export function extractSemanticDocument(snapshot: string, fallbackUrl: string): NormalizedWebDocument {
+  const title = cleanText(/(?:^|\n)Page Title:\s*([^\n]+)/i.exec(snapshot)?.[1] ?? "Web page");
+  const reportedUrl = /(?:^|\n)(?:Page )?URL:\s*(https:\/\/[^\s\n]+)/i.exec(snapshot)?.[1];
+  const lines = snapshot.split(/\r?\n/);
+  const sections: string[] = [];
+  let current: string[] = [];
+  const flush = (): void => {
+    if (current.length > 0) {sections.push(current.join("\n\n")); current = [];}
+  };
+  for (const line of lines) {
+    const heading = /-\s*heading(?:\s+"((?:\\"|[^"])*)"|:\s*(.*?))(?:\s+\[level=(\d+)\])?\s*$/i.exec(line);
+    if (heading) {
+      const value = cleanText((heading[1] ?? heading[2] ?? "").replace(/\\"/g, "\""));
+      const level = Number(heading[3] ?? 2);
+      if (level === 1) {flush();}
+      if (value) {current.push(value);}
       continue;
     }
-
-    if (role.name === "heading") {
-      const heading = role.label ?? role.trailing;
-      if (heading) {
-        const level = Number(/\[level=(\d+)\]/i.exec(line)?.[1] ?? 2);
-        const formatted = `${"#".repeat(Math.min(6, Math.max(1, level)))} ${heading}`;
-        push(formatted);
-        if (outline.length < MAX_OUTLINE_ITEMS) {outline.push(cleanText(heading));}
-      }
-      continue;
-    }
-
-    if (role.name === "row") {
-      const cells = collectDescendantValues(lines, index, indent, new Set(["cell", "columnheader", "rowheader"]));
-      if (cells.length > 0) {push(`| ${cells.join(" | ")} |`);}
-      skippedIndent = indent;
-      continue;
-    }
-
-    if (role.name === "code" || role.name === "pre") {
-      const code = [role.label ?? role.trailing, ...collectDescendantValues(lines, index, indent, new Set(["text", "generic"]))]
-        .filter((value): value is string => Boolean(value));
-      if (code.length > 0) {push(`\`\`\`\n${code.join("\n")}\n\`\`\``);}
-      continue;
-    }
-
-    if (role.name === "link") {
-      const label = role.label ?? role.trailing;
-      const linkUrl = collectDescendantUrl(lines, index, indent, url);
-      if (label && linkUrl && links.length < MAX_LINKS && !seenLinks.has(linkUrl) && !isNoiseLink(label, linkUrl)) {
-        seenLinks.add(linkUrl);
-        links.push({ title: cleanText(label).slice(0, 160), url: linkUrl });
-      }
-      continue;
-    }
-
-    if (role.name === "button") {
-      const label = role.label ?? role.trailing;
-      if (label && /(?:^|\b)v?\d+\.\d+(?:\.\d+)?(?:-[\w.]+)?(?:\b|$)/i.test(label)) {push(label);}
-      skippedIndent = indent;
-      continue;
-    }
-
-    if (role.name === "text" || role.name === "paragraph") {
-      push(role.label ?? role.trailing ?? "");
-      continue;
-    }
-
-    if (role.name === "listitem") {
-      const value = role.label ?? role.trailing;
-      if (value) {push(`- ${value}`);}
-      continue;
-    }
-
-    if (role.name === "generic" || role.name === "cell" || role.name === "term" || role.name === "definition") {
-      const value = role.label ?? role.trailing;
-      if (value && isUsefulInlineText(value)) {push(value);}
+    const paragraph = /-\s*paragraph(?:\s+"((?:\\"|[^"])*)"|:\s*(.*))$/i.exec(line);
+    if (paragraph) {
+      if (current.length === 0) {current.push(title);}
+      const value = cleanText((paragraph[1] ?? paragraph[2] ?? "").replace(/\\"/g, "\""));
+      if (value) {current.push(value);}
     }
   }
-
-  const content = output.join("\n\n").slice(0, MAX_DOCUMENT_CHARS);
-  return { title, url, content, outline, links, sourceCharacters: snapshot.length };
+  flush();
+  return createNormalizedDocument(title, reportedUrl ?? fallbackUrl, sections);
 }
 
 export function selectDocumentContent(
   document: NormalizedWebDocument,
   cursor = 0,
   query?: string,
-  maxChars = 6_500,
-): { content: string; cursor: number; nextCursor?: number } {
+  maxChars = 6_000,
+): SelectedDocumentSections {
   if (query) {
     const terms = query.toLocaleLowerCase().split(/\s+/).filter((term) => term.length >= 2);
-    const blocks = document.content.split(/\n\n+/);
-    const ranked = blocks.map((block, index) => ({
-      block,
+    const ranked = document.sections.map((section, index) => ({
+      section,
       index,
-      score: terms.reduce((score, term) => score + countOccurrences(block.toLocaleLowerCase(), term), 0),
-    })).filter((entry) => entry.score > 0)
-      .sort((a, b) => b.score - a.score || a.index - b.index);
-    const selected: string[] = [];
-    let length = 0;
-    for (const entry of ranked) {
-      if (length + entry.block.length + 2 > maxChars) {continue;}
-      selected.push(entry.block);
-      length += entry.block.length + 2;
-    }
-    return { content: selected.join("\n\n") || "No matching passages found.", cursor: 0 };
+      normalized: section.content.toLocaleLowerCase(),
+    })).map((entry) => ({
+      ...entry,
+      score: terms.reduce((score, term) => score + countOccurrences(entry.normalized, term), 0),
+      matchesAll: terms.every((term) => entry.normalized.includes(term)),
+    })).filter((entry) => entry.matchesAll).sort((a, b) => b.score - a.score || a.index - b.index);
+    return { sections: fitSections(ranked.map((entry) => entry.section), maxChars), cursor: 0 };
   }
-
-  const safeCursor = Math.min(Math.max(0, cursor), document.content.length);
-  const end = Math.min(document.content.length, safeCursor + maxChars);
-  return {
-    content: document.content.slice(safeCursor, end),
-    cursor: safeCursor,
-    nextCursor: end < document.content.length ? end : undefined,
-  };
+  const start = Math.min(Math.max(0, cursor), document.sections.length);
+  const sections = fitSections(document.sections.slice(start), maxChars);
+  const next = start + sections.length;
+  return { sections, cursor: start, nextCursor: next < document.sections.length ? next : undefined };
 }
 
-function selectMainContent(lines: string[]): string[] {
-  const mainIndex = lines.findIndex((line) => /^\s*-\s*main(?:\s|:|\[|$)/i.test(line));
-  if (mainIndex < 0) {
-    const snapshotIndex = lines.findIndex((line) => /^Snapshot:\s*$/i.test(line.trim()));
-    return lines.slice(snapshotIndex >= 0 ? snapshotIndex + 1 : 0);
+function fitSections(sections: readonly WebContentSection[], maxChars: number): WebContentSection[] {
+  const selected: WebContentSection[] = [];
+  let length = 0;
+  for (const section of sections) {
+    if (selected.length > 0 && length + section.content.length > maxChars) {break;}
+    selected.push(section);
+    length += section.content.length;
+    if (length >= maxChars) {break;}
   }
-  const indent = leadingWhitespace(lines[mainIndex] ?? "");
-  let end = lines.length;
-  for (let index = mainIndex + 1; index < lines.length; index += 1) {
-    const line = lines[index] ?? "";
-    if (line.trim() && leadingWhitespace(line) <= indent) {end = index; break;}
-  }
-  return lines.slice(mainIndex + 1, end);
+  return selected;
 }
 
-function parseRole(line: string): { name: string; label?: string; trailing?: string } | undefined {
-  const match = /^\s*-\s*([a-z]+)(?:\s+"((?:\\"|[^"])*)")?[^:]*?(?::\s*(.*))?$/i.exec(line);
-  if (!match) {return undefined;}
-  const trailing = match[3]?.trim();
-  return {
-    name: (match[1] ?? "").toLowerCase(),
-    label: match[2] ? cleanText(match[2].replace(/\\"/g, "\"")) : undefined,
-    trailing: trailing && !/^(?:\[ref=|$)/.test(trailing) ? cleanText(trailing) : undefined,
-  };
-}
-
-function collectDescendantValues(lines: string[], index: number, indent: number, roles: Set<string>): string[] {
-  const values: string[] = [];
-  for (let cursor = index + 1; cursor < lines.length; cursor += 1) {
-    const line = lines[cursor] ?? "";
-    if (line.trim() && leadingWhitespace(line) <= indent) {break;}
-    const role = parseRole(line);
-    if (role && roles.has(role.name)) {
-      const value = role.label ?? role.trailing;
-      if (value) {values.push(value);}
+function splitSection(section: string, fallbackTitle: string): string[] {
+  if (Buffer.byteLength(section, "utf8") <= MAX_SECTION_BYTES) {return [section];}
+  const blocks = section.split(/\n\n+/).map(cleanText).filter(Boolean);
+  if (blocks.length === 1) {
+    const contentBytes = Math.max(512, MAX_SECTION_BYTES - Buffer.byteLength(`${fallbackTitle}\n\n`, "utf8"));
+    return splitUtf8(blocks[0] ?? section, contentBytes).map((piece) => `${fallbackTitle}\n\n${piece}`);
+  }
+  const title = blocks[0] ?? fallbackTitle;
+  const result: string[] = [];
+  let current = title;
+  for (const block of blocks.slice(1)) {
+    const candidate = `${current}\n\n${block}`;
+    if (Buffer.byteLength(candidate, "utf8") <= MAX_SECTION_BYTES) {current = candidate; continue;}
+    if (current !== title || result.length === 0) {result.push(current);}
+    current = `${title}\n\n${block}`;
+    if (Buffer.byteLength(current, "utf8") > MAX_SECTION_BYTES) {
+      const pieces = splitUtf8(block, Math.max(512, MAX_SECTION_BYTES - Buffer.byteLength(`${title}\n\n`, "utf8")));
+      result.push(...pieces.slice(0, -1).map((piece) => `${title}\n\n${piece}`));
+      current = `${title}\n\n${pieces.at(-1) ?? ""}`.trim();
     }
   }
-  return [...new Set(values)];
+  if (current) {result.push(current);}
+  return result;
 }
 
-function collectDescendantUrl(lines: string[], index: number, indent: number, baseUrl: string): string | undefined {
-  for (let cursor = index + 1; cursor < lines.length; cursor += 1) {
-    const line = lines[cursor] ?? "";
-    if (line.trim() && leadingWhitespace(line) <= indent) {break;}
-    const raw = /(?:\/url|url|href):\s*["']?([^"'\s]+)["']?/i.exec(line)?.[1];
-    if (!raw) {continue;}
-    try {return validatePublicHttpsUrl(new URL(raw, baseUrl).toString());} catch {return undefined;}
+function splitUtf8(value: string, maxBytes: number): string[] {
+  const result: string[] = [];
+  let remaining = value;
+  while (Buffer.byteLength(remaining, "utf8") > maxBytes) {
+    let end = Math.min(remaining.length, maxBytes);
+    while (end > 1 && Buffer.byteLength(remaining.slice(0, end), "utf8") > maxBytes) {end -= 1;}
+    const soft = Math.max(remaining.lastIndexOf(" ", end), remaining.lastIndexOf(". ", end) + 1);
+    if (soft > end / 2) {end = soft;}
+    result.push(remaining.slice(0, end).trim());
+    remaining = remaining.slice(end).trim();
   }
-  return undefined;
+  if (remaining) {result.push(remaining);}
+  return result;
 }
 
-function isSuppressedRole(role: string): boolean {
-  return new Set([
-    "banner", "navigation", "complementary", "contentinfo", "footer", "dialog", "tooltip",
-    "form", "search", "searchbox", "combobox", "option", "img", "separator", "status",
-  ]).has(role);
-}
-
-function isUsefulInlineText(value: string): boolean {
-  return value.length >= 2 && value.length <= 2_000 &&
-    !/^(?:generic|main|list|table|rowgroup|none)$/i.test(value) &&
-    !/^(?:dark mode|light mode|change language|menu|feedback)$/i.test(value);
-}
-
-function isNoiseLink(title: string, url: string): boolean {
-  return /^(?:skip to|menu|home|privacy|terms|contact|support|sign in|log in|github|youtube|x|linkedin|tiktok|threads|bluesky)/i.test(title) ||
-    /(?:privacy|login|signin|facebook\.com|linkedin\.com|youtube\.com|tiktok\.com|threads\.net|bsky\.app)/i.test(url);
-}
-
-function cleanText(value: string): string {
-  return value.replace(/\\"/g, "\"").replace(/[\t ]+/g, " ").replace(/ *\n */g, "\n").trim();
-}
-
-function leadingWhitespace(value: string): number {
-  return /^\s*/.exec(value)?.[0].length ?? 0;
-}
+function cleanText(value: string): string {return value.replace(/[\t ]+/g, " ").replace(/ *\n */g, "\n").trim();}
 
 function countOccurrences(value: string, term: string): number {
   let count = 0;

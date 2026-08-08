@@ -1,9 +1,8 @@
-import { EMPTY_USAGE_BUDGETS, type UsageBudgets } from "@/shared/usage/Usage";
-
 export type ToolExecutionMode = "disabled" | "enabled" | "auto_approve";
 export type ToolExecutionModes = Record<string, ToolExecutionMode>;
 export type PermissionMode = "default" | "read-only" | "custom" | "auto-approve" | "full-access";
 export type InterfaceLanguage = "auto" | "en" | "es" | "zh";
+export type WebSearchEngine = "bing" | "google" | "baidu";
 
 export function resolveToolExecutionMode(
   permissionMode: PermissionMode,
@@ -48,7 +47,7 @@ export interface AppConfig {
   historyRetentionDays: number;
   includeHomeAgents: boolean;
   usageBreakdown: boolean;
-  usageBudgets: UsageBudgets;
+  webSearchEngine: WebSearchEngine;
 
   userId?: string;
 }
@@ -80,5 +79,5 @@ export const DEFAULT_CONFIG: AppConfig = {
   historyRetentionDays: 30,
   includeHomeAgents: false,
   usageBreakdown: false,
-  usageBudgets: EMPTY_USAGE_BUDGETS,
+  webSearchEngine: "bing",
 };

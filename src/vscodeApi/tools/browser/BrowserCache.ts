@@ -42,7 +42,10 @@ export class LruCache<K, V> {
     return this.values.delete(key);
   }
 
-  valuesNewestFirst(): V[] {
+  valuesNewestFirst(now = Date.now()): V[] {
+    for (const [key, entry] of this.values) {
+      if (entry.expiresAt !== undefined && entry.expiresAt <= now) {this.delete(key);}
+    }
     return [...this.values.values()].reverse().map((entry) => entry.value);
   }
 

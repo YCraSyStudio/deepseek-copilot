@@ -1,83 +1,33 @@
-export const BROWSER_TOOL_IDS = {
-  open: "open_browser_page",
-  read: "read_page",
-  navigate: "navigate_page",
-  click: "click_element",
-  listPages: "list_browser_pages",
-  type: "type_in_page",
-} as const;
+export type SearchEngine = "bing" | "google" | "baidu";
+export type ResolvedSearchEngine = SearchEngine;
 
-export const REQUIRED_BROWSER_TOOL_IDS = [
-  BROWSER_TOOL_IDS.open,
-  BROWSER_TOOL_IDS.read,
-  BROWSER_TOOL_IDS.navigate,
-  BROWSER_TOOL_IDS.click,
-] as const;
-
-export const OPTIMIZED_BROWSER_TOOL_IDS = [
-  BROWSER_TOOL_IDS.listPages,
-  BROWSER_TOOL_IDS.type,
-] as const;
-
-export type BrowserToolId = typeof BROWSER_TOOL_IDS[keyof typeof BROWSER_TOOL_IDS];
-export type SearchEngine = "auto" | "bing" | "duckduckgo" | "google" | "yahoo";
-export type ResolvedSearchEngine = Exclude<SearchEngine, "auto">;
-
-export interface BrowserToolHost {
-  getToolNames(): readonly string[];
-  invokeTool(name: BrowserToolId, input: Record<string, unknown>, signal?: AbortSignal): Promise<string>;
-  getSearchEnginePreference(): string | undefined;
-  getNativeSearchEnginePreference(): string | undefined;
-  getConfiguredLocale(): string | undefined;
-  getSystemLocale(): string | undefined;
-  getVsCodeLanguage(): string;
-  getChatToolsSetting(): boolean | undefined;
-}
-
-export interface IntegratedBrowserCapabilities {
-  available: boolean;
-  optimized: boolean;
-  headless: boolean;
-  missingTools: string[];
-  missingOptimizedTools: string[];
-  chatToolsEnabled?: boolean;
-}
-
-export interface BrowserPageSnapshot {
-  pageId: string;
-  content: string;
-  truncated: boolean;
-  title?: string;
-  url?: string;
-}
-
-export interface BrowserPageInfo {
-  pageId: string;
-  title?: string;
-  url?: string;
-}
-
-export interface WebSearchResultItem {
-  id: string;
-  title: string;
-  url: string;
-  domain: string;
-  snippet?: string;
-}
-
-export interface InternalWebSearchResultItem extends WebSearchResultItem {
-  ref?: string;
+export interface WebSecurityMetadata {
+  source: "live_web";
+  active_content_removed: true;
+  injection_risk: "none" | "suspected";
+  content_hash: string;
 }
 
 export interface WebSearchResult {
-  kind: "web_search_result";
+  kind: "web_search_results";
   search_id: string;
   provider: ResolvedSearchEngine;
-  locale: string;
-  results: WebSearchResultItem[];
-  degraded?: string;
-  cached?: boolean;
+  urls: string[];
   trust: "untrusted_web_content";
+  security: WebSecurityMetadata;
+}
+
+export interface WebSearchFailure {
+  kind: "web_search_failure";
+  terminal: true;
+  provider: ResolvedSearchEngine;
+  reason: string;
+  trust: "untrusted_web_content";
+}
+
+export interface WebContentSection {
+  id: number;
+  content: string;
 }
 
 export interface WebDocumentResult {
@@ -85,10 +35,13 @@ export interface WebDocumentResult {
   document_id: string;
   title: string;
   url: string;
-  content: string;
-  outline?: string[];
-  links?: Array<{ title: string; url: string }>;
-  cursor?: string;
+  warning_before: string;
+  boundary_open: string;
+  sections: WebContentSection[];
+  boundary_close: string;
+  warning_after: string;
+  cursor: string;
   next_cursor?: string;
   trust: "untrusted_web_content";
+  security: WebSecurityMetadata;
 }

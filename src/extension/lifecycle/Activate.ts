@@ -6,7 +6,7 @@ import { SettingsManager, SecretsManager } from "@/vscodeApi/storage";
 import { WebviewProvider } from "@/vscodeApi/webviews/WebviewProvider";
 import { setActiveProvider } from "./ExtensionRuntime";
 import { initializeLogger, logInfo } from "@/shared/logging/Logger";
-import { getIntegratedBrowserDiagnostics } from "@/vscodeApi/tools/browser";
+import { getWebRuntimeDiagnostics } from "@/vscodeApi/tools/browser";
 
 type LegacySettingKey = Exclude<keyof AppConfig, "apiKey" | "userId" | "includeHomeAgents" | "interfaceLanguage"> | "responseFormat";
 
@@ -33,7 +33,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // Usage summaries are the only info-level diagnostic events. They are
   // redacted aggregates and must be retained for release comparisons.
   context.subscriptions.push(initializeLogger(diagnostics, "info"));
-  logInfo("[IntegratedBrowser] Capability snapshot", getIntegratedBrowserDiagnostics());
+  logInfo("[HeadlessWeb] Runtime snapshot", getWebRuntimeDiagnostics());
   await initializeUserSettings();
   if (SettingsManager.getPersistenceError()) {
     await vscode.window.showWarningMessage(
@@ -49,9 +49,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
 async function initializeUserSettings(): Promise<void> {
   const legacyConfig = vscode.workspace.getConfiguration(CONFIG_SECTION);
-  const initialSettings = Object.fromEntries(LEGACY_SETTING_KEYS.map((key) => [key, legacyConfig.get(key)]));
+  const legacyWebConfig = vscode.workspace.getConfiguration(`${CONFIG_SECTION}.webSearch`);
+  const initialSettings: Record<string, unknown> = Object.fromEntries(LEGACY_SETTING_KEYS.map((key) => [key, legacyConfig.get(key)]));
   initialSettings.includeHomeAgents = legacyConfig.get(INCLUDE_HOME_AGENTS_KEY);
+  const legacyWebSearchEngine = legacyWebConfig.get<string>("engine");
+  initialSettings.webSearchEngine = migrateLegacyWebSearchEngine(legacyWebSearchEngine);
   await SettingsManager.initialize(initialSettings);
+  if ((legacyWebSearchEngine === "google" || legacyWebSearchEngine === "baidu") && SettingsManager.load().webSearchEngine === "bing") {
+    await SettingsManager.save({ webSearchEngine: legacyWebSearchEngine });
+  }
 
   const removals: Thenable<void>[] = [];
   for (const key of [...LEGACY_SETTING_KEYS, INCLUDE_HOME_AGENTS_KEY]) {
@@ -63,5 +69,18 @@ async function initializeUserSettings(): Promise<void> {
       removals.push(legacyConfig.update(key, undefined, vscode.ConfigurationTarget.Workspace));
     }
   }
+  for (const key of ["engine", "locale"]) {
+    const inspected = legacyWebConfig.inspect(key);
+    if (inspected?.globalValue !== undefined) {
+      removals.push(legacyWebConfig.update(key, undefined, vscode.ConfigurationTarget.Global));
+    }
+    if (inspected?.workspaceValue !== undefined || inspected?.workspaceFolderValue !== undefined) {
+      removals.push(legacyWebConfig.update(key, undefined, vscode.ConfigurationTarget.Workspace));
+    }
+  }
   await Promise.all(removals);
+}
+
+function migrateLegacyWebSearchEngine(value: string | undefined): AppConfig["webSearchEngine"] {
+  return value === "google" || value === "baidu" || value === "bing" ? value : "bing";
 }

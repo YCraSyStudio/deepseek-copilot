@@ -4,8 +4,18 @@ export const changelog: PageContent = {
   navTitle: "Changelog",
   title: "Changelog",
   description: "Cambios relevantes y estado preview.",
-  lead: "La versión 0.1.7 rediseña la búsqueda web del navegador integrado en una única página reutilizable con identificadores opacos y dos herramientas restringidas, y compacta el contexto de las conversaciones completadas.",
+  lead: "La versión 0.1.8 sustituye el fallback del navegador por búsquedas headless de estilo humano, secciones semánticas estables, lecturas web aisladas mediante nonce y ajustes propios para API y búsqueda web.",
   sections: [
+    {
+      title: "0.1.8 búsqueda headless humana y lecturas semánticas aisladas",
+      items: [
+        "La búsqueda abre la página principal de Bing, Google o Baidu, enfoca el campo, escribe con pequeñas pausas y envía con Enter. Bing es el buscador predeterminado; CAPTCHA, bloqueos y tiempos agotados son fallos terminales sin navegador visible ni reintentos automáticos.",
+        "La búsqueda devuelve hasta diez URL HTTPS orgánicas y normalizadas. read_web solo acepta una URL exacta registrada en su search_id, salvo URL proporcionadas explícitamente por el usuario.",
+        "Las lecturas conservan únicamente títulos y párrafos de document.body, agrupan el contenido contiguo en secciones numeradas estables, dividen secciones largas entre párrafos y paginan mediante cursores opacos sin renumerar.",
+        "Cada lectura utiliza un nonce criptográfico nuevo de 128 bits alrededor de contenido no confiable serializado de forma segura en JSON, con recordatorios contra inyección antes y después de los datos y regeneración ante colisiones.",
+        "Ajustes incorpora pestañas propias para API y Búsqueda web. Se eliminaron los ajustes web nativos obsoletos, el navegador visible, el CAPTCHA manual y los presupuestos configurables de aviso, manteniendo el proxy aislado y los límites de navegación.",
+      ],
+    },
     {
       title: "0.1.7 rediseño de la búsqueda web integrada y compactación del contexto",
       items: [

@@ -1,9 +1,8 @@
 import { existsSync, readFileSync } from "node:fs";
-import type { AppConfig, InterfaceLanguage, PermissionMode, PermissionSnapshot, ToolExecutionMode, ToolExecutionModes } from "@/adapters";
+import type { AppConfig, InterfaceLanguage, PermissionMode, PermissionSnapshot, ToolExecutionMode, ToolExecutionModes, WebSearchEngine } from "@/adapters";
 import { MAX_OUTPUT_TOKENS } from "@/adapters";
 import { DEEPSEEK_DEFAULTS } from "@/deepseekApi";
 import { normalizeApiBaseUrlOrDefault } from "@/shared/security/ApiOrigin";
-import type { UsageBudgets } from "@/shared/usage/Usage";
 import { withFileLock, writeJsonFileAtomic } from "./JsonFileStorage";
 import { getSettingsFilePath } from "./UserDataPaths";
 
@@ -28,7 +27,7 @@ const STORED_SETTING_KEYS = new Set<StoredSettingKey>([
   "historyRetentionDays",
   "includeHomeAgents",
   "usageBreakdown",
-  "usageBudgets",
+  "webSearchEngine",
 ]);
 
 export class SettingsManager {
@@ -52,7 +51,9 @@ export class SettingsManager {
           const normalizedConfig = normalizeConfig(storedSettings);
           if (
             isRecord(storedSettings) &&
-            (storedSettings.permissionMode === "workspace" ||
+            (Object.prototype.hasOwnProperty.call(storedSettings, "webSearchBrowserVisible") ||
+              Object.prototype.hasOwnProperty.call(storedSettings, "usageBudgets") ||
+              storedSettings.permissionMode === "workspace" ||
               storedSettings.permissionMode === "chat" ||
               storedSettings.permissionMode === "enabled")
           ) {
@@ -232,7 +233,7 @@ function normalizeConfig(value: unknown): AppConfig {
     historyRetentionDays: clampInteger(config.historyRetentionDays, 0, 3650, DEEPSEEK_DEFAULTS.historyRetentionDays),
     includeHomeAgents: normalizeBoolean(config.includeHomeAgents, DEEPSEEK_DEFAULTS.includeHomeAgents),
     usageBreakdown: normalizeBoolean(config.usageBreakdown, DEEPSEEK_DEFAULTS.usageBreakdown),
-    usageBudgets: normalizeUsageBudgets(config.usageBudgets),
+    webSearchEngine: normalizeWebSearchEngine(config.webSearchEngine),
   };
 }
 
@@ -255,7 +256,7 @@ function toStoredSettings(config: AppConfig): StoredSettings {
     historyRetentionDays: config.historyRetentionDays,
     includeHomeAgents: config.includeHomeAgents,
     usageBreakdown: config.usageBreakdown,
-    usageBudgets: config.usageBudgets,
+    webSearchEngine: config.webSearchEngine,
   };
 }
 
@@ -279,7 +280,7 @@ function normalizeSettingValue(key: StoredSettingKey, value: unknown): unknown {
   if (key === "maxToolRounds") {return clampInteger(value, 1, 20, DEEPSEEK_DEFAULTS.maxToolRounds);}
   if (key === "maxConcurrentGenerations") {return clampInteger(value, 1, 16, DEEPSEEK_DEFAULTS.maxConcurrentGenerations);}
   if (key === "historyRetentionDays") {return clampInteger(value, 0, 3650, DEEPSEEK_DEFAULTS.historyRetentionDays);}
-  if (key === "usageBudgets") {return normalizeUsageBudgets(value);}
+  if (key === "webSearchEngine") {return normalizeWebSearchEngine(value);}
   return value;
 }
 
@@ -321,22 +322,6 @@ function isToolExecutionMode(value: unknown): value is ToolExecutionMode {
   return value === "disabled" || value === "enabled" || value === "auto_approve";
 }
 
-function normalizeUsageBudgets(value: unknown): UsageBudgets {
-  const budgets = isRecord(value) ? value : {};
-  return {
-    auxiliaryCalls: clampInteger(budgets.auxiliaryCalls ?? budgets.auxiliaryTokens, 0, Number.MAX_SAFE_INTEGER, 0),
-    cacheMissInputTokens: clampInteger(budgets.cacheMissInputTokens, 0, Number.MAX_SAFE_INTEGER, 0),
-    outputTokens: clampInteger(budgets.outputTokens, 0, Number.MAX_SAFE_INTEGER, 0),
-    totalCostUsd: clampNonNegativeNumber(budgets.totalCostUsd, 0),
-  };
-}
-
-function clampNonNegativeNumber(value: unknown, fallback: number): number {
-  return typeof value === "number" && Number.isFinite(value) && value >= 0
-    ? Math.min(Number.MAX_SAFE_INTEGER, value)
-    : fallback;
-}
-
 function normalizeBoolean(value: unknown, fallback: boolean): boolean {
   return typeof value === "boolean" ? value : fallback;
 }
@@ -347,6 +332,10 @@ function normalizeNonEmptyString(value: unknown, fallback: string): string {
 
 function normalizeReasoningEffort(value: unknown): AppConfig["reasoningEffort"] {
   return value === "high" || value === "max" ? value : DEEPSEEK_DEFAULTS.reasoningEffort;
+}
+
+function normalizeWebSearchEngine(value: unknown): WebSearchEngine {
+  return value === "bing" || value === "google" || value === "baidu" ? value : "bing";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

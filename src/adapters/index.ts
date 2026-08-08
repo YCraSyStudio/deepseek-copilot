@@ -1,4 +1,4 @@
-export type { AppConfig, InterfaceLanguage, PermissionMode, PermissionSnapshot, ToolExecutionMode, ToolExecutionModes } from "./Config";
+export type { AppConfig, InterfaceLanguage, PermissionMode, PermissionSnapshot, ToolExecutionMode, ToolExecutionModes, WebSearchEngine } from "./Config";
 export { resolveToolExecutionMode } from "./Config";
 export type {
   WebviewToHandlerMessage,

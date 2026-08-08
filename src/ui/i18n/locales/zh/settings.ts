@@ -3,6 +3,8 @@ import type { TranslationCatalog } from "../Types";
 export const settings = {
   settings: {
     tab: {
+      api: "API",
+      webSearch: "Web 搜索",
       tools: "工具",
       general: "常规"
     },
@@ -58,6 +60,11 @@ export const settings = {
     advanced: {
       title: "高级"
     },
+    webSearch: {
+      title: "Web 搜索",
+      description: "选择扩展通过隔离浏览器搜索公共网页的方式。",
+      engine: "搜索引擎",
+    },
     sampling: {
       temperature: "温度",
       topP: "Top P"
@@ -100,12 +107,7 @@ export const settings = {
     },
     usage: {
       title: "用量与成本",
-      breakdown: "在回复下方显示 Token 用量",
-      budgetsHint: "超出预算时发出警告（0 = 关闭）。警告不会停止或截断任何工作。",
-      auxiliaryCalls: "辅助调用（安全审查与上下文压缩）",
-      cacheMissInputTokens: "缓存未命中输入 Token",
-      outputTokens: "输出 Token",
-      totalCostUsd: "预计总成本（美元）"
+      breakdown: "在回复下方显示 Token 用量"
     },
     limits: {
       maxTokens: "最大输出 Token 数",

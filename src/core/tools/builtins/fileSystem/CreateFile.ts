@@ -77,7 +77,10 @@ async function handleCreateFileForced(args: Record<string, unknown>): Promise<st
     const workspace = getToolWorkspaceHost();
 
     const before = await readExistingFile(filePath);
-    if (expectedBeforeHash && before?.hash !== expectedBeforeHash) {
+    if (expectedBeforeHash === "missing" && before !== undefined) {
+      return `Error creating file '${filePath}': a file appeared after approval.`;
+    }
+    if (expectedBeforeHash && expectedBeforeHash !== "missing" && before?.hash !== expectedBeforeHash) {
       return `Error overwriting file '${filePath}': file changed after confirmation.`;
     }
 

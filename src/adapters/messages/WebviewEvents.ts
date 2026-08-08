@@ -1,5 +1,5 @@
 import type { ToolCall } from "../deepseek/Chat";
-import type { UsageAggregate, UsageWarning } from "@/shared/usage/Usage";
+import type { UsageAggregate } from "@/shared/usage/Usage";
 import type {
   AssistantTimelineEvent,
   AvailableToolInfo,
@@ -102,5 +102,4 @@ export type HandlerToWebviewMessage =
       dangerConfirmation?: DangerConfirmationData;
     }
   | { type: "availableTools"; tools: AvailableToolInfo[] }
-  | { type: "usageWarning"; generationId?: string; conversationId?: string; warning: UsageWarning }
   | { type: "assistantUsageUpdated"; generationId?: string; conversationId?: string; usage: UsageAggregate };

@@ -18,7 +18,6 @@ import { runWithToolWorkspaceHost } from "@/core/tools/ToolWorkspace";
 import { createDeepSeekProvider } from "@/deepseekApi/ProviderFactory";
 import {
   aggregateUsageAggregates,
-  checkUsageBudgets,
   createUsageAggregate,
   formatUsageSummary,
   isOfficialDeepSeekEndpoint,
@@ -26,13 +25,14 @@ import {
   type ProviderUsage,
   type UsageAggregate,
 } from "@/shared/usage/Usage";
-import { logInfo, logWarning } from "@/shared/logging/Logger";
+import { logInfo } from "@/shared/logging/Logger";
 import type {
   GenerationCheckpointStore,
   HistoryManager,
 } from "@/vscodeApi/storage";
 import { SettingsManager, SecretsManager } from "@/vscodeApi/storage";
 import { createVsCodeToolWorkspace } from "@/vscodeApi/tools/VsCodeToolWorkspace";
+import { extractHttpsUrls } from "@/vscodeApi/tools/browser/NetworkPolicy";
 import {
   captureWorkspaceRunSnapshot,
   createLegacyWorkspaceBinding,
@@ -340,6 +340,9 @@ export class GenerationExecutor {
           signal,
           isCancelling: () => signal.aborted,
           isWorkspaceTrusted: () => vscode.workspace.isTrusted,
+          generationId,
+          trustedUserRequest: payload.text,
+          authorizedUserUrls: extractHttpsUrls(payload.text),
           trustScope: {
             conversationId: task.conversationId,
             workspaceUri: normalizeWorkspaceUri(workspaceSnapshot.binding.uri),
@@ -426,15 +429,6 @@ export class GenerationExecutor {
           conversationId: task.conversationId,
           usage: structuredClone(usageAggregate),
         });
-        for (const warning of checkUsageBudgets(config.usageBudgets, usageAggregate)) {
-          logWarning(`[usage] ${warning.message}`, undefined, { generationId, conversationId: task.conversationId });
-          webviewView.webview.postMessage({
-            type: "usageWarning",
-            generationId,
-            conversationId: task.conversationId,
-            warning,
-          });
-        }
         logInfo(`[usage] ${formatUsageSummary(usageAggregate)}`, undefined, { generationId, conversationId: task.conversationId });
         const conversationUsage = aggregateUsageAggregates(
           runState.getConversation()?.messages.flatMap((message) => message.usage ? [message.usage] : []) ?? [],

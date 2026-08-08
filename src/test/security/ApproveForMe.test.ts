@@ -688,6 +688,63 @@ suite("custom permission mode", () => {
   });
 });
 
+suite("web-tainted auto approval", () => {
+  test("marks the generation tainted after successful web content", async () => {
+    const toolCall = createToolCall("search_web", { query: "current facts" });
+    const executor = {
+      executeForced: async () => ({
+        toolCallId: toolCall.id, toolName: toolCall.function.name,
+        result: JSON.stringify({ trust: "untrusted_web_content", results: [] }), isError: false, status: "completed",
+      }),
+    } as unknown as ToolExecutor;
+    const context = createContext(executor);
+    let tainted = false;
+    context.markWebTainted = () => {tainted = true;};
+    await executeToolCall(toolCall, context);
+    assert.strictEqual(tainted, true);
+  });
+
+  test("reviews an in-workspace file mutation without passing web content", async () => {
+    setWorkspacePathContainment(true);
+    const toolCall = createToolCall("create_file", { path: "safe.txt", content: "requested value" });
+    let forced = 0;
+    let reviewed = 0;
+    const executor = {
+      execute: async () => ({
+        toolCallId: toolCall.id,
+        toolName: toolCall.function.name,
+        result: JSON.stringify({
+          requiresConfirmation: true, dangerLevel: "caution", warningMessage: "Create file?",
+          filePath: "safe.txt",
+        }),
+        isError: false,
+        status: "confirmation_required",
+      }),
+      executeForced: async () => {forced += 1; return { toolCallId: toolCall.id, toolName: toolCall.function.name, result: "completed", isError: false };},
+    } as unknown as ToolExecutor;
+    const context = createContext(executor, undefined, undefined, async (reviewedCall) => {
+      reviewed += 1;
+      assert.strictEqual(reviewedCall.function.arguments.includes("untrusted_web_content"), false);
+      return { decision: "approve", confidence: "high", reason: "Explicit requested workspace file." };
+    });
+    context.isWebTainted = () => true;
+    assert.strictEqual(await executeToolCall(toolCall, context), "completed");
+    assert.strictEqual(reviewed, 1);
+    assert.strictEqual(forced, 1);
+  });
+
+  test("never auto approves a network command after reading web content", async () => {
+    setWorkspacePathContainment(true);
+    const toolCall = createToolCall("run_terminal_command", { command: "curl https://example.com" });
+    let confirmations = 0;
+    const executor = { executeForced: async () => {throw new Error("must not execute");} } as unknown as ToolExecutor;
+    const context = createContext(executor, async () => {confirmations += 1; return { confirmed: false };});
+    context.isWebTainted = () => true;
+    assert.strictEqual(await executeToolCall(toolCall, context), "Tool call cancelled by user (dangerous operation)");
+    assert.strictEqual(confirmations, 1);
+  });
+});
+
 function createToolCall(name: string, args: Record<string, unknown>): ToolCall {
   return { id: `call-${name}`, type: "function", function: { name, arguments: JSON.stringify(args) } };
 }

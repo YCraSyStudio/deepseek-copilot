@@ -31,6 +31,9 @@ suite("Extension integration", () => {
     assert.ok(isolated.some((name) => name.endsWith("unversioned-integration.json")));
     const commands = await vscode.commands.getCommands(true);
     assert.ok(commands.includes("yrs-dpsk-copilot.openChat"));
+    assert.ok(commands.includes("yrs-dpsk-copilot.installChromiumHeadless"));
+    assert.ok(commands.includes("yrs-dpsk-copilot.updateChromiumHeadless"));
+    assert.ok(commands.includes("yrs-dpsk-copilot.removeChromiumHeadless"));
   });
 
   test("captures a revisioned workspace binding and rejects parent autocomplete", async () => {

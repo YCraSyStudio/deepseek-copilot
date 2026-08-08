@@ -1,7 +1,6 @@
 import * as assert from "node:assert";
 import {
   aggregateUsageAggregates,
-  checkUsageBudgets,
   createUsageAggregate,
   estimateUsageCost,
   formatUsageSummary,
@@ -169,27 +168,6 @@ suite("usage observability", () => {
       const inconsistent = structuredClone(aggregate);
       inconsistent.inputTokens = 12;
       assert.strictEqual(normalizeUsageAggregate(inconsistent), undefined);
-    });
-  });
-
-  suite("warning budgets", () => {
-    test("uses auxiliary call count and available token/cost values", () => {
-      const aggregate = createUsageAggregate(true, "deepseek-v4-flash");
-      recordUsage(aggregate, "security_review", completeUsage(5_000, 500, 4_000, 1_000));
-      recordUsage(aggregate, "context_summary", completeUsage(1_000, 100, 800, 200));
-      recordUsage(aggregate, "primary", completeUsage(1_000, 200, 600, 400));
-
-      const warnings = checkUsageBudgets({
-        auxiliaryCalls: 1,
-        cacheMissInputTokens: 300,
-        outputTokens: 100,
-        totalCostUsd: 0,
-      }, aggregate);
-      const kinds = warnings.map((warning) => warning.kind);
-      assert.ok(kinds.includes("auxiliary_calls"));
-      assert.ok(kinds.includes("cache_miss_input"));
-      assert.ok(kinds.includes("output"));
-      assert.ok(!kinds.includes("total_cost"));
     });
   });
 

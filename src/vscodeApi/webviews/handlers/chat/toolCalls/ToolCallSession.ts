@@ -35,6 +35,7 @@ export class ToolCallSession {
   private currentRound = 0;
   private activeWebview?: vscode.WebviewView;
   private pendingLimitDecision: ((decision: ToolCallLimitDecision) => void) | null = null;
+  private webTainted = false;
   constructor(
     private readonly toolExecutor: ToolExecutor,
     private readonly dangerTrustStore: DangerTrustStore = new DangerTrustStore(),
@@ -44,6 +45,7 @@ export class ToolCallSession {
     this.activeWebview = options.webviewView;
     this.activeTrustScope = options.trustScope;
     this.activePermissionSnapshot = options.permissionSnapshot;
+    this.webTainted = false;
     let streamedContent = "";
     const executedToolCalls = new Map<string, StoredExecution>();
     const enabledTools = getRunnableToolsForPermissionSnapshot(options.tools, options.permissionSnapshot);
@@ -115,6 +117,7 @@ export class ToolCallSession {
       this.activeWebview = undefined;
       this.activeTrustScope = undefined;
       this.activePermissionSnapshot = undefined;
+      this.webTainted = false;
     }
   }
 
@@ -220,6 +223,11 @@ export class ToolCallSession {
       signal: options.signal,
       autoApproveMode: this.activePermissionSnapshot?.permissionMode === "auto-approve",
       fullAccessMode: this.activePermissionSnapshot?.permissionMode === "full-access",
+      generationId: options.generationId,
+      trustedUserRequest: options.trustedUserRequest,
+      authorizedUserUrls: options.authorizedUserUrls,
+      isWebTainted: () => this.webTainted,
+      markWebTainted: () => {this.webTainted = true;},
       isWorkspaceTrusted: options.isWorkspaceTrusted,
       getToolMode: (toolName: string) => getToolModeForPermissionSnapshot(this.activePermissionSnapshot ?? options.permissionSnapshot, toolName),
       getCurrentRound: () => this.currentRound,
@@ -249,7 +257,7 @@ export class ToolCallSession {
           toolCall,
           localAnalysis: confirmationResult,
           providerConfig: options.providerConfig,
-          originalUserRequest: getOriginalUserRequest(options.messages),
+          originalUserRequest: options.trustedUserRequest,
           onUsage: (usage) => options.onUsage?.("security_review", usage),
           workspaceRoot: confirmationResult.workspaceRoot ?? getToolWorkspaceHost().getRootPath?.(),
           signal: options.signal,
@@ -414,15 +422,6 @@ function isCancellationError(err: unknown): boolean {
 
 function getErrorMessage(err: unknown): string {
   return redactSensitiveText(err);
-}
-
-function getOriginalUserRequest(messages: import("@/adapters").ChatMessage[]): string | undefined {
-  for (const message of messages) {
-    if (message.role === "user" && typeof message.content === "string" && message.content.trim()) {
-      return message.content;
-    }
-  }
-  return undefined;
 }
 
 function hasAutoApprovedTools(options: ToolCallRunOptions, tools: ToolDefinition[]): boolean {

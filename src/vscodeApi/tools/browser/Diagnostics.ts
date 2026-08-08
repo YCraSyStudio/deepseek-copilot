@@ -1,23 +1,19 @@
 import * as vscode from "vscode";
-import { getBrowserRuntimeMetrics } from "./BrowserMetrics";
-import { IntegratedBrowserBridge } from "./IntegratedBrowserBridge";
-import { createVsCodeBrowserToolHost } from "./VsCodeBrowserToolHost";
+import { SettingsManager } from "@/vscodeApi/storage";
+import type { HeadlessWebRuntime } from "./HeadlessWebRuntime";
 
-export function getIntegratedBrowserDiagnostics(): Record<string, unknown> {
-  const bridge = new IntegratedBrowserBridge(createVsCodeBrowserToolHost());
-  const capabilities = bridge.getCapabilities();
+let runtime: HeadlessWebRuntime | undefined;
+
+export function configureWebRuntimeDiagnostics(value: HeadlessWebRuntime): void {runtime = value;}
+
+export function getWebRuntimeDiagnostics(): Record<string, unknown> {
+  const config = SettingsManager.load();
   return {
-    available: capabilities.available,
-    optimizedMode: capabilities.optimized,
-    headlessSupported: capabilities.headless,
-    chatToolsEnabled: capabilities.chatToolsEnabled,
-    configuredEngine:
-      bridge.getSearchEnginePreference() ?? bridge.getNativeSearchEnginePreference() ?? "auto",
-    configuredLocale: bridge.getConfiguredLocale() ?? "auto",
-    resolvedSystemLocale: bridge.getSystemLocale() ?? bridge.getVsCodeLanguage(),
-    missingToolIds: capabilities.missingTools,
-    missingOptimizedToolIds: capabilities.missingOptimizedTools,
-    runtime: getBrowserRuntimeMetrics(),
+    backend: "chromium-headless",
+    nativeVsCodeTools: false,
+    configuredEngine: config.webSearchEngine,
+    resolvedSystemLocale: Intl.DateTimeFormat().resolvedOptions().locale || vscode.env.language,
+    runtime: runtime?.getDiagnostics() ?? { source: "unresolved", available: false },
     vscodeVersion: vscode.version,
   };
 }

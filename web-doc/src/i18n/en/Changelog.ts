@@ -4,8 +4,18 @@ export const changelog: PageContent = {
   navTitle: "Changelog",
   title: "Changelog",
   description: "Relevant changes and preview status.",
-  lead: "Version 0.1.7 reworks integrated-browser search into one reusable VS Code page with opaque handles and two constrained tools, and compacts completed conversation context.",
+  lead: "Version 0.1.8 replaces browser fallback with human-style headless search, stable semantic sections, nonce-isolated web reads, and dedicated API and Web search settings.",
   sections: [
+    {
+      title: "0.1.8 human-style headless search and isolated semantic reads",
+      items: [
+        "Search now opens the selected Bing, Google, or Baidu home page, focuses the search field, types with short per-key delays, and submits with Enter. Bing is the default; CAPTCHA, blocking, and timeout failures are terminal without visible-browser escalation or automatic retries.",
+        "Search returns at most ten normalized organic HTTPS URL strings. read_web accepts an exact URL registered to its search_id, while direct URLs remain limited to addresses explicitly supplied by the user.",
+        "Page reads retain only headings and paragraphs from document.body, group adjacent content into stable numbered sections, split long sections between paragraphs, and paginate through opaque cursors without renumbering.",
+        "Every read uses a fresh cryptographic 128-bit nonce around JSON-safe untrusted content, with prompt-injection reminders before and after the page data and nonce collision regeneration.",
+        "Settings now provide dedicated API and Web search tabs. Obsolete native web settings, visible-browser controls, manual CAPTCHA flow, and configurable usage-warning budgets were removed while the isolated proxy and browsing limits remain enforced.",
+      ],
+    },
     {
       title: "0.1.7 integrated-browser search and context compaction",
       items: [

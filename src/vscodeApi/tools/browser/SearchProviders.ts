@@ -8,24 +8,22 @@ export interface SearchLocale {
 
 export interface SearchProvider {
   id: ResolvedSearchEngine;
-  buildUrl(query: string, locale: SearchLocale): string;
   homeUrl: string;
+  inputSelector: string;
+  resultSelector: string;
+  challengeUrls: readonly string[];
+  assetUrls: readonly string[];
+  buildUrl(query: string, locale: SearchLocale): string;
 }
 
 const PROVIDERS: Record<ResolvedSearchEngine, SearchProvider> = {
-  duckduckgo: {
-    id: "duckduckgo",
-    homeUrl: "https://duckduckgo.com/",
-    buildUrl: (query, locale) => {
-      const url = new URL("https://duckduckgo.com/");
-      url.searchParams.set("q", query);
-      url.searchParams.set("kl", `${(locale.region ?? "US").toLowerCase()}-${locale.language}`);
-      return url.toString();
-    },
-  },
   bing: {
     id: "bing",
     homeUrl: "https://www.bing.com/",
+    inputSelector: "textarea[name='q'],input[name='q']",
+    resultSelector: "li.b_algo h2 a[href]",
+    challengeUrls: ["https://www.bing.com/turing/captcha/challenge"],
+    assetUrls: ["https://assets.msn.com/"],
     buildUrl: (query, locale) => {
       const url = new URL("https://www.bing.com/search");
       url.searchParams.set("q", query);
@@ -37,6 +35,10 @@ const PROVIDERS: Record<ResolvedSearchEngine, SearchProvider> = {
   google: {
     id: "google",
     homeUrl: "https://www.google.com/",
+    inputSelector: "textarea[name='q'],input[name='q']",
+    resultSelector: "a[href] h3",
+    challengeUrls: ["https://www.google.com/sorry/index"],
+    assetUrls: ["https://www.gstatic.com/"],
     buildUrl: (query, locale) => {
       const url = new URL("https://www.google.com/search");
       url.searchParams.set("q", query);
@@ -45,58 +47,45 @@ const PROVIDERS: Record<ResolvedSearchEngine, SearchProvider> = {
       return url.toString();
     },
   },
-  yahoo: {
-    id: "yahoo",
-    homeUrl: "https://search.yahoo.com/",
-    buildUrl: (query, locale) => {
-      const url = new URL("https://search.yahoo.com/search");
-      url.searchParams.set("p", query);
-      url.searchParams.set("vl", locale.tag);
+  baidu: {
+    id: "baidu",
+    homeUrl: "https://www.baidu.com/",
+    inputSelector: "textarea[name='wd'],input[name='wd'],#kw",
+    resultSelector: "#content_left h3 a[href],#content_left a[data-landurl]",
+    challengeUrls: ["https://wappass.baidu.com/static/captcha"],
+    assetUrls: ["https://pss.bdstatic.com/", "https://dss0.bdstatic.com/"],
+    buildUrl: (query) => {
+      const url = new URL("https://www.baidu.com/s");
+      url.searchParams.set("wd", query);
       return url.toString();
     },
   },
 };
 
-const DEFAULT_ORDER: ResolvedSearchEngine[] = ["duckduckgo", "bing", "google", "yahoo"];
+export function getProvider(id: ResolvedSearchEngine): SearchProvider {return PROVIDERS[id];}
 
-export function getOrderedSearchProviders(
-  preference: string | undefined,
-  nativePreference: string | undefined,
-): SearchProvider[] {
-  const configured = normalizeSearchEngine(preference);
-  const native = normalizeSearchEngine(nativePreference);
-  const preferred = configured !== "auto" ? configured : native !== "auto" ? native : undefined;
-  const order = preferred
-    ? [preferred, ...DEFAULT_ORDER.filter((engine) => engine !== preferred)]
-    : DEFAULT_ORDER;
-  return order.map((engine) => PROVIDERS[engine]);
+export function getSelectedSearchProvider(value: string | undefined): SearchProvider {
+  return PROVIDERS[normalizeSearchEngine(value)];
+}
+
+export function getOrderedSearchProviders(value: string | undefined, _unused?: string): SearchProvider[] {
+  return [getSelectedSearchProvider(value)];
 }
 
 export function normalizeSearchEngine(value: string | undefined): SearchEngine {
-  const normalized = value?.trim().toLowerCase().replace(/[\s_-]/g, "");
-  if (normalized === "bing") {return "bing";}
-  if (normalized === "duckduckgo" || normalized === "ddg") {return "duckduckgo";}
-  if (normalized === "google") {return "google";}
-  if (normalized === "yahoo") {return "yahoo";}
-  return "auto";
+  const normalized = value?.trim().toLowerCase();
+  return normalized === "google" || normalized === "baidu" || normalized === "bing" ? normalized : "bing";
 }
 
 export function resolveSearchLocale(
   languageArgument: string | undefined,
   regionArgument: string | undefined,
-  configuredLocale: string | undefined,
   systemLocale: string | undefined,
   vscodeLanguage: string | undefined,
 ): SearchLocale {
-  const configured = configuredLocale?.trim().toLowerCase() === "auto" ? undefined : configuredLocale;
-  const base = parseLocale(languageArgument ?? configured ?? systemLocale ?? vscodeLanguage ?? "en");
-  const language = base.language;
+  const base = parseLocale(languageArgument ?? systemLocale ?? vscodeLanguage ?? "en");
   const region = regionArgument ?? base.region;
-  return {
-    language,
-    region,
-    tag: region ? `${language}-${region}` : language,
-  };
+  return { language: base.language, region, tag: region ? `${base.language}-${region}` : base.language };
 }
 
 export function addDomainConstraint(query: string, domains: readonly string[]): string {
@@ -105,13 +94,9 @@ export function addDomainConstraint(query: string, domains: readonly string[]): 
   return `${query} (${domains.map((domain) => `site:${domain}`).join(" OR ")})`;
 }
 
-export function getProvider(id: ResolvedSearchEngine): SearchProvider {
-  return PROVIDERS[id];
-}
-
 function parseLocale(locale: string): { language: string; region?: string } {
   const parts = locale.replace(/_/g, "-").split("-").filter(Boolean);
   const language = /^[a-z]{2,3}$/i.test(parts[0] ?? "") ? parts[0]!.toLowerCase() : "en";
-  const regionPart = parts.find((part, index) => index > 0 && /^(?:[a-z]{2}|\d{3})$/i.test(part));
-  return { language, region: regionPart?.toUpperCase() };
+  const region = parts.find((part, index) => index > 0 && /^(?:[a-z]{2}|\d{3})$/i.test(part))?.toUpperCase();
+  return { language, region };
 }

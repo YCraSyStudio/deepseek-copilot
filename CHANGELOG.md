@@ -1,9 +1,19 @@
 # Change Log
 
+## [0.1.8] - 2026-08-08
+
+- Replaced provider URL requests and automatic fallback with human-style headless navigation on the selected Bing, Google, or Baidu home page. Bing is the default; CAPTCHA, blocking, and timeout failures are terminal and never open a visible browser or retry automatically.
+- Search now returns at most ten normalized organic HTTPS URL strings. `read_web` accepts an exact URL registered to its `search_id`, while direct URLs remain restricted to addresses explicitly supplied by the user.
+- Rebuilt page extraction around `document.body`: hidden and active elements are removed, headings and adjacent paragraphs are grouped into stable numbered sections, oversized sections split between paragraphs, and pagination uses opaque cursors without renumbering content.
+- Added a fresh cryptographic 128-bit nonce to every web read, JSON-safe untrusted-content boundaries, prompt-injection reminders before and after page data, collision regeneration, and informative injection-risk detection.
+- Added dedicated API and Web search Settings tabs, migrated and removed obsolete native web-search settings, and removed the visible-browser and configurable usage-warning flows. The isolated HTTPS proxy, DNS pinning, SSRF protection, session profile cleanup, serialized browsing, and resource limits remain enforced.
+
 ## [0.1.7] - 2026-08-07
 
-- Reworked integrated-browser search around one reusable VS Code page: searches type into the active engine, registered results open by click, navigation returns through browser history, and a compatibility mode remains available when newer browser tools are missing.
-- Added localized DuckDuckGo, Bing, Google, and Yahoo fallback; semantic organic-result parsing; Bing redirect decoding; public-HTTPS validation; bounded search/document caches; compact 8 KiB responses; semantic page extraction; and sanitized browser diagnostics.
+- Replaced VS Code's integrated-browser tools with an isolated `puppeteer-core` runtime that reuses compatible Edge or Chrome installations and offers a pinned, extension-managed Chromium Headless Shell fallback.
+- Added an ephemeral HTTPS-only proxy with DNS pinning, public-address validation, SSRF and rebinding protection, registrable-domain concessions, request/transfer/concurrency limits, and sanitized aggregate diagnostics.
+- Added localized DuckDuckGo, Bing, Google, and Yahoo fallback; organic-result parsing; compact 8 KiB responses; semantic active-content-free extraction; prompt-injection markers; and generation-scoped in-memory caches.
+- Added web-tainted generation tracking: workspace mutations receive a content-free automatic safety review, while network, credential, publication, remote, external, or ambiguous effects require manual confirmation.
 - Replaced model-visible page IDs, DOM references, arbitrary navigation, and generic link following with opaque search/document IDs and only two constrained tools: `search_web` and the multi-mode `read_web`.
 - Compact completed conversation context to user/final-answer pairs, retain full provider transcripts only for active or incomplete recovery, and lazily compact duplicate legacy web output when history is saved again.
 

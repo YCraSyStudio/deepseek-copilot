@@ -17,7 +17,8 @@ The extension is DeepSeek-only by design.
 - Type `./` in the chat input to autocomplete workspace paths.
 - Explorer and editor commands for attaching files and exact selections; external files are added only as bounded read-only snapshots.
 - Tools for reading, listing, searching, creating, editing, patching, and running terminal commands.
-- Current web search through VS Code's integrated browser, with localized multi-provider fallback, compact semantic page reads, and no separate search API or MCP cost.
+- Current web search through an isolated headless Chromium runtime that navigates Bing, Google, or Baidu like a user, with an HTTPS-only SSRF-resistant proxy, compact semantic reads, and no visible-browser or native VS Code browser confirmations.
+- Reuses compatible local Edge or Chrome installations and can install a pinned, extension-managed Chromium Headless Shell when neither is available.
 - Structured, non-interactive terminal execution with timeout, bounded output, and process-tree cancellation.
 - Permission selector in Chat and per-tool modes in Settings.
 - Automatic bounded context from the active editor and staged or unstaged Git changes.
@@ -57,6 +58,9 @@ https://platform.deepseek.com/api_keys
 - `Yar's DeepSeek Copilot: Add File to Chat`
 - `Yar's DeepSeek Copilot: Add Selection to Chat`
 - `Yar's DeepSeek Copilot: Review Changes`
+- `Yar's DeepSeek Copilot: Install Chromium Headless`
+- `Yar's DeepSeek Copilot: Update Chromium Headless`
+- `Yar's DeepSeek Copilot: Remove Chromium Headless`
 
 ## Extension Settings
 
@@ -70,7 +74,9 @@ This includes the model, reasoning options, limits, permission mode, per-tool ex
 
 The API key is never written to this file or returned as webview configuration. Credentials remain in VS Code Secret Storage, are isolated by API origin, and appear in Settings only as a masked placeholder. Changing to a different API origin requires explicit confirmation and never copies the existing credential.
 
-Integrated-browser search uses two VS Code settings: `yrs-dpsk-copilot.webSearch.engine` selects `auto`, DuckDuckGo, Bing, Google, or Yahoo; `yrs-dpsk-copilot.webSearch.locale` accepts `auto` or a BCP-47 locale such as `es-ES`. Automatic locale selection prefers the operating-system locale before the VS Code display language. VS Code may request native confirmation when the first search page is opened. The extension then reuses that authorized page through typing, result clicks, and browser history, so normal subsequent searches do not reopen URLs. `workbench.browser.enableChatTools` must not be disabled by policy.
+Web search uses an extension-owned headless runtime, so it never invokes VS Code's native browser tools, opens a visible window, or shows their confirmation dialogs. Choose Bing, Google, or Baidu from Settings -> Web search; Bing is the default. The runtime opens the selected provider's home page, focuses its search field, types with short per-key delays, submits with Enter, and extracts only organic results. It does not switch providers or retry terminal CAPTCHA, blocking, or timeout failures. The runtime prefers a compatible local Edge or Chrome installation. If neither is available, it offers a pinned Chromium Headless Shell download in extension global storage; the browser is not included in the VSIX.
+
+Web operations are serialized and reuse one temporary profile for the VS Code session; obsolete profiles are cleaned at startup and the active profile is removed on shutdown. Every navigation passes through a loopback-only HTTPS CONNECT proxy that rejects private, local, literal-IP, alternate-port, mixed-DNS, rebinding, third-party, and non-HTTPS destinations and enforces request, transfer, redirect, concurrency, and timeout limits. Search returns at most ten normalized organic HTTPS URLs. `read_web` accepts only an exact URL registered to its `search_id`, or an HTTPS URL written literally in the current user request. Page reads retain only headings and paragraphs from `document.body`, group them into stable numbered sections, paginate without renumbering, and enclose JSON-safe untrusted content inside a fresh 128-bit nonce boundary.
 
 ## Tools and Safety
 
@@ -80,7 +86,7 @@ Yar's DeepSeek Copilot can execute workspace tools when enabled. Tool access is 
 - `read-only`: read, list, and search execute automatically; writing and terminal tools remain available but require confirmation.
 - `custom`: configure every tool as disabled, confirmation required, or auto approved.
 - `auto-approve`: all tools, including workspace-contained terminal commands, execute automatically. External filesystem access and commands that cannot be proven workspace-contained still require confirmation.
-- `full-access`: unrestricted unattended access. Tools and terminal commands may operate anywhere on the computer without confirmation.
+- `full-access`: unrestricted unattended access before web content is consumed. Post-web external, network, credential, publication, remote, destructive, or ambiguous effects still fail closed to manual confirmation.
 
 Tool execution is then controlled per tool:
 
@@ -89,6 +95,8 @@ Tool execution is then controlled per tool:
 - `auto_approve`: execute without confirmation only when the operation is not considered dangerous.
 
 Changing an individual tool while a preset is selected copies that preset into `custom` automatically. Terminal commands are not OS-sandboxed. In `auto-approve`, a conservative local analyzer handles commands it understands; uncertain workspace-contained commands may receive a separate DeepSeek security review using the initial user request and bounded, non-sensitive context from explicitly named workspace files. Automatic approval or replanning requires at least `medium_high` confidence. Credentials, elevation, external or remote mutation, broad process termination, publishing, deployment, and destructive operations are never delegated to that reviewer. Unresolved cases ask the user. Enabling `full-access` shows a global danger warning because it removes workspace containment and confirmation prompts. VS Code Workspace Trust and cancellation remain enforced. Legacy `chat` and transitional `enabled` settings migrate to `default`; legacy `workspace` migrates to `full-access`.
+
+After either web tool succeeds, that generation is marked web-tainted. Reads continue automatically under the selected mode, but file mutations and patches must first pass their normal local preview and workspace-boundary checks, then a content-free automatic review. The reviewer receives the current trusted user request, operation type and path, but never raw web text or proposed file content. Commands with network or external effects are never auto-approved after web access.
 
 Tool calls have one visible lifecycle: awaiting confirmation, running, then completed, rejected, cancelled, or error. Calls within a round execute sequentially and identical repeated calls are skipped. The configured tool-round value is a safety-checkpoint interval: auto-approve and full-access ask DeepSeek to reassess whether to continue, request instructions, or stop; other modes ask the user whether to continue.
 
@@ -125,7 +133,6 @@ DeepSeek reports usage per request. The extension parses and validates both stre
 - Aggregates are stored per assistant message (counts only — never prompts, commands, paths, or response contents), combined into a conversation total, and can be shown from Settings -> General -> Usage & cost.
 - Redacted generation and conversation summaries are written to the Diagnostics output channel; run `Yar's DeepSeek Copilot: Show Diagnostics` to inspect them.
 - Currency is estimated only for the official DeepSeek endpoint when every request supplies cache-hit, cache-miss, and output counts. The persisted `PRICE_CATALOG_VERSION` identifies the price snapshot. Custom endpoints report provider usage without guessing a price or automatically adding DeepSeek-specific stream options.
-- Configurable warning budgets (auxiliary calls, cache-miss input, output, estimated total cost) surface a warning when exceeded. Warnings never truncate or cancel work.
 - Provider-side context caching is best-effort and reuse requires stable request prefixes. Reported usage is authoritative. To measure an optimization, compare like-for-like generations or conversation summaries using the same model and price-catalog version; use cache-miss input as the primary reduction metric and cache-hit divided by total reported input as the hit ratio. Requests without reported cache fields are outside that comparison boundary.
 
 ## Documentation

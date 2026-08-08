@@ -2,14 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 import "@vscode/codicons/dist/codicon.css";
 import "./SettingsView.css";
-import { GeneralTab, ToolsTab } from "./tabs";
+import { ApiTab, GeneralTab, ToolsTab, WebSearchTab } from "./tabs";
 import { getVsCodeApi } from "../../VsCodeApi";
 import { DEFAULT_CONFIG, MODEL_OPTIONS, REASONING_EFFORT_OPTIONS, type ApiCredentialState, type SaveOnBlurFn, type SettingsConfig } from "./model";
 import type { AvailableToolInfo, HandlerToWebviewMessage, ToolExecutionModes } from "@/adapters";
 import { setInterfaceLanguage, t } from "@webview/i18n";
 import { shouldApplyConfigRevision } from "@webview/config/ConfigRevision";
 
-type SettingsTab = "general" | "tools";
+type SettingsTab = "general" | "api" | "tools" | "webSearch";
 type Notification = { type: "error" | "success"; message: string };
 
 function SettingsView() {
@@ -26,7 +26,7 @@ function SettingsView() {
   const loadedRef = useRef(false);
   const revisionRef = useRef(-1);
   const pendingSecurityRequestsRef = useRef(new Set<string>());
-  const tabRefs = useRef<Record<SettingsTab, HTMLButtonElement | null>>({ general: null, tools: null });
+  const tabRefs = useRef<Record<SettingsTab, HTMLButtonElement | null>>({ general: null, api: null, tools: null, webSearch: null });
   const effectiveToolExecutionModes = useMemo(() => normalizeToolExecutionModes(config.toolExecutionModes, tools), [config.toolExecutionModes, tools]);
 
   const applyConfig = useCallback((nextConfig: Partial<SettingsConfig>) => {
@@ -69,7 +69,7 @@ function SettingsView() {
 
   const handleTabKeyDown = useCallback(
     (event: KeyboardEvent<HTMLButtonElement>) => {
-      const order: SettingsTab[] = ["general", "tools"];
+      const order: SettingsTab[] = ["general", "api", "tools", "webSearch"];
       const currentIndex = order.indexOf(activeTab);
       let nextTab: SettingsTab | undefined;
       if (event.key === "ArrowRight" || event.key === "ArrowDown") {nextTab = order[(currentIndex + 1) % order.length];}
@@ -157,6 +157,20 @@ function SettingsView() {
         </button>
         <button
           type="button"
+          className={`settingsTab ${activeTab === "api" ? "active" : ""}`}
+          role="tab"
+          id="settings-tab-api"
+          aria-controls="settings-panel-api"
+          aria-selected={activeTab === "api"}
+          tabIndex={activeTab === "api" ? 0 : -1}
+          ref={(element) => { tabRefs.current.api = element; }}
+          onClick={() => selectTab("api")}
+          onKeyDown={handleTabKeyDown}
+        >
+          {t("settings.tab.api")}
+        </button>
+        <button
+          type="button"
           className={`settingsTab ${activeTab === "tools" ? "active" : ""}`}
           role="tab"
           id="settings-tab-tools"
@@ -168,6 +182,20 @@ function SettingsView() {
           onKeyDown={handleTabKeyDown}
         >
           {t("settings.tab.tools")}
+        </button>
+        <button
+          type="button"
+          className={`settingsTab ${activeTab === "webSearch" ? "active" : ""}`}
+          role="tab"
+          id="settings-tab-webSearch"
+          aria-controls="settings-panel-webSearch"
+          aria-selected={activeTab === "webSearch"}
+          tabIndex={activeTab === "webSearch" ? 0 : -1}
+          ref={(element) => { tabRefs.current.webSearch = element; }}
+          onClick={() => selectTab("webSearch")}
+          onKeyDown={handleTabKeyDown}
+        >
+          {t("settings.tab.webSearch")}
         </button>
       </div>
 
@@ -186,7 +214,10 @@ function SettingsView() {
           </div>
         ) : null}
         {hasLoadedConfig && activeTab === "general" ? (
-          <GeneralTab
+          <GeneralTab config={config} updateConfig={updateConfig} saveOnBlur={saveOnBlur} />
+        ) : null}
+        {hasLoadedConfig && activeTab === "api" ? (
+          <ApiTab
             config={config}
             apiKeyDraft={apiKeyDraft}
             credential={apiCredential}
@@ -213,6 +244,9 @@ function SettingsView() {
             saveOnBlur={saveOnBlur}
             permissionUpdatePending={permissionUpdatePending}
           />
+        ) : null}
+        {hasLoadedConfig && activeTab === "webSearch" ? (
+          <WebSearchTab config={config} updateConfig={updateConfig} saveOnBlur={saveOnBlur} />
         ) : null}
       </div>
 

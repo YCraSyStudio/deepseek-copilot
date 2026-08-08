@@ -172,18 +172,6 @@ export function useChatMessagesController({
       },
       [onConfigLoaded],
     ),
-    onUsageWarning: useCallback(
-      (data) => {
-        setMessages((current) => [...current, {
-          id: nextMessageId(),
-          role: "error",
-          content: data.warning.message,
-          generationId: data.generationId,
-        }]);
-      },
-      [nextMessageId, setMessages],
-    ),
-
     onAssistantUsageUpdated: useCallback(
       (data) => {
         setMessages((current) => {

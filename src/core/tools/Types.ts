@@ -23,6 +23,10 @@ export interface RegisteredTool {
 
 export interface ToolHandlerContext {
   signal?: AbortSignal;
+  generationId?: string;
+  trustedUserRequest?: string;
+  authorizedUserUrls?: readonly string[];
+  webTainted?: boolean;
 }
 
 /** Tool-call validation result. */

@@ -62,30 +62,6 @@ export interface UsageAggregate extends PhaseUsage {
   byPhase: Partial<Record<UsagePhase, PhaseUsage>>;
 }
 
-/** Warning budgets; 0 disables that budget. Warnings never truncate or cancel work. */
-export interface UsageBudgets {
-  auxiliaryCalls: number;
-  cacheMissInputTokens: number;
-  outputTokens: number;
-  totalCostUsd: number;
-}
-
-export type UsageWarningKind = "auxiliary_calls" | "cache_miss_input" | "output" | "total_cost";
-
-export interface UsageWarning {
-  kind: UsageWarningKind;
-  limit: number;
-  actual: number;
-  message: string;
-}
-
-export const EMPTY_USAGE_BUDGETS: UsageBudgets = Object.freeze({
-  auxiliaryCalls: 0,
-  cacheMissInputTokens: 0,
-  outputTokens: 0,
-  totalCostUsd: 0,
-});
-
 const OFFICIAL_DEEPSEEK_BASE_URL = "https://api.deepseek.com";
 
 interface PriceTier {
@@ -295,44 +271,6 @@ export function isUsageAggregate(value: unknown): value is UsageAggregate {
   return normalizeUsageAggregate(value) !== undefined;
 }
 
-export function checkUsageBudgets(budgets: UsageBudgets, aggregate: UsageAggregate): UsageWarning[] {
-  const warnings: UsageWarning[] = [];
-  const auxiliaryCalls = countAuxiliaryCalls(aggregate);
-  if (budgets.auxiliaryCalls > 0 && auxiliaryCalls > budgets.auxiliaryCalls) {
-    warnings.push({
-      kind: "auxiliary_calls",
-      limit: budgets.auxiliaryCalls,
-      actual: auxiliaryCalls,
-      message: `Auxiliary model calls reached ${auxiliaryCalls.toLocaleString()} (budget ${budgets.auxiliaryCalls.toLocaleString()}). Work was not stopped.`,
-    });
-  }
-  if (budgets.cacheMissInputTokens > 0 && aggregate.cacheMissTokens !== undefined && aggregate.cacheMissTokens > budgets.cacheMissInputTokens) {
-    warnings.push({
-      kind: "cache_miss_input",
-      limit: budgets.cacheMissInputTokens,
-      actual: aggregate.cacheMissTokens,
-      message: `Cache-miss input reached ${aggregate.cacheMissTokens.toLocaleString()} tokens (budget ${budgets.cacheMissInputTokens.toLocaleString()}). Work was not stopped.`,
-    });
-  }
-  if (budgets.outputTokens > 0 && aggregate.outputTokens !== undefined && aggregate.outputTokens > budgets.outputTokens) {
-    warnings.push({
-      kind: "output",
-      limit: budgets.outputTokens,
-      actual: aggregate.outputTokens,
-      message: `Output reached ${aggregate.outputTokens.toLocaleString()} tokens (budget ${budgets.outputTokens.toLocaleString()}). Work was not stopped.`,
-    });
-  }
-  if (budgets.totalCostUsd > 0 && aggregate.costUsd !== undefined && aggregate.costUsd > budgets.totalCostUsd) {
-    warnings.push({
-      kind: "total_cost",
-      limit: budgets.totalCostUsd,
-      actual: aggregate.costUsd,
-      message: `Estimated cost reached $${aggregate.costUsd.toFixed(4)} (budget $${budgets.totalCostUsd.toFixed(2)}). Work was not stopped.`,
-    });
-  }
-  return warnings;
-}
-
 /** Redacted one-line summary suitable for diagnostics and release comparisons. */
 export function formatUsageSummary(aggregate: UsageAggregate): string {
   const phases = USAGE_PHASES
@@ -470,11 +408,6 @@ function formatPhaseUsage(usage: PhaseUsage): string {
 
 function formatCount(value: number | undefined): string {
   return value === undefined ? "unavailable" : String(value);
-}
-
-function countAuxiliaryCalls(aggregate: UsageAggregate): number {
-  return (["security_review", "context_summary", "file_compaction"] as const)
-    .reduce((total, phase) => total + (aggregate.byPhase[phase]?.requests ?? 0), 0);
 }
 
 function resolvePriceTier(model: string | undefined): PriceTier | undefined {

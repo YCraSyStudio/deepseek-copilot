@@ -192,7 +192,7 @@ const APP_CONFIG_KEYS = [
   "includeHomeAgents",
   "userId",
   "usageBreakdown",
-  "usageBudgets",
+  "webSearchEngine",
 ] as const satisfies readonly (keyof AppConfig)[];
 
 function isAppConfigPatch(value: unknown): value is Partial<AppConfig> {
@@ -219,18 +219,9 @@ function isAppConfigPatch(value: unknown): value is Partial<AppConfig> {
     (value.historyRetentionDays === undefined || (Number.isSafeInteger(value.historyRetentionDays) && (value.historyRetentionDays as number) >= 0 && (value.historyRetentionDays as number) <= 3650)) &&
     isOptionalBoolean(value.includeHomeAgents) &&
     isOptionalBoolean(value.usageBreakdown) &&
-    (value.usageBudgets === undefined || isUsageBudgets(value.usageBudgets)) &&
+    (value.webSearchEngine === undefined || value.webSearchEngine === "bing" || value.webSearchEngine === "google" || value.webSearchEngine === "baidu") &&
     isOptionalBoundedString(value.userId, 256)
   );
-}
-
-function isUsageBudgets(value: unknown): boolean {
-  if (!isRecord(value) || !hasOnlyKeys(value, ["auxiliaryCalls", "cacheMissInputTokens", "outputTokens", "totalCostUsd"])) {
-    return false;
-  }
-  return [value.auxiliaryCalls, value.cacheMissInputTokens, value.outputTokens]
-    .every((budget) => budget === undefined || (Number.isSafeInteger(budget) && (budget as number) >= 0)) &&
-    (value.totalCostUsd === undefined || (typeof value.totalCostUsd === "number" && Number.isFinite(value.totalCostUsd) && value.totalCostUsd >= 0));
 }
 
 function isToolExecutionModes(value: unknown): boolean {

@@ -28,7 +28,7 @@ export type AdvancedSectionProps = {
 };
 
 export type GeneralSectionProps = {
-  config: Pick<SettingsConfig, "interfaceLanguage" | "historyEnabled" | "historyRetentionDays" | "includeHomeAgents" | "usageBreakdown" | "usageBudgets">;
+  config: Pick<SettingsConfig, "interfaceLanguage" | "historyEnabled" | "historyRetentionDays" | "includeHomeAgents" | "usageBreakdown">;
   updateConfig: UpdateConfigFn;
   saveOnBlur: SaveOnBlurFn;
 };

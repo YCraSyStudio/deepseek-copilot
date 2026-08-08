@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { VsCodeApi } from "@webview/VsCodeApi";
 import { WEBVIEW_PROTOCOL_VERSION, type AssistantTimelineEvent, type HandlerToWebviewMessage, type AppConfig, type StoredToolCall, type ToolCall } from "@/adapters";
-import type { UsageAggregate, UsageWarning } from "@/shared/usage/Usage";
+import type { UsageAggregate } from "@/shared/usage/Usage";
 import type { ApiKeyStatus, DangerConfirmationData, ToolCallStatus } from "../ChatViewTypes";
 import { setInterfaceLanguage } from "@webview/i18n";
 
@@ -44,7 +44,6 @@ export type MessageDispatcher = {
   onToolCallLimitReached?: (data: { generationId?: string; completedRounds: number; batchSize: number }) => void;
   onContextCompactionUpdated?: (data: { generationId: string; status: "compacting" | "completed" }) => void;
   onGenerationSnapshot?: (message: Extract<HandlerToWebviewMessage, { type: "generationSnapshot" }>) => void;
-  onUsageWarning?: (data: { generationId?: string; warning: UsageWarning }) => void;
   onAssistantUsageUpdated?: (data: { generationId?: string; usage: UsageAggregate }) => void;
 };
 
@@ -158,10 +157,6 @@ export function useMessageHandler(vscode: VsCodeApi | null, dispatcher: MessageD
 
         case "generationSnapshot":
           dispatcherRef.current.onGenerationSnapshot?.(message);
-          break;
-
-        case "usageWarning":
-          dispatcherRef.current.onUsageWarning?.({ generationId: message.generationId, warning: message.warning });
           break;
 
         case "assistantUsageUpdated":

@@ -41,9 +41,10 @@ import {
   getWorkspaceStatusError,
 } from "./ChatHandlerSupport";
 import {
-  createIntegratedBrowserTools,
-  createVsCodeBrowserToolHost,
-  IntegratedBrowserBridge,
+  BrowserManager,
+  configureWebRuntimeDiagnostics,
+  createHeadlessWebTools,
+  HeadlessWebRuntime,
 } from "@/vscodeApi/tools/browser";
 
 export class ChatHandler {
@@ -66,6 +67,7 @@ export class ChatHandler {
   private readonly slashCommands: SlashCommandService;
   private readonly generationExecutor: GenerationExecutor;
   private readonly workspaceReferences: ConversationWorkspaceReferences;
+  private readonly headlessWebRuntime: HeadlessWebRuntime;
   private readonly generationEventCallbacks: GenerationEventCallbacks = {
     scheduleCheckpoint: (record) => this.scheduleCheckpoint(record),
     checkpointImmediately: (record) => {
@@ -90,10 +92,30 @@ export class ChatHandler {
     for (const tool of BUILT_IN_TOOLS) {
       this.toolRegistry.register(tool);
     }
-    const browserBridge = new IntegratedBrowserBridge(createVsCodeBrowserToolHost());
-    for (const tool of createIntegratedBrowserTools(browserBridge)) {
+    const browserManager = new BrowserManager(context);
+    this.headlessWebRuntime = new HeadlessWebRuntime(browserManager);
+    configureWebRuntimeDiagnostics(this.headlessWebRuntime);
+    for (const tool of createHeadlessWebTools(this.headlessWebRuntime, {
+      configuredEngine: () => SettingsManager.load().webSearchEngine,
+      systemLocale: () => Intl.DateTimeFormat().resolvedOptions().locale,
+      vscodeLanguage: () => vscode.env.language,
+    })) {
       this.toolRegistry.register(tool);
     }
+    context.subscriptions.push(
+      vscode.commands.registerCommand("yrs-dpsk-copilot.installChromiumHeadless", async () => {
+        const executable = await browserManager.installManaged();
+        await vscode.window.showInformationMessage(`Chromium Headless ${executable.buildId ?? ""} installed.`);
+      }),
+      vscode.commands.registerCommand("yrs-dpsk-copilot.removeChromiumHeadless", async () => {
+        await browserManager.removeManaged();
+        await vscode.window.showInformationMessage("Managed Chromium Headless removed.");
+      }),
+      vscode.commands.registerCommand("yrs-dpsk-copilot.updateChromiumHeadless", async () => {
+        const executable = await browserManager.installManaged();
+        await vscode.window.showInformationMessage(`Chromium Headless ${executable.buildId ?? ""} is up to date.`);
+      }),
+    );
     this.workspaceReferences = new ConversationWorkspaceReferences({
       conversationState: this.conversationState,
       historyManager: this.historyManager,
@@ -500,6 +522,7 @@ export class ChatHandler {
       record.session.cancel();
     }
     await this.coordinator.shutdown();
+    await this.headlessWebRuntime.dispose();
     await Promise.allSettled([...this.runs.values()].map((record) => this.checkpointRun(record, true)));
     await this.checkpointStore.flush();
   }

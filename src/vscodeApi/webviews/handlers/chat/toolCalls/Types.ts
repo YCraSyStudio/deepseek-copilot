@@ -66,6 +66,9 @@ export interface ToolCallRunOptions {
   isCancelling: () => boolean;
   trustScope: DangerTrustScope;
   isWorkspaceTrusted: () => boolean;
+  generationId: string;
+  trustedUserRequest: string;
+  authorizedUserUrls: readonly string[];
 }
 
 export interface ToolCallRunResult {
@@ -98,6 +101,11 @@ export interface ToolExecutionContext {
   ) => Promise<CommandSafetyReview>;
   isDangerTrusted: (toolCall: ToolCall, confirmationResult: ConfirmationRequiredResult) => boolean;
   trustDangerForSession: (toolCall: ToolCall, confirmationResult: ConfirmationRequiredResult) => void;
+  generationId?: string;
+  trustedUserRequest?: string;
+  authorizedUserUrls?: readonly string[];
+  isWebTainted?: () => boolean;
+  markWebTainted?: () => void;
 }
 
 export interface HandleExecutionResultOptions {

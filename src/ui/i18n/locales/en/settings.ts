@@ -3,6 +3,8 @@ import type { TranslationCatalog } from "../Types";
 export const settings = {
   settings: {
     tab: {
+      api: "API",
+      webSearch: "Web search",
       tools: "Tools",
       general: "General"
     },
@@ -58,6 +60,11 @@ export const settings = {
     advanced: {
       title: "Advanced"
     },
+    webSearch: {
+      title: "Web search",
+      description: "Choose how the extension searches the public web through its isolated browser.",
+      engine: "Search engine",
+    },
     sampling: {
       temperature: "Temperature",
       topP: "Top P"
@@ -100,12 +107,7 @@ export const settings = {
     },
     usage: {
       title: "Usage & cost",
-      breakdown: "Show token usage under responses",
-      budgetsHint: "Warn when a budget is exceeded (0 = off). Warnings never stop or truncate work.",
-      auxiliaryCalls: "Auxiliary calls (security review & compaction)",
-      cacheMissInputTokens: "Cache-miss input tokens",
-      outputTokens: "Output tokens",
-      totalCostUsd: "Estimated total cost (USD)"
+      breakdown: "Show token usage under responses"
     },
     limits: {
       maxTokens: "Max output tokens",

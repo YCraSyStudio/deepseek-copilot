@@ -1,5 +1,4 @@
 import type { GeneralSectionProps } from "../model";
-import type { UsageBudgets } from "@/shared/usage/Usage";
 import { Toggle } from "@webview/components/settingsView";
 import { t } from "@webview/i18n";
 
@@ -63,60 +62,6 @@ function GeneralSection({ config, updateConfig, saveOnBlur }: GeneralSectionProp
         }}
       />
 
-      <div className="settingRow">
-        <label htmlFor="usageBudgetAuxiliary">{t("settings.usage.auxiliaryCalls")}</label>
-        <input
-          id="usageBudgetAuxiliary"
-          type="number"
-          min={0}
-          step={1}
-          value={config.usageBudgets.auxiliaryCalls}
-          onChange={(event) => updateUsageBudget("auxiliaryCalls", event.currentTarget, config, updateConfig)}
-          onBlur={(event) => updateUsageBudget("auxiliaryCalls", event.currentTarget, config, saveOnBlur)}
-        />
-      </div>
-
-      <div className="settingRow">
-        <label htmlFor="usageBudgetCacheMiss">{t("settings.usage.cacheMissInputTokens")}</label>
-        <input
-          id="usageBudgetCacheMiss"
-          type="number"
-          min={0}
-          step={1000}
-          value={config.usageBudgets.cacheMissInputTokens}
-          onChange={(event) => updateUsageBudget("cacheMissInputTokens", event.currentTarget, config, updateConfig)}
-          onBlur={(event) => updateUsageBudget("cacheMissInputTokens", event.currentTarget, config, saveOnBlur)}
-        />
-      </div>
-
-      <div className="settingRow">
-        <label htmlFor="usageBudgetOutput">{t("settings.usage.outputTokens")}</label>
-        <input
-          id="usageBudgetOutput"
-          type="number"
-          min={0}
-          step={1000}
-          value={config.usageBudgets.outputTokens}
-          onChange={(event) => updateUsageBudget("outputTokens", event.currentTarget, config, updateConfig)}
-          onBlur={(event) => updateUsageBudget("outputTokens", event.currentTarget, config, saveOnBlur)}
-        />
-      </div>
-
-      <div className="settingRow">
-        <label htmlFor="usageBudgetCost">{t("settings.usage.totalCostUsd")}</label>
-        <input
-          id="usageBudgetCost"
-          type="number"
-          min={0}
-          step={0.01}
-          value={config.usageBudgets.totalCostUsd}
-          onChange={(event) => updateUsageBudget("totalCostUsd", event.currentTarget, config, updateConfig)}
-          onBlur={(event) => updateUsageBudget("totalCostUsd", event.currentTarget, config, saveOnBlur)}
-        />
-      </div>
-
-      <p className="settingsHint">{t("settings.usage.budgetsHint")}</p>
-
     </section>
   );
 }
@@ -126,22 +71,6 @@ export default GeneralSection;
 function updateBoundedInteger(input: HTMLInputElement, min: number, max: number, update: (value: number) => void): void {
   const value = input.valueAsNumber;
   if (Number.isInteger(value) && value >= min && value <= max) {update(value);}
-}
-
-function updateUsageBudget(
-  key: keyof UsageBudgets,
-  input: HTMLInputElement,
-  config: GeneralSectionProps["config"],
-  update: (key: "usageBudgets", value: UsageBudgets) => void,
-): void {
-  const value = input.valueAsNumber;
-  const valid = key === "totalCostUsd"
-    ? Number.isFinite(value) && value >= 0
-    : Number.isSafeInteger(value) && value >= 0;
-  if (valid) {
-    const next = { ...config.usageBudgets, [key]: value } as UsageBudgets;
-    update("usageBudgets", next);
-  }
 }
 
 function parseInterfaceLanguage(value: string): "auto" | "en" | "es" | "zh" | undefined {
