@@ -3,6 +3,7 @@ import type { RegisteredTool, ToolMetadata } from "../../Types";
 import { getToolWorkspaceHost } from "../../ToolWorkspace";
 import { bufferLooksBinary, createStructuredResult, createUnifiedDiff } from "./StructuredResult";
 import { createHash } from "crypto";
+import { findLineEndingInsensitiveRanges, normalizeReplacementLineEndings, type TextRange } from "./LineEndings";
 
 interface EditFileArgs {
   path: string;
@@ -48,6 +49,8 @@ async function handleEditFileForced(args: Record<string, unknown>): Promise<stri
     return createStructuredResult("fileEdit", {
       path: parsed.path,
       replacementCount: preview.replacementCount,
+      beforeHash: preview.beforeHash,
+      afterHash: createHash("sha256").update(preview.after, "utf-8").digest("hex"),
       diff: preview.diff.content,
       diffTruncated: preview.diff.truncated,
       diffStats: preview.diff.stats,
@@ -85,7 +88,9 @@ async function prepareEdit(
     if (args.expectedBeforeHash && args.expectedBeforeHash !== beforeHash) {
       return `Error editing file '${args.path}': file changed after confirmation. Expected sha256 ${args.expectedBeforeHash}, got ${beforeHash}.`;
     }
-    const replacementCount = countOccurrences(before, args.search);
+    const exactRanges = findExactRanges(before, args.search);
+    const ranges = exactRanges.length > 0 ? exactRanges : findLineEndingInsensitiveRanges(before, args.search);
+    const replacementCount = ranges.length;
     if (replacementCount === 0) {
       return `Error editing file '${args.path}': search text not found`;
     }
@@ -93,7 +98,9 @@ async function prepareEdit(
       return `Error editing file '${args.path}': search text matched ${replacementCount} times. Set replaceAll to true to replace every match.`;
     }
 
-    const after = args.replaceAll ? before.split(args.search).join(args.replace) : before.replace(args.search, args.replace);
+    const replacement = normalizeReplacementLineEndings(args.replace, before);
+    const selectedRanges = args.replaceAll ? ranges : ranges.slice(0, 1);
+    const after = replaceRanges(before, selectedRanges, replacement);
     const diff = createUnifiedDiff({ filePath: args.path, before, after });
 
     if (options.showDiffPreview) {
@@ -145,17 +152,26 @@ function parseEditFileArgs(args: Record<string, unknown>): EditFileArgs | string
   };
 }
 
-function countOccurrences(content: string, search: string): number {
-  let count = 0;
-  let index = 0;
+function findExactRanges(content: string, search: string): TextRange[] {
+  const ranges: TextRange[] = [];
+  let offset = 0;
   while (true) {
-    const nextIndex = content.indexOf(search, index);
+    const nextIndex = content.indexOf(search, offset);
     if (nextIndex === -1) {
-      return count;
+      return ranges;
     }
-    count += 1;
-    index = nextIndex + search.length;
+    ranges.push({ start: nextIndex, end: nextIndex + search.length });
+    offset = nextIndex + search.length;
   }
+}
+
+function replaceRanges(content: string, ranges: readonly TextRange[], replacement: string): string {
+  let result = content;
+  for (let index = ranges.length - 1; index >= 0; index -= 1) {
+    const range = ranges[index]!;
+    result = `${result.slice(0, range.start)}${replacement}${result.slice(range.end)}`;
+  }
+  return result;
 }
 
 function getErrorMessage(err: unknown): string {

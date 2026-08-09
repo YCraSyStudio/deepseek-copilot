@@ -1,4 +1,5 @@
 import { ConversationState } from "@/core/chat/ConversationState";
+import { buildInterruptedContextContent } from "@/core/chat/InterruptedContext";
 import type { StoredConversation } from "@/core/chat/ProviderTranscript";
 import {
   type GenerationCheckpointStore,
@@ -71,28 +72,29 @@ export async function recoverGenerationCheckpoints(
         const completed =
           checkpoint.status === "completed" &&
           checkpoint.providerTranscript?.status === "complete";
+        const recoveredToolCalls = checkpoint.toolCalls.map((tool) =>
+          !completed &&
+          (
+            tool.status === "pending" ||
+            tool.status === "awaiting_confirmation" ||
+            tool.status === "running"
+          )
+            ? {
+                ...tool,
+                status: "cancelled" as const,
+                result: tool.result ?? "Interrupted because VS Code closed.",
+                requiresConfirmation: false,
+                dangerConfirmation: undefined,
+              }
+            : tool,
+        );
         messages.push(state.createMessage("assistant", checkpoint.content, {
           generationId: checkpoint.generationId,
           generationStatus: completed ? "completed" : "interrupted",
           timeline: checkpoint.timeline,
-          contextContent: completed ? checkpoint.content : undefined,
+          contextContent: completed ? checkpoint.content : buildInterruptedContextContent(checkpoint.content, recoveredToolCalls),
           providerTranscript: completed ? undefined : checkpoint.providerTranscript,
-          toolCalls: checkpoint.toolCalls.map((tool) =>
-            !completed &&
-            (
-              tool.status === "pending" ||
-              tool.status === "awaiting_confirmation" ||
-              tool.status === "running"
-            )
-              ? {
-                  ...tool,
-                  status: "cancelled",
-                  result: tool.result ?? "Interrupted because VS Code closed.",
-                  requiresConfirmation: false,
-                  dangerConfirmation: undefined,
-                }
-              : tool,
-          ),
+          toolCalls: recoveredToolCalls,
         }));
       }
       if (messages.length > 0) {

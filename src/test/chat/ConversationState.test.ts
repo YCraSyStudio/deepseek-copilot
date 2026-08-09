@@ -229,6 +229,29 @@ suite("ConversationState", () => {
 
     assert.deepStrictEqual(state.getApiMessages(), [{ role: "assistant", content: "partial answer" }]);
   });
+
+  test("uses compact contextContent for an interrupted generation", () => {
+    const state = new ConversationState({ save: async () => undefined });
+    state.load({
+      schemaVersion: 2,
+      id: "interrupted-ledger",
+      title: "Interrupted ledger",
+      createdAt: 1,
+      updatedAt: 1,
+      model: "model",
+      workspaceUri: "file:///workspace",
+      workspaceBinding: testWorkspaceBinding(),
+      messages: [{
+        id: "assistant",
+        role: "assistant",
+        content: "visible partial",
+        contextContent: "machine execution ledger",
+        generationStatus: "interrupted",
+      }],
+    });
+
+    assert.deepStrictEqual(state.getApiMessages(), [{ role: "assistant", content: "machine execution ledger" }]);
+  });
 });
 
 function testWorkspaceBinding() {

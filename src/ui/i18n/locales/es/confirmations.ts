@@ -27,7 +27,7 @@ export const confirmations = {
     potentiallyDangerousAction: "Acción potencialmente peligrosa",
     cautionRequired: "Se requiere precaución",
     toolCallLimitReached: "Se alcanzó el límite de llamadas a herramientas",
-    toolCallLimitDescription: "El asistente ha completado {rounds} rondas de herramientas. ¿Continuar con hasta {batchSize} rondas más?",
+    toolCallLimitDescription: "El trabajo se está extendiendo: {rounds} rondas y {calls}/{callBudget} herramientas en el bloque actual. ¿Continuar con hasta {batchSize} rondas más?",
     continueToolCalls: "Continuar",
     stopToolCalls: "Detener y responder"
   }

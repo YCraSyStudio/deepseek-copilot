@@ -153,6 +153,11 @@ export async function executeToolCall(toolCall: ToolCall, ctx: ToolExecutionCont
   });
 }
 
+export function recordSyntheticToolError(toolCall: ToolCall, ctx: ToolExecutionContext, result: string): void {
+  recordInitialToolCall(toolCall, ctx);
+  postToolCallResult(ctx, createErrorResult(toolCall, result));
+}
+
 async function getExternalAccessConfirmation(
   toolCall: ToolCall,
 ): Promise<import("@/core/tools/Types").ConfirmationRequiredResult | undefined> {

@@ -7,6 +7,7 @@ import type {
 } from "@/adapters";
 import { mapReasoningEffort } from "@/adapters/deepseek/Chat";
 import { ConversationState } from "@/core/chat/ConversationState";
+import { buildInterruptedContextContent } from "@/core/chat/InterruptedContext";
 import type { GenerationTask } from "@/core/chat/GenerationCoordinator";
 import {
   createProviderTranscript,
@@ -452,6 +453,7 @@ export class GenerationExecutor {
               generationStatus: "interrupted",
               timeline: record.timeline,
               toolCalls: record.toolCalls,
+              contextContent: buildInterruptedContextContent("", record.toolCalls),
             }),
           ],
           model: providerConfig.model,
@@ -494,7 +496,7 @@ export class GenerationExecutor {
           toolCalls,
           generationId,
           generationStatus: status,
-          contextContent: status === "completed" ? content : undefined,
+          contextContent: status === "completed" ? content : buildInterruptedContextContent(content, toolCalls),
           providerTranscript: status === "completed" ? undefined : providerTranscript,
           ...(usage !== undefined ? { usage } : {}),
         }),

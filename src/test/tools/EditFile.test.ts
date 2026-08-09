@@ -62,6 +62,46 @@ suite("edit_file tool", () => {
 
     assert.match(result, /traversal/);
   });
+
+  test("matches LF search text in a CRLF file and preserves CRLF", async () => {
+    const files = new Map<string, string>([["README.md", "alpha\r\nbeta\r\ngamma\r\n"]]);
+    setToolWorkspaceHost(createMemoryWorkspaceHost(workspaceRoot, files));
+
+    const result = await editFileHandlerForced({
+      path: "README.md",
+      search: "alpha\nbeta",
+      replace: "first\nsecond",
+    });
+
+    assert.strictEqual(JSON.parse(result).type, "fileEdit");
+    assert.strictEqual(files.get("README.md"), "first\r\nsecond\r\ngamma\r\n");
+  });
+
+  test("matches CRLF search text in an LF file and preserves LF", async () => {
+    const files = new Map<string, string>([["README.md", "alpha\nbeta\ngamma\n"]]);
+    setToolWorkspaceHost(createMemoryWorkspaceHost(workspaceRoot, files));
+
+    await editFileHandlerForced({
+      path: "README.md",
+      search: "alpha\r\nbeta",
+      replace: "first\r\nsecond",
+    });
+
+    assert.strictEqual(files.get("README.md"), "first\nsecond\ngamma\n");
+  });
+
+  test("keeps line endings outside a normalized match byte-for-byte", async () => {
+    const files = new Map<string, string>([["README.md", "keep-crlf\r\nalpha\nbeta\r\nkeep-lf\n"]]);
+    setToolWorkspaceHost(createMemoryWorkspaceHost(workspaceRoot, files));
+
+    await editFileHandlerForced({
+      path: "README.md",
+      search: "alpha\r\nbeta",
+      replace: "changed",
+    });
+
+    assert.strictEqual(files.get("README.md"), "keep-crlf\r\nchanged\r\nkeep-lf\n");
+  });
 });
 
 function createMemoryWorkspaceHost(workspaceRoot: string, files: Map<string, string>, previews: string[] = []): ToolWorkspaceHost {

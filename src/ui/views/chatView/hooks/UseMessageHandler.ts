@@ -41,7 +41,13 @@ export type MessageDispatcher = {
   onToolCallResult?: (data: { generationId?: string; toolCallId: string; toolName: string; result: string; isError?: boolean; rejected?: boolean; status: ToolCallStatus }) => void;
   onToolCallActionAccepted?: (data: { generationId?: string; toolCallId: string; status: "running" | "rejected" }) => void;
   onToolCallConfirmationRequired?: (data: { generationId?: string; toolCalls: ToolCall[]; round: number; autoExecute: boolean; dangerConfirmation?: DangerConfirmationData }) => void;
-  onToolCallLimitReached?: (data: { generationId?: string; completedRounds: number; batchSize: number }) => void;
+  onToolCallLimitReached?: (data: {
+    generationId?: string;
+    completedRounds: number;
+    batchSize: number;
+    completedToolCalls: number;
+    toolCallBudget: number;
+  }) => void;
   onContextCompactionUpdated?: (data: { generationId: string; status: "compacting" | "completed" }) => void;
   onGenerationSnapshot?: (message: Extract<HandlerToWebviewMessage, { type: "generationSnapshot" }>) => void;
   onAssistantUsageUpdated?: (data: { generationId?: string; usage: UsageAggregate }) => void;
@@ -148,7 +154,13 @@ export function useMessageHandler(vscode: VsCodeApi | null, dispatcher: MessageD
           break;
 
         case "toolCallLimitReached":
-          dispatcherRef.current.onToolCallLimitReached?.({ generationId: message.generationId, completedRounds: message.completedRounds, batchSize: message.batchSize });
+          dispatcherRef.current.onToolCallLimitReached?.({
+            generationId: message.generationId,
+            completedRounds: message.completedRounds,
+            batchSize: message.batchSize,
+            completedToolCalls: message.completedToolCalls,
+            toolCallBudget: message.toolCallBudget,
+          });
           break;
 
         case "contextCompactionUpdated":

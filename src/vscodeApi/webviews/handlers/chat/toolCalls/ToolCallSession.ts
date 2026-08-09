@@ -8,7 +8,8 @@ import type { ConfirmationRequiredResult } from "@/core/tools/Types";
 import { requestDangerConfirmation } from "./DangerConfirmation";
 import { cancelPendingToolCallCycle, createPendingToolCallCycle, resolveToolCallAction } from "./PendingCycle";
 import { StreamEventEmitter } from "../StreamEventEmitter";
-import { executeToolCall } from "./ToolExecution";
+import { executeToolCall, recordSyntheticToolError } from "./ToolExecution";
+import { MutationFailureGuard } from "./MutationFailureGuard";
 import type {
   HandleRunErrorOptions,
   PendingDangerConfirmation,
@@ -48,6 +49,7 @@ export class ToolCallSession {
     this.webTainted = false;
     let streamedContent = "";
     const executedToolCalls = new Map<string, StoredExecution>();
+    const mutationFailureGuard = new MutationFailureGuard();
     const enabledTools = getRunnableToolsForPermissionSnapshot(options.tools, options.permissionSnapshot);
     const stream = new StreamEventEmitter(options.webviewView);
 
@@ -58,7 +60,17 @@ export class ToolCallSession {
         model: options.providerConfig.model,
         apiKey: options.providerConfig.apiKey,
         baseUrl: options.providerConfig.baseUrl,
-        executeToolCall: (toolCall) => executeToolCall(toolCall, this.createExecutionContext(options, executedToolCalls)),
+        executeToolCall: async (toolCall) => {
+          const context = this.createExecutionContext(options, executedToolCalls);
+          const blocked = mutationFailureGuard.getBlockReason(toolCall);
+          if (blocked) {
+            recordSyntheticToolError(toolCall, context, blocked);
+            return blocked;
+          }
+          const result = await executeToolCall(toolCall, context);
+          mutationFailureGuard.record(toolCall, executedToolCalls.get(toolCall.id));
+          return result;
+        },
         cycleOptions: {
           getToolsForRound: async () => {
             const snapshot = await options.capturePermissionSnapshot();
@@ -68,6 +80,7 @@ export class ToolCallSession {
             return getRunnableToolsForPermissionSnapshot(options.tools, snapshot);
           },
           maxRounds: options.providerConfig.maxToolRounds,
+          maxToolCallsPerBatch: options.providerConfig.maxToolRounds * 4,
           signal: options.signal,
           streamFinalResponse: true,
           streamToolCallRounds: hasAutoApprovedTools(options, enabledTools),
@@ -92,6 +105,9 @@ export class ToolCallSession {
           onTranscriptUpdate: (messages, status) => {
             options.onTranscriptUpdate?.(createProviderTranscript(messages, status));
           },
+          onToolSkipped: (toolCall, result) => {
+            recordSyntheticToolError(toolCall, this.createExecutionContext(options, executedToolCalls), result);
+          },
           validateRequestBudget: (messages, toolsForRound) => {
             assertRequestFitsContext(
               messages,
@@ -100,10 +116,8 @@ export class ToolCallSession {
               options.providerConfig.maxTokens,
             );
           },
-          onLimitReached: (completedRounds, batchSize) =>
-            this.shouldDelegateLimitDecision()
-              ? "delegate"
-              : this.requestLimitDecision(options.webviewView, completedRounds, batchSize),
+          onLimitReached: (completedRounds, batchSize, completedToolCalls, toolCallBudget) =>
+            this.requestLimitDecision(options.webviewView, completedRounds, batchSize, completedToolCalls, toolCallBudget),
         },
       });
 
@@ -200,19 +214,20 @@ export class ToolCallSession {
     resolve(decision);
   }
 
-  private requestLimitDecision(webviewView: vscode.WebviewView, completedRounds: number, batchSize: number): Promise<ToolCallLimitDecision> {
+  private requestLimitDecision(
+    webviewView: vscode.WebviewView,
+    completedRounds: number,
+    batchSize: number,
+    completedToolCalls: number,
+    toolCallBudget: number,
+  ): Promise<ToolCallLimitDecision> {
     if (this.pendingLimitDecision) {
       return Promise.resolve("stop");
     }
-    webviewView.webview.postMessage({ type: "toolCallLimitReached", completedRounds, batchSize });
+    webviewView.webview.postMessage({ type: "toolCallLimitReached", completedRounds, batchSize, completedToolCalls, toolCallBudget });
     return new Promise((resolve) => {
       this.pendingLimitDecision = resolve;
     });
-  }
-
-  private shouldDelegateLimitDecision(): boolean {
-    return this.activePermissionSnapshot?.permissionMode === "auto-approve" ||
-      this.activePermissionSnapshot?.permissionMode === "full-access";
   }
 
   private createExecutionContext(options: ToolCallRunOptions, executedToolCalls: Map<string, StoredExecution>) {

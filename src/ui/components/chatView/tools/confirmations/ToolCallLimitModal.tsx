@@ -4,7 +4,7 @@ import { useDialogFocus } from "./UseDialogFocus";
 import "./ToolCallConfirmationModal.css";
 
 interface ToolCallLimitModalProps {
-  limit: { completedRounds: number; batchSize: number } | null;
+  limit: { completedRounds: number; batchSize: number; completedToolCalls: number; toolCallBudget: number } | null;
   onDecision: (decision: "continue" | "stop") => void;
   disabled?: boolean;
 }
@@ -22,7 +22,12 @@ export default function ToolCallLimitModal({ limit, onDecision, disabled = false
         <header className="toolCallModalHeader">
           <div>
             <h3 id={titleId}>{t("confirmations.toolCallLimitReached")}</h3>
-            <p id={descriptionId}>{t("confirmations.toolCallLimitDescription", { rounds: limit.completedRounds, batchSize: limit.batchSize })}</p>
+            <p id={descriptionId}>{t("confirmations.toolCallLimitDescription", {
+              rounds: limit.completedRounds,
+              batchSize: limit.batchSize,
+              calls: limit.completedToolCalls,
+              callBudget: limit.toolCallBudget,
+            })}</p>
           </div>
         </header>
         <div className="toolCallDecisionRow">

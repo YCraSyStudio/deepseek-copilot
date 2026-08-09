@@ -14,7 +14,12 @@ interface ToolCallControllerOptions {
 
 export function useToolCallController({ conversationId, messages, isProcessing, vscode, actionsDisabled = false }: ToolCallControllerOptions) {
   const [toolCallGroups, setToolCallGroups] = useState<ToolCallGroup[]>([]);
-  const [toolCallLimit, setToolCallLimit] = useState<{ completedRounds: number; batchSize: number } | null>(null);
+  const [toolCallLimit, setToolCallLimit] = useState<{
+    completedRounds: number;
+    batchSize: number;
+    completedToolCalls: number;
+    toolCallBudget: number;
+  } | null>(null);
   const generationIdRef = useRef<string | undefined>(undefined);
 
   const dispatcher: MessageDispatcher = {

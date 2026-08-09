@@ -222,7 +222,8 @@ function toApiMessages(messages: StoredConversationMessage[]): ChatMessage[] {
     }
 
     if (message.generationStatus === "interrupted") {
-      return message.content.trim() ? [{ role: "assistant" as const, content: message.content }] : [];
+      const interruptedContent = message.contextContent ?? message.content;
+      return interruptedContent.trim() ? [{ role: "assistant" as const, content: interruptedContent }] : [];
     }
 
     const content = message.contextContent ?? message.content;

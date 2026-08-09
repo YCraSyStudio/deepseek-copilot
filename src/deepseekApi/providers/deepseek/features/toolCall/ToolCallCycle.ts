@@ -17,9 +17,12 @@ export async function runToolCallCycle(options: RunToolCallCycleOptions): Promis
   const { initialMessages, tools, model, apiKey, baseUrl, executeToolCall, cycleOptions = {} } = options;
 
   const maxRounds = cycleOptions.maxRounds ?? 10;
+  const maxToolCallsPerBatch = cycleOptions.maxToolCallsPerBatch ?? maxRounds * 4;
   const messages = ensureSingleSystemPrompt(initialMessages, createSystemMessage);
   const transcript: ChatMessage[] = [];
   let toolCallsExecuted = 0;
+  let batchStartRound = 0;
+  let batchToolCalls = 0;
   const executedSignatures = new Set<string>();
   const seenProviderToolCallIds = new Set<string>();
 
@@ -105,11 +108,21 @@ export async function runToolCallCycle(options: RunToolCallCycleOptions): Promis
         cycleOptions.onTranscriptUpdate?.(structuredClone(transcript), "incomplete");
         continue;
       }
-      executedSignatures.add(signature);
+      if (batchToolCalls >= maxToolCallsPerBatch) {
+        const skipped = `Skipped: this generation reached its ${maxToolCallsPerBatch}-tool budget for the current block. Wait for the user to authorize another block before retrying any necessary operation.`;
+        cycleOptions.onToolSkipped?.(toolCall, skipped);
+        const skippedResult = createToolResultMessage(toolCall.id, toolCall.function.name, skipped);
+        messages.push(skippedResult);
+        transcript.push(structuredClone(skippedResult));
+        cycleOptions.onTranscriptUpdate?.(structuredClone(transcript), "incomplete");
+        continue;
+      }
 
       // Calls are intentionally sequential: writes preserve model order and manual approvals can advance one at a time.
       const result = await executeToolCall(toolCall);
       toolCallsExecuted++;
+      batchToolCalls++;
+      if (shouldRememberToolSignature(toolCall, result)) {executedSignatures.add(signature);}
       cycleOptions.onToolResult?.(toolCall.id, result);
       const toolResult = createToolResultMessage(toolCall.id, toolCall.function.name, result);
       messages.push(toolResult);
@@ -118,8 +131,15 @@ export async function runToolCallCycle(options: RunToolCallCycleOptions): Promis
     }
 
     const completedRounds = round + 1;
-    if (completedRounds % maxRounds === 0) {
-      const decision = await requestToolRoundLimitDecision(cycleOptions.onLimitReached, completedRounds, maxRounds);
+    const completedBatchRounds = completedRounds - batchStartRound;
+    if (completedBatchRounds >= maxRounds || batchToolCalls >= maxToolCallsPerBatch) {
+      const decision = await requestToolRoundLimitDecision(
+        cycleOptions.onLimitReached,
+        completedRounds,
+        maxRounds,
+        batchToolCalls,
+        maxToolCallsPerBatch,
+      );
       if (decision === "stop") {
         const finalMessages = withToolFreeFinalInstruction(messages);
         cycleOptions.validateRequestBudget?.(finalMessages, []);
@@ -143,9 +163,9 @@ export async function runToolCallCycle(options: RunToolCallCycleOptions): Promis
           transcript,
         };
       }
-      if (decision === "delegate") {
-        messages[0] = withToolRoundCheckpointInstruction(messages[0], completedRounds);
-      }
+      messages[0] = withToolRoundCheckpointInstruction(messages[0], completedRounds, batchToolCalls);
+      batchStartRound = completedRounds;
+      batchToolCalls = 0;
     }
   }
 }
@@ -164,20 +184,23 @@ export async function requestToolRoundLimitDecision(
   onLimitReached: ToolCallCycleOptions["onLimitReached"],
   completedRounds: number,
   batchSize: number,
+  completedToolCalls = 0,
+  toolCallBudget = batchSize * 4,
 ): Promise<ToolRoundLimitDecision> {
-  return onLimitReached ? onLimitReached(completedRounds, batchSize) : "stop";
+  return onLimitReached ? onLimitReached(completedRounds, batchSize, completedToolCalls, toolCallBudget) : "stop";
 }
 
 function withToolRoundCheckpointInstruction(
   systemMessage: ChatMessage,
   completedRounds: number,
+  completedToolCalls: number,
 ): ChatMessage {
   const contentWithoutPreviousCheckpoint = (systemMessage.content ?? "").replace(
     /\n\n<tool_round_checkpoint>[\s\S]*?<\/tool_round_checkpoint>/g,
     "",
   );
   const checkpointInstruction =
-    `\n\n<tool_round_checkpoint>Tool-round checkpoint: ${completedRounds} tool rounds have completed. ` +
+    `\n\n<tool_round_checkpoint>The user explicitly authorized another block after ${completedRounds} tool rounds and ${completedToolCalls} tool calls. The work is taking longer than expected. ` +
     "Before doing anything else, reassess the user's goal and the tool results. " +
     "Continue with tool calls only if concrete, necessary work remains and there is a clear next action. " +
     "If progress requires missing information or a material user choice, do not call another tool; ask the user for the needed instructions. " +
@@ -200,7 +223,35 @@ function withToolFreeFinalInstruction(messages: ChatMessage[]): ChatMessage[] {
 }
 
 function createToolSignature(toolCall: { function: { name: string; arguments: string } }): string {
-  return `${toolCall.function.name}\u0000${toolCall.function.arguments.trim()}`;
+  try {
+    const args = JSON.parse(toolCall.function.arguments) as Record<string, unknown>;
+    if (toolCall.function.name === "edit_file") {
+      if (typeof args.search === "string") {args.search = normalizeSignatureLineEndings(args.search);}
+      if (typeof args.replace === "string") {args.replace = normalizeSignatureLineEndings(args.replace);}
+    }
+    if (toolCall.function.name === "apply_patch" && typeof args.diff === "string") {
+      args.diff = normalizeSignatureLineEndings(args.diff);
+    }
+    return `${toolCall.function.name}\u0000${stableStringify(args)}`;
+  } catch {
+    return `${toolCall.function.name}\u0000${toolCall.function.arguments.trim()}`;
+  }
+}
+
+function normalizeSignatureLineEndings(value: string): string {return value.replace(/\r\n|\r/g, "\n");}
+
+function shouldRememberToolSignature(toolCall: { function: { name: string } }, result: string): boolean {
+  if (toolCall.function.name === "read_file") {return false;}
+  return !/^\s*(?:Error\b|Skipped:)/i.test(result);
+}
+
+function stableStringify(value: unknown): string {
+  if (Array.isArray(value)) {return `[${value.map(stableStringify).join(",")}]`;}
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return `{${Object.keys(record).sort().map((key) => `${JSON.stringify(key)}:${stableStringify(record[key])}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
 }
 
 function createAbortError(): Error {

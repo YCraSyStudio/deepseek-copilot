@@ -12,8 +12,10 @@ export interface ToolCallResult {
 export interface ToolCallCycleOptions {
   getToolsForRound?: (phase: "reasoning" | "tools", round: number) => Promise<ToolDefinition[]> | ToolDefinition[];
   maxRounds?: number;
+  maxToolCallsPerBatch?: number;
   onRoundStart?: (round: number, toolCalls: ToolCall[]) => Promise<void> | void;
   onToolResult?: (toolCallId: string, result: string) => void;
+  onToolSkipped?: (toolCall: ToolCall, result: string) => void;
   onTranscriptUpdate?: (messages: ChatMessage[], status: "complete" | "incomplete") => void;
   onUsage?: (usage?: ProviderUsage) => void;
   validateRequestBudget?: (messages: ChatMessage[], tools: ToolDefinition[]) => void;
@@ -26,11 +28,11 @@ export interface ToolCallCycleOptions {
   reasoningEffort?: "high" | "max";
   maxTokens?: number;
   userId?: string;
-  onLimitReached?: (completedRounds: number, batchSize: number) =>
+  onLimitReached?: (completedRounds: number, batchSize: number, completedToolCalls: number, toolCallBudget: number) =>
     Promise<ToolRoundLimitDecision> | ToolRoundLimitDecision;
 }
 
-export type ToolRoundLimitDecision = "continue" | "delegate" | "stop";
+export type ToolRoundLimitDecision = "continue" | "stop";
 
 export interface ToolCallCycleResult {
   finalMessage: ChatMessage;

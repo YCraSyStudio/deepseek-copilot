@@ -3,6 +3,7 @@ import type { ToolDefinition } from "@/adapters";
 import type { RegisteredTool, ToolMetadata } from "../../Types";
 import { getToolWorkspaceHost } from "../../ToolWorkspace";
 import { bufferLooksBinary, createStructuredResult, createUnifiedDiff } from "./StructuredResult";
+import { getPredominantLineEnding, hasTrailingLineEnding, joinTextLines, splitTextLines, type TextLine } from "./LineEndings";
 
 interface ApplyPatchArgs {
   path: string;
@@ -122,9 +123,10 @@ function parseApplyPatchArgs(args: Record<string, unknown>): ApplyPatchArgs | st
 }
 
 function applyUnifiedDiff(before: string, diff: string, filePath: string): string {
-  const beforeLines = splitLines(before);
+  const beforeLines = splitTextLines(before);
   const diffLines = diff.replace(/\r\n/g, "\n").split("\n");
-  const output: string[] = [];
+  const output: TextLine[] = [];
+  const fallbackEnding = getPredominantLineEnding(before);
   let beforeIndex = 0;
   let lineIndex = 0;
   let sawHunk = false;
@@ -163,13 +165,13 @@ function applyUnifiedDiff(before: string, diff: string, filePath: string): strin
       const text = hunkLine.slice(1);
       if (marker === " ") {
         assertBeforeLine(beforeLines, beforeIndex, text, filePath);
-        output.push(text);
+        output.push(beforeLines[beforeIndex]!);
         beforeIndex += 1;
       } else if (marker === "-") {
         assertBeforeLine(beforeLines, beforeIndex, text, filePath);
         beforeIndex += 1;
       } else if (marker === "+") {
-        output.push(text);
+        output.push({ text, ending: fallbackEnding });
       } else if (hunkLine === "") {
         throw new Error(`invalid empty hunk line in patch for ${filePath}`);
       } else {
@@ -184,23 +186,11 @@ function applyUnifiedDiff(before: string, diff: string, filePath: string): strin
   }
 
   output.push(...beforeLines.slice(beforeIndex));
-  return joinLines(output, before.endsWith("\n"));
+  return joinTextLines(output, { trailingLineEnding: hasTrailingLineEnding(before), fallback: fallbackEnding });
 }
 
-function splitLines(content: string): string[] {
-  if (content.length === 0) {
-    return [];
-  }
-  return content.endsWith("\n") ? content.slice(0, -1).split("\n") : content.split("\n");
-}
-
-function joinLines(lines: string[], hadTrailingNewline: boolean): string {
-  const joined = lines.join("\n");
-  return hadTrailingNewline ? `${joined}\n` : joined;
-}
-
-function assertBeforeLine(beforeLines: string[], index: number, expected: string, filePath: string): void {
-  const actual = beforeLines[index];
+function assertBeforeLine(beforeLines: readonly TextLine[], index: number, expected: string, filePath: string): void {
+  const actual = beforeLines[index]?.text;
   if (actual !== expected) {
     throw new Error(`patch context mismatch in ${filePath} at line ${index + 1}`);
   }

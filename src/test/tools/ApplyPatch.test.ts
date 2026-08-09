@@ -72,6 +72,42 @@ suite("apply_patch tool", () => {
     assert.match(result, /context mismatch/);
     assert.strictEqual(files.get("README.md"), "alpha\n");
   });
+
+  test("applies an LF patch to a CRLF file without changing unrelated endings", async () => {
+    const before = "alpha\r\nbeta\r\ngamma\r\n";
+    const files = new Map<string, string>([["README.md", before]]);
+    setToolWorkspaceHost(createMemoryWorkspaceHost(workspaceRoot, files));
+
+    const result = await applyPatchHandlerForced({
+      path: "README.md",
+      diff: [
+        "--- a/README.md",
+        "+++ b/README.md",
+        "@@ -1,3 +1,3 @@",
+        " alpha",
+        "-beta",
+        "+changed",
+        " gamma",
+      ].join("\n"),
+      expectedBeforeHash: hashText(before),
+    });
+
+    assert.strictEqual(JSON.parse(result).type, "filePatch");
+    assert.strictEqual(files.get("README.md"), "alpha\r\nchanged\r\ngamma\r\n");
+  });
+
+  test("preserves mixed endings on unchanged lines", async () => {
+    const before = "alpha\r\nbeta\ngamma\r\n";
+    const files = new Map<string, string>([["README.md", before]]);
+    setToolWorkspaceHost(createMemoryWorkspaceHost(workspaceRoot, files));
+
+    await applyPatchHandlerForced({
+      path: "README.md",
+      diff: ["@@ -2,1 +2,1 @@", "-beta", "+changed"].join("\n"),
+    });
+
+    assert.strictEqual(files.get("README.md"), "alpha\r\nchanged\r\ngamma\r\n");
+  });
 });
 
 function hashText(content: string): string {

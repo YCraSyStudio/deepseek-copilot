@@ -99,6 +99,7 @@ async function handleCreateFileForced(args: Record<string, unknown>): Promise<st
       diffTruncated: diff?.truncated || false,
       diffStats: diff?.stats,
       binary: before?.binary || false,
+      beforeHash: before?.hash,
       beforeSize: before?.size,
       afterSize: Buffer.byteLength(content, "utf-8"),
       afterHash: hashText(content),

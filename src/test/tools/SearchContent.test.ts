@@ -16,6 +16,7 @@ interface SearchPayload {
   truncated: boolean;
   scannedFiles: number;
   skippedFiles: number;
+  timedOut?: boolean;
 }
 
 suite("search content", () => {
@@ -114,6 +115,54 @@ suite("search content", () => {
       () => searchContentHandler({ query: "needle" }),
       /Workspace content search is unavailable/,
     );
+  });
+
+  test("scans concurrently while retaining deterministic file order", async () => {
+    const paths = Array.from({ length: 40 }, (_, index) => `src/file-${String(index).padStart(2, "0")}.txt`);
+    let activeReads = 0;
+    let maximumActiveReads = 0;
+    setToolWorkspaceHost({
+      ...createBaseHost(path.resolve("C:/workspace")),
+      findFiles: async () => paths,
+      stat: async () => ({ type: "file", size: 20 }),
+      readFile: async (filePath) => {
+        activeReads += 1;
+        maximumActiveReads = Math.max(maximumActiveReads, activeReads);
+        const index = paths.indexOf(filePath);
+        await new Promise((resolve) => setTimeout(resolve, (40 - index) % 5));
+        activeReads -= 1;
+        return Buffer.from(`needle ${filePath}`);
+      },
+    });
+
+    const payload = parsePayload(await searchContentHandler({ query: "needle" }));
+
+    assert.ok(maximumActiveReads > 1);
+    assert.ok(maximumActiveReads <= 16);
+    assert.deepStrictEqual(payload.results.map((result) => result.file), paths);
+  });
+
+  test("returns a structured partial result when the internal timeout fires", async () => {
+    const originalSetTimeout = globalThis.setTimeout;
+    globalThis.setTimeout = ((callback: (...args: unknown[]) => void, _delay?: number, ...args: unknown[]) =>
+      originalSetTimeout(callback, 0, ...args)) as typeof setTimeout;
+    try {
+      setToolWorkspaceHost({
+        ...createBaseHost(path.resolve("C:/workspace")),
+        findFiles: async (options) => new Promise<string[]>((resolve, reject) => {
+          if (options.signal?.aborted) {reject(createAbortError()); return;}
+          options.signal?.addEventListener("abort", () => reject(createAbortError()), { once: true });
+        }),
+      });
+
+      const payload = parsePayload(await searchContentHandler({ query: "needle" }));
+
+      assert.strictEqual(payload.timedOut, true);
+      assert.strictEqual(payload.truncated, true);
+      assert.deepStrictEqual(payload.results, []);
+    } finally {
+      globalThis.setTimeout = originalSetTimeout;
+    }
   });
 });
 

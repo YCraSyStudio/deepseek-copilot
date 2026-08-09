@@ -27,7 +27,7 @@ export const confirmations = {
     potentiallyDangerousAction: "潜在危险操作",
     cautionRequired: "需要谨慎",
     toolCallLimitReached: "已达到工具调用上限",
-    toolCallLimitDescription: "助手已完成 {rounds} 轮工具调用。是否继续最多 {batchSize} 轮？",
+    toolCallLimitDescription: "任务耗时超出预期：已完成 {rounds} 轮，本批次使用 {calls}/{callBudget} 次工具调用。是否继续最多 {batchSize} 轮？",
     continueToolCalls: "继续",
     stopToolCalls: "停止并回答"
   }

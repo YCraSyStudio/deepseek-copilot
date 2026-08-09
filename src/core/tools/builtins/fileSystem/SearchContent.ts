@@ -11,11 +11,21 @@ const MAX_QUERY_CHARACTERS = 4096;
 const MAX_PATTERN_CHARACTERS = 1024;
 const MAX_RESULT_LINE_CHARACTERS = 2000;
 const SEARCH_TIMEOUT_MS = 15_000;
+const SEARCH_BATCH_SIZE = 32;
+const SEARCH_CONCURRENCY = 16;
 
 interface SearchResult {
   file: string;
   line: number;
   text: string;
+}
+
+interface FileSearchResult {
+  results: SearchResult[];
+  scannedFiles: number;
+  skippedFiles: number;
+  truncated: boolean;
+  timedOut: boolean;
 }
 
 async function handleSearchContent(args: Record<string, unknown>, context?: ToolHandlerContext): Promise<string> {
@@ -38,11 +48,22 @@ async function handleSearchContent(args: Record<string, unknown>, context?: Tool
 
   const cancellation = createSearchCancellation(context?.signal);
   try {
-    const candidatePaths = await workspace.findFiles({
-      includePattern,
-      maxResults: MAX_CANDIDATE_FILES + 1,
-      signal: cancellation.signal,
-    });
+    let candidatePaths: string[];
+    try {
+      candidatePaths = await workspace.findFiles({
+        includePattern,
+        maxResults: MAX_CANDIDATE_FILES + 1,
+        signal: cancellation.signal,
+      });
+    } catch (error: unknown) {
+      if (context?.signal?.aborted) {
+        throw createAbortError("Content search cancelled");
+      }
+      if (cancellation.didTimeOut()) {
+        return createSearchResult({ query, includePattern, results: [], truncated: true, scannedFiles: 0, skippedFiles: 0, timedOut: true });
+      }
+      throw error;
+    }
     throwIfAborted(cancellation.signal);
     return await searchCandidateFiles({
       workspace,
@@ -50,13 +71,14 @@ async function handleSearchContent(args: Record<string, unknown>, context?: Tool
       query,
       includePattern,
       signal: cancellation.signal,
+      didTimeOut: cancellation.didTimeOut,
     });
   } catch (error: unknown) {
     if (context?.signal?.aborted) {
       throw createAbortError("Content search cancelled");
     }
     if (cancellation.didTimeOut()) {
-      throw new Error(`Content search timed out after ${SEARCH_TIMEOUT_MS} ms`);
+      return createSearchResult({ query, includePattern, results: [], truncated: true, scannedFiles: 0, skippedFiles: 0, timedOut: true });
     }
     if (isAbortError(error)) {
       throw error;
@@ -73,8 +95,9 @@ async function searchCandidateFiles(options: {
   query: string;
   includePattern: string;
   signal: AbortSignal;
+  didTimeOut: () => boolean;
 }): Promise<string> {
-  const { workspace, query, includePattern, signal } = options;
+  const { workspace, query, includePattern, signal, didTimeOut } = options;
   const candidatePaths = options.candidatePaths.slice(0, MAX_CANDIDATE_FILES);
   const normalizedQuery = query.toLowerCase();
   const results: SearchResult[] = [];
@@ -83,74 +106,115 @@ async function searchCandidateFiles(options: {
   let skippedFiles = 0;
   let truncated = options.candidatePaths.length > candidatePaths.length;
 
+  let timedOut = false;
   searchLoop:
-  for (const filePath of candidatePaths) {
-    throwIfAborted(signal);
-
-    try {
-      const stat = await workspace.stat(filePath);
-      if (stat.type !== "file") {
-        continue;
-      }
-      if (stat.size > MAX_SEARCH_FILE_BYTES) {
-        skippedFiles += 1;
-        truncated = true;
-        continue;
-      }
-
-      const content = await workspace.readFile(filePath);
-      if (content.byteLength > MAX_SEARCH_FILE_BYTES) {
-        skippedFiles += 1;
-        truncated = true;
-        continue;
-      }
-      scannedFiles += 1;
-      if (bufferLooksBinary(content)) {
-        skippedFiles += 1;
-        continue;
-      }
-
-      const lines = Buffer.from(content).toString("utf8").split(/\r\n|\n|\r/);
-      for (let index = 0; index < lines.length; index += 1) {
-        throwIfAborted(signal);
-        const line = lines[index];
-        if (!line.toLowerCase().includes(normalizedQuery)) {
-          continue;
-        }
-
+  for (let offset = 0; offset < candidatePaths.length; offset += SEARCH_BATCH_SIZE) {
+    if (signal.aborted) {
+      timedOut = didTimeOut();
+      if (!timedOut) {throw createAbortError("Content search cancelled");}
+      break;
+    }
+    const batch = candidatePaths.slice(offset, offset + SEARCH_BATCH_SIZE);
+    const batchResults = await mapWithConcurrency(batch, SEARCH_CONCURRENCY, (filePath) =>
+      searchFile({ workspace, filePath, normalizedQuery, signal, didTimeOut }));
+    for (const fileResult of batchResults) {
+      scannedFiles += fileResult.scannedFiles;
+      skippedFiles += fileResult.skippedFiles;
+      truncated ||= fileResult.truncated;
+      timedOut ||= fileResult.timedOut;
+      for (const result of fileResult.results) {
         if (results.length >= MAX_SEARCH_RESULTS) {
           truncated = true;
           break searchLoop;
         }
-
-        const preview = truncateResultLine(line.trim());
-        const result = { file: filePath, line: index + 1, text: preview.text };
         const resultBytes = Buffer.byteLength(JSON.stringify(result), "utf8");
         if (retainedBytes + resultBytes > MAX_SEARCH_OUTPUT_BYTES) {
           truncated = true;
           break searchLoop;
         }
-
         results.push(result);
         retainedBytes += resultBytes;
-        truncated ||= preview.truncated;
       }
-    } catch (error: unknown) {
-      if (isAbortError(error) || signal.aborted) {
-        throw createAbortError("Content search cancelled");
-      }
-      skippedFiles += 1;
-      truncated = true;
     }
+    if (timedOut) {break;}
   }
 
+  return createSearchResult({ query, includePattern, results, truncated: truncated || timedOut, scannedFiles, skippedFiles, timedOut });
+}
+
+async function searchFile(options: {
+  workspace: ToolWorkspaceHost;
+  filePath: string;
+  normalizedQuery: string;
+  signal: AbortSignal;
+  didTimeOut: () => boolean;
+}): Promise<FileSearchResult> {
+  const { workspace, filePath, normalizedQuery, signal, didTimeOut } = options;
+  try {
+    throwIfAborted(signal);
+    const stat = await workspace.stat(filePath);
+    if (stat.type !== "file") {return emptyFileResult();}
+    if (stat.size > MAX_SEARCH_FILE_BYTES) {return { ...emptyFileResult(), skippedFiles: 1, truncated: true };}
+    const content = await workspace.readFile(filePath);
+    if (content.byteLength > MAX_SEARCH_FILE_BYTES) {return { ...emptyFileResult(), skippedFiles: 1, truncated: true };}
+    if (bufferLooksBinary(content)) {return { ...emptyFileResult(), scannedFiles: 1, skippedFiles: 1 };}
+
+    const results: SearchResult[] = [];
+    let truncated = false;
+    const lines = Buffer.from(content).toString("utf8").split(/\r\n|\n|\r/);
+    for (let index = 0; index < lines.length; index += 1) {
+      throwIfAborted(signal);
+      const line = lines[index]!;
+      if (!line.toLowerCase().includes(normalizedQuery)) {continue;}
+      if (results.length >= MAX_SEARCH_RESULTS) {truncated = true; break;}
+      const preview = truncateResultLine(line.trim());
+      results.push({ file: filePath, line: index + 1, text: preview.text });
+      truncated ||= preview.truncated;
+    }
+    return { results, scannedFiles: 1, skippedFiles: 0, truncated, timedOut: false };
+  } catch (error: unknown) {
+    if (isAbortError(error) || signal.aborted) {
+      if (didTimeOut()) {return { ...emptyFileResult(), timedOut: true, truncated: true };}
+      throw createAbortError("Content search cancelled");
+    }
+    return { ...emptyFileResult(), skippedFiles: 1, truncated: true };
+  }
+}
+
+async function mapWithConcurrency<T, R>(items: readonly T[], concurrency: number, operation: (item: T) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+    while (true) {
+      const index = nextIndex++;
+      if (index >= items.length) {return;}
+      results[index] = await operation(items[index]!);
+    }
+  }));
+  return results;
+}
+
+function emptyFileResult(): FileSearchResult {
+  return { results: [], scannedFiles: 0, skippedFiles: 0, truncated: false, timedOut: false };
+}
+
+function createSearchResult(options: {
+  query: string;
+  includePattern: string;
+  results: SearchResult[];
+  truncated: boolean;
+  scannedFiles: number;
+  skippedFiles: number;
+  timedOut: boolean;
+}): string {
   return createStructuredResult("SearchResults", {
-    query,
-    filePattern: includePattern,
-    results,
-    truncated,
-    scannedFiles,
-    skippedFiles,
+    query: options.query,
+    filePattern: options.includePattern,
+    results: options.results,
+    truncated: options.truncated,
+    scannedFiles: options.scannedFiles,
+    skippedFiles: options.skippedFiles,
+    ...(options.timedOut ? { timedOut: true } : {}),
   });
 }
 
