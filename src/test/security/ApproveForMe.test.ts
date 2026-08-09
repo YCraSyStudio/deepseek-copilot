@@ -1,10 +1,10 @@
 import * as assert from "assert";
 import type * as vscode from "vscode";
-import type { ToolCall } from "@/adapters";
-import type { ToolExecutor } from "@/core/tools/ToolExecutor";
-import { setToolWorkspaceHost } from "@/core/tools/ToolWorkspace";
-import { executeToolCall } from "@/vscodeApi/webviews/handlers/chat/toolCalls/ToolExecution";
-import type { StoredExecution, ToolExecutionContext } from "@/vscodeApi/webviews/handlers/chat/toolCalls/Types";
+import type { ToolCall } from "@/contracts";
+import type { ToolExecutor } from "@/application/tools/ToolExecutor";
+import { setToolWorkspaceHost } from "@/infrastructure/tools/ToolWorkspace";
+import { executeToolCall } from "@/platform/vscode/webviews/handlers/chat/toolCalls/ToolExecution";
+import type { StoredExecution, ToolExecutionContext } from "@/platform/vscode/webviews/handlers/chat/toolCalls/Types";
 
 suite("auto approve permission mode", () => {
   test("runs terminal analysis and confirms a non-safe command", async () => {
@@ -776,7 +776,7 @@ function createContext(
 ): ToolExecutionContext {
   return {
     toolExecutor,
-    webviewView: { webview: { postMessage: () => Promise.resolve(true) } } as unknown as vscode.WebviewView,
+    eventSink: { publish: () => undefined },
     executedToolCalls: new Map<string, StoredExecution>(),
     ...modes,
     isWorkspaceTrusted: () => true,

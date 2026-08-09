@@ -14,7 +14,7 @@
 - Marketplace metadata, README, MIT license, and VSIX packaging track the version declared in `package.json`.
 - Legacy single-origin API credentials migrate to a versioned per-origin Secret
   Storage bundle without exposing the stored value to the webview.
-- Conversations require `schemaVersion: 2` and a complete workspace binding. Invalid or unversioned files are isolated without being interpreted.
+- Conversations require `schemaVersion: 2` and a complete workspace binding. Until the compatibility release after 25 August 2026, structurally valid unversioned conversations are migrated atomically; invalid files are isolated without being interpreted.
 
 ## Watch list
 

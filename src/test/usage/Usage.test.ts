@@ -171,6 +171,23 @@ suite("usage observability", () => {
     });
   });
 
+  test("saturates unsafe counters and stops calculating cost", () => {
+    const aggregate = createUsageAggregate(true, "deepseek-v4-flash");
+    const maximumUsage = {
+      prompt_tokens: Number.MAX_SAFE_INTEGER,
+      completion_tokens: Number.MAX_SAFE_INTEGER,
+      total_tokens: Number.MAX_SAFE_INTEGER,
+      prompt_cache_hit_tokens: Number.MAX_SAFE_INTEGER,
+      prompt_cache_miss_tokens: Number.MAX_SAFE_INTEGER,
+    };
+    recordUsage(aggregate, "primary", maximumUsage);
+    recordUsage(aggregate, "primary", maximumUsage);
+
+    assert.strictEqual(aggregate.saturated, true);
+    assert.strictEqual(aggregate.inputTokens, Number.MAX_SAFE_INTEGER);
+    assert.strictEqual(aggregate.costUsd, undefined);
+  });
+
   test("formats a redacted summary with explicit unavailable values", () => {
     const aggregate = createUsageAggregate(false, "custom");
     recordUsage(aggregate, "primary", undefined);

@@ -3,12 +3,22 @@ import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import * as path from "node:path";
 import * as vscode from "vscode";
-import { searchContentHandler } from "@/core/tools/definitions/SearchContent";
-import { runWithToolWorkspaceHost } from "@/core/tools/ToolWorkspace";
-import { createVsCodeToolWorkspace } from "@/vscodeApi/tools/VsCodeToolWorkspace";
-import { captureCurrentWorkspaceBinding, type WorkspaceRunSnapshot } from "@/vscodeApi/workspace";
-import { getPathCompletionItems } from "@/vscodeApi/editor/EditorActions";
-import { HistoryManager } from "@/vscodeApi/storage/HistoryManager";
+import type { ChatCompletionRequest, ChatCompletionResponse, StreamChunk } from "@/contracts";
+import { DEFAULT_CONFIG } from "@/contracts/Config";
+import { ConversationState } from "@/application/chat/ConversationState";
+import { GenerationBudgetManager } from "@/application/chat/context/GenerationBudgetManager";
+import type { ModelProvider } from "@/application/ports";
+import { searchContentHandler } from "@/infrastructure/tools/definitions/SearchContent";
+import { runWithToolWorkspaceHost } from "@/infrastructure/tools/ToolWorkspace";
+import { createVsCodeToolWorkspace } from "@/platform/vscode/tools/VsCodeToolWorkspace";
+import { captureCurrentWorkspaceBinding, captureWorkspaceRunSnapshot, type WorkspaceRunSnapshot } from "@/platform/vscode/workspace";
+import { getPathCompletionItems } from "@/platform/vscode/editor/EditorActions";
+import { HistoryManager } from "@/platform/vscode/storage/HistoryManager";
+import { VsCodeSettingsRepository } from "@/platform/vscode/storage/RepositoryAdapters";
+import { fitGenerationRequestContext } from "@/platform/vscode/webviews/handlers/chat/generation/GenerationContext";
+import type { GenerationRunRecord } from "@/platform/vscode/webviews/handlers/chat/generation/GenerationRun";
+
+const settingsRepository = new VsCodeSettingsRepository();
 
 suite("Extension integration", () => {
   test("activates under the Marketplace identifier and registers its main command", async () => {
@@ -23,7 +33,7 @@ suite("Extension integration", () => {
     await extension.activate();
 
     assert.strictEqual(extension.isActive, true);
-    const manager = new HistoryManager(extension.exports?.context ?? createHistoryTestContext());
+    const manager = new HistoryManager(extension.exports?.context ?? createHistoryTestContext(), settingsRepository);
     await manager.initialize();
     await manager.getSummaries();
     const migrated = JSON.parse(await readFile(unversionedPath, "utf8")) as {
@@ -136,8 +146,8 @@ suite("Extension integration", () => {
   test("rejects a stale conversation save from another manager instance", async () => {
     const extension = vscode.extensions.getExtension("yarcrasy.yrs-dpsk-copilot");
     assert.ok(extension);
-    const first = new HistoryManager(extension.exports?.context ?? createHistoryTestContext());
-    const second = new HistoryManager(extension.exports?.context ?? createHistoryTestContext());
+    const first = new HistoryManager(extension.exports?.context ?? createHistoryTestContext(), settingsRepository);
+    const second = new HistoryManager(extension.exports?.context ?? createHistoryTestContext(), settingsRepository);
     await Promise.all([first.initialize(), second.initialize()]);
     const binding = captureCurrentWorkspaceBinding();
     const id = `concurrent-${randomUUID()}`;
@@ -197,7 +207,93 @@ suite("Extension integration", () => {
       await vscode.workspace.fs.delete(testDirectoryUri, { recursive: true, useTrash: false });
     }
   });
+
+  test("runs initial compaction through starting, compacting and streaming exactly once", async () => {
+    const binding = captureCurrentWorkspaceBinding();
+    const state = new ConversationState({
+      save: async () => undefined,
+      getWorkspaceBinding: () => binding,
+    });
+    const generationId = "generation-current";
+    const oldContent = "historical context ".repeat(15_000);
+    state.load({
+      schemaVersion: 2,
+      id: "compaction-integration",
+      title: "Compaction",
+      createdAt: 1,
+      updatedAt: 1,
+      model: "custom-model",
+      workspaceUri: binding.uri,
+      workspaceBinding: binding,
+      messages: [
+        { id: "old-user", role: "user", content: oldContent, createdAt: 1, generationId: "generation-old" },
+        { id: "old-assistant", role: "assistant", content: oldContent, createdAt: 2, generationId: "generation-old" },
+      ],
+    });
+    const budgetManager = new GenerationBudgetManager("custom-model", 8_192);
+    const record = {
+      generationId,
+      conversationId: "compaction-integration",
+      status: "starting",
+      budgetManager,
+    } as GenerationRunRecord;
+    const events: Array<Record<string, unknown>> = [];
+    const checkpointStatuses: string[] = [];
+    const messages = [
+      { role: "system" as const, content: "system" },
+      { role: "user" as const, content: oldContent },
+      { role: "assistant" as const, content: oldContent },
+      { role: "user" as const, content: "continue" },
+    ];
+
+    const compacted = await fitGenerationRequestContext({
+      messages,
+      payload: { clientRequestId: "request", text: "continue", modelId: "custom-model", reasoning: "high" },
+      config: { ...DEFAULT_CONFIG, model: "custom-model", maxTokens: 8_192 },
+      provider: new SummaryProvider(),
+      state,
+      eventSink: { publish: (event) => {events.push(event as Record<string, unknown>);} },
+      workspaceSnapshot: captureWorkspaceRunSnapshot(binding),
+      generationId,
+      record,
+      tools: [],
+      permissionMode: "default",
+      enabledTools: [],
+      toolExecutionModes: {},
+      signal: new AbortController().signal,
+      checkpoint: async (run) => {checkpointStatuses.push(run.status);},
+    });
+
+    assert.strictEqual(record.status, "streaming");
+    assert.ok(budgetManager.assessRequest(compacted, []).status !== "hard_limit");
+    assert.deepStrictEqual(checkpointStatuses, ["compacting"]);
+    assert.deepStrictEqual(
+      events.filter((event) => event.type === "contextCompactionUpdated" || event.type === "contextCompacted")
+        .map((event) => event.type === "contextCompactionUpdated" ? `${event.type}:${event.status}` : event.type),
+      ["contextCompactionUpdated:compacting", "contextCompacted", "contextCompactionUpdated:completed"],
+    );
+    assert.strictEqual(state.getConversation()?.messages.filter((message) => message.role === "context").length, 1);
+  });
 });
+
+class SummaryProvider implements ModelProvider {
+  readonly id = "summary";
+  readonly name = "summary";
+
+  async chatCompletion(request: ChatCompletionRequest): Promise<ChatCompletionResponse> {
+    return {
+      id: "summary",
+      object: "chat.completion",
+      created: 1,
+      model: request.model,
+      choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content: "Compact summary" } }],
+    };
+  }
+
+  async chatCompletionStream(_request: ChatCompletionRequest, _onChunk: (chunk: StreamChunk) => void): Promise<void> {}
+  async testConnection(): Promise<{ success: boolean }> {return { success: true };}
+  async listModels(): Promise<Array<{ id: string; name: string }>> {return [];}
+}
 
 function createHistoryTestContext(): vscode.ExtensionContext {
   return { workspaceState: { keys: () => [], get: () => undefined, update: async () => undefined } } as unknown as vscode.ExtensionContext;

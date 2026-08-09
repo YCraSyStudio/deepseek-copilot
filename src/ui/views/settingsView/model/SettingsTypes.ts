@@ -1,4 +1,4 @@
-import type { WebviewConfig } from "@/adapters";
+import type { WebviewConfig } from "@/contracts";
 
 export type SettingsConfig = WebviewConfig;
 

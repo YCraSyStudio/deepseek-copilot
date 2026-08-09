@@ -1,7 +1,7 @@
 import * as assert from "assert";
-import type { ToolCall } from "@/adapters";
-import { MutationFailureGuard } from "@/vscodeApi/webviews/handlers/chat/toolCalls/MutationFailureGuard";
-import type { StoredExecution } from "@/vscodeApi/webviews/handlers/chat/toolCalls/Types";
+import type { ToolCall } from "@/contracts";
+import { MutationFailureGuard } from "@/platform/vscode/webviews/handlers/chat/toolCalls/MutationFailureGuard";
+import type { StoredExecution } from "@/platform/vscode/webviews/handlers/chat/toolCalls/Types";
 
 suite("mutation failure guard", () => {
   test("requires a read before one retry and blocks after the second failure", () => {

@@ -1,8 +1,8 @@
 import * as assert from "assert";
-import type { ToolDefinition } from "@/adapters";
-import { DEFAULT_CONFIG } from "@/adapters/Config";
-import { DeepSeekProvider, assertCompatibleModel } from "@/deepseekApi/providers/deepseek/DeepSeekProvider";
-import { buildChatBody } from "@/deepseekApi/providers/deepseek/features/Chat";
+import type { ToolDefinition } from "@/contracts";
+import { DEFAULT_CONFIG } from "@/contracts/Config";
+import { DeepSeekProvider, assertCompatibleModel } from "@/infrastructure/deepseek/providers/deepseek/DeepSeekProvider";
+import { buildChatBody } from "@/infrastructure/deepseek/providers/deepseek/features/Chat";
 
 suite("DeepSeek provider contract", () => {
   const tool: ToolDefinition = {

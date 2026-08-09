@@ -4,10 +4,14 @@ import { dirname, extname, relative, resolve } from "node:path";
 
 const sourceRoot = resolve(process.cwd(), "src");
 const allowedDependencies: Record<string, ReadonlySet<string>> = {
-  adapters: new Set(["adapters", "shared"]),
-  core: new Set(["adapters", "core", "shared"]),
-  deepseekApi: new Set(["adapters", "core", "deepseekApi", "shared"]),
-  ui: new Set(["adapters", "assets", "shared", "ui"]),
+  application: new Set(["application", "contracts", "domain", "shared"]),
+  contracts: new Set(["contracts", "shared"]),
+  domain: new Set(["domain", "shared"]),
+  extension: new Set(["application", "contracts", "domain", "extension", "infrastructure", "platform", "shared"]),
+  infrastructure: new Set(["application", "contracts", "domain", "infrastructure", "shared"]),
+  platform: new Set(["application", "contracts", "domain", "infrastructure", "platform", "shared"]),
+  shared: new Set(["shared"]),
+  ui: new Set(["assets", "contracts", "shared", "ui"]),
 };
 
 suite("architecture boundaries", () => {
@@ -34,7 +38,60 @@ suite("architecture boundaries", () => {
     }
     assert.deepStrictEqual(violations, []);
   });
+
+  test("does not introduce circular source dependencies", () => {
+    const files = collectSourceFiles(sourceRoot);
+    const graph = new Map(files.map((file) => [file, getResolvedImports(file)]));
+    const visiting = new Set<string>();
+    const visited = new Set<string>();
+    const cycles: string[] = [];
+
+    const visit = (file: string, stack: string[]): void => {
+      if (visiting.has(file)) {
+        const start = stack.indexOf(file);
+        cycles.push([...stack.slice(start), file].map((entry) => relative(sourceRoot, entry)).join(" -> "));
+        return;
+      }
+      if (visited.has(file)) {return;}
+      visiting.add(file);
+      for (const dependency of graph.get(file) ?? []) {
+        if (graph.has(dependency)) {visit(dependency, [...stack, file]);}
+      }
+      visiting.delete(file);
+      visited.add(file);
+    };
+
+    for (const file of files) {visit(file, []);}
+    assert.deepStrictEqual([...new Set(cycles)].sort(), []);
+  });
+
+  test("keeps runtime frameworks out of inward layers", () => {
+    const violations: string[] = [];
+    for (const file of collectSourceFiles(sourceRoot)) {
+      const owner = getLayer(file);
+      for (const specifier of getImportSpecifiers(readFileSync(file, "utf8"))) {
+        if ((owner === "domain" || owner === "application") && (specifier.startsWith("node:") || specifier === "path")) {
+          violations.push(`${relative(sourceRoot, file)} imports ${specifier}`);
+        }
+        if (specifier === "vscode" && owner !== "platform" && owner !== "extension") {
+          violations.push(`${relative(sourceRoot, file)} imports vscode`);
+        }
+        if ((specifier === "react" || specifier.startsWith("react/")) && owner !== "ui") {
+          violations.push(`${relative(sourceRoot, file)} imports ${specifier}`);
+        }
+      }
+    }
+    assert.deepStrictEqual(violations, []);
+  });
 });
+
+function getResolvedImports(file: string): string[] {
+  return getImportSpecifiers(readFileSync(file, "utf8"))
+    .map((specifier) => resolveInternalImport(file, specifier))
+    .filter((candidate): candidate is string => candidate !== undefined)
+    .map(resolveSourceFile)
+    .filter((candidate): candidate is string => candidate !== undefined);
+}
 
 function collectSourceFiles(directory: string): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -66,6 +123,17 @@ function resolveInternalImport(ownerFile: string, specifier: string): string | u
   }
   if (specifier.startsWith(".")) {
     return resolve(dirname(ownerFile), specifier);
+  }
+  return undefined;
+}
+
+function resolveSourceFile(basePath: string): string | undefined {
+  for (const candidate of [basePath, `${basePath}.ts`, `${basePath}.tsx`, resolve(basePath, "index.ts"), resolve(basePath, "index.tsx")]) {
+    try {
+      if (readFileSync(candidate)) {return candidate;}
+    } catch {
+      // Try the next TypeScript resolution candidate.
+    }
   }
   return undefined;
 }

@@ -3,8 +3,8 @@ import { existsSync } from "fs";
 import { mkdtemp, rm } from "fs/promises";
 import { tmpdir } from "os";
 import * as path from "path";
-import { executeWorkspaceCommand, shutdownOwnedProcesses } from "@/core/tools/definitions/ShellExecution";
-import { setToolWorkspaceHost, type ToolWorkspaceHost } from "@/core/tools/ToolWorkspace";
+import { executeWorkspaceCommand, shutdownOwnedProcesses } from "@/infrastructure/tools/definitions/ShellExecution";
+import { setToolWorkspaceHost, type ToolWorkspaceHost } from "@/infrastructure/tools/ToolWorkspace";
 
 suite("shell execution", () => {
   test("returns structured non-zero results and retains the tail of truncated output", async () => {

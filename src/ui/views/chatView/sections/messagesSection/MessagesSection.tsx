@@ -11,6 +11,7 @@ import { reconcileLatestAssistantToolCalls } from "@webview/components/chatView/
 
 function MessagesSection({
   conversationId,
+  activeGenerationId,
   messages: externalMessages,
   onMessagesChange,
   isProcessing: externalIsProcessing,
@@ -55,6 +56,7 @@ function MessagesSection({
   const followsLatestRef = useRef(true);
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
   const [isCompacting, setIsCompacting] = useState(false);
+  const [isRecovering, setIsRecovering] = useState(false);
   const timelineToolCallSignature = [...messages]
     .reverse()
     .find((message) => message.role === "assistant")
@@ -69,6 +71,7 @@ function MessagesSection({
   useMessageHandler(vscode, {
     ...dispatcher,
     onContextCompactionUpdated: ({ status }) => setIsCompacting(status === "compacting"),
+    onGenerationRecoveryStarted: () => setIsRecovering(true),
     onGenerationSnapshot: (message) => {
       setIsCompacting(message.generations.some(
         (generation) => generation.conversationId === conversationId && generation.status === "compacting",
@@ -77,13 +80,15 @@ function MessagesSection({
     },
     onStreamDone: (info) => {
       setIsCompacting(false);
+      setIsRecovering(false);
       dispatcher.onStreamDone?.(info);
     },
     onStreamError: (error, generationId) => {
       setIsCompacting(false);
+      setIsRecovering(false);
       dispatcher.onStreamError?.(error, generationId);
     },
-  });
+  }, { conversationId, activeGenerationId });
 
   useEffect(() => {
     if (!followsLatestRef.current) {
@@ -146,7 +151,11 @@ function MessagesSection({
               <div className="typingDots">
                 <span /> <span /> <span />
               </div>
-              <span className="typingLabel">{t(isCompacting ? "chat.compactingContext" : "chat.deepseekIsThinking")}</span>
+              <span className="typingLabel">{t(isCompacting
+                ? "chat.compactingContext"
+                : isRecovering
+                  ? "chat.recoveringConcise"
+                  : "chat.deepseekIsThinking")}</span>
             </div>
           ) : null}
         </div>

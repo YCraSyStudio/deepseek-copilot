@@ -1,5 +1,5 @@
 import * as assert from "node:assert";
-import type { AssistantTimelineEvent } from "@/adapters";
+import type { AssistantTimelineEvent } from "@/contracts";
 import {
   groupAssistantTimeline,
   summarizeActivity,

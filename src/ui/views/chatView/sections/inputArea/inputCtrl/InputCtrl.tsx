@@ -1,5 +1,5 @@
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
-import { WEBVIEW_INPUT_LIMITS, type HandlerToWebviewMessage, type PathCompletionItem, type ReferencedFile } from "@/adapters";
+import { WEBVIEW_INPUT_LIMITS, type HandlerToWebviewMessage, type PathCompletionItem, type ReferencedFile } from "@/contracts";
 import "./InputCtrl.css";
 import { FileSelector, getPathToken, type PathToken } from "@webview/components/chatView";
 import { useVsCode } from "@webview/views/chatView/contexts";
@@ -147,10 +147,15 @@ const InputCtrl = forwardRef<HTMLTextAreaElement, Props>(
     }, [input, vscode, canSend, selectedModelRef, reasoningRef, referencedFiles, conversationId, workspaceRevision, onSend]);
 
     const handleCancel = useCallback(() => {
-      if (activeGenerationId) {
-        vscode?.postMessage({ type: "cancelGeneration", generationId: activeGenerationId });
+      if (activeGenerationId && conversationId) {
+        vscode?.postMessage({
+          type: "cancelGeneration",
+          requestId: crypto.randomUUID(),
+          generationId: activeGenerationId,
+          conversationId,
+        });
       }
-    }, [vscode, activeGenerationId]);
+    }, [vscode, activeGenerationId, conversationId]);
 
     const handleSteer = useCallback(() => {
       const text = input.trim();

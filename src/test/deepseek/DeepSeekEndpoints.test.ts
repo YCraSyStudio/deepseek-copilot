@@ -1,5 +1,5 @@
 import * as assert from "assert";
-import { deepseekFetch, buildApiUrl } from "@/deepseekApi/client/DeepSeekFetch";
+import { deepseekFetch, buildApiUrl } from "@/infrastructure/deepseek/client/DeepSeekFetch";
 
 suite("DeepSeek URLs", () => {
   test("joins paths without duplicate slashes and preserves a base path", () => {

@@ -1,4 +1,4 @@
-import type { AvailableToolInfo } from "@/adapters";
+import type { AvailableToolInfo } from "@/contracts";
 import { ToolsSection } from "../sections";
 import type { SettingsConfig, UpdateConfigFn, SaveOnBlurFn } from "../model";
 

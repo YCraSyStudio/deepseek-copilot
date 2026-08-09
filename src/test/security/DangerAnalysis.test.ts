@@ -2,7 +2,7 @@ import * as assert from "node:assert";
 import * as path from "node:path";
 import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { analyzeDangerLevel, type TerminalAnalysisContext } from "@/core/tools/definitions/DangerAnalysis";
+import { analyzeDangerLevel, type TerminalAnalysisContext } from "@/infrastructure/tools/definitions/DangerAnalysis";
 
 suite("terminal danger analysis", () => {
   const workspaceRoot = process.cwd();

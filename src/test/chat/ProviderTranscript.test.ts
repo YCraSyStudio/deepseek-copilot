@@ -4,7 +4,7 @@ import {
   isProviderTranscript,
   toPresentationConversation,
   type StoredConversation,
-} from "@/core/chat/ProviderTranscript";
+} from "@/application/chat/ProviderTranscript";
 
 suite("canonical provider transcript", () => {
   test("accepts complete ordered tool rounds and preserves large required reasoning", () => {
@@ -33,9 +33,10 @@ suite("canonical provider transcript", () => {
       },
       { role: "tool", tool_call_id: "call-2", name: "read_file", content: "second result" },
       { role: "assistant", content: "Final", reasoning_content: "done" },
-    ], "complete");
+    ], "complete", "stop");
 
     assert.strictEqual(isProviderTranscript(transcript), true);
+    assert.strictEqual(transcript.finishReason, "stop");
     assert.strictEqual(transcript.messages[0].reasoning_content?.length, 30_000);
   });
 

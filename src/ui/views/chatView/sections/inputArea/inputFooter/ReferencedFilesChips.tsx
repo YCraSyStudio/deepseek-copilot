@@ -1,4 +1,4 @@
-import type { ReferencedFile } from "@/adapters";
+import type { ReferencedFile } from "@/contracts";
 import { t } from "@webview/i18n";
 
 interface ReferencedFilesChipsProps {

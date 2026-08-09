@@ -1,6 +1,6 @@
 import * as assert from "node:assert";
-import { setToolWorkspaceHost } from "@/core/tools/ToolWorkspace";
-import { createFileHandlerForced } from "@/core/tools/builtins/fileSystem/CreateFile";
+import { setToolWorkspaceHost } from "@/infrastructure/tools/ToolWorkspace";
+import { createFileHandlerForced } from "@/infrastructure/tools/builtins/fileSystem/CreateFile";
 
 suite("create_file missing-file guard", () => {
   test("does not overwrite a file that appeared after web-tainted approval", async () => {

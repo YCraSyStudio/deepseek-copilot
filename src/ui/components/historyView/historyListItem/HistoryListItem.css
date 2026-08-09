@@ -76,6 +76,15 @@
   }
 }
 
+.historyActivity {
+  align-self: flex-start;
+  padding: 1px 6px;
+  border-radius: 999px;
+  color: var(--vscode-statusBarItem-warningForeground);
+  background: var(--vscode-statusBarItem-warningBackground);
+  font-size: 0.75rem;
+}
+
 @media (max-width: 220px) {
   .historyListItem {
     gap: 2px;

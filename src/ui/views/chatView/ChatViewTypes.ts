@@ -1,5 +1,5 @@
-import type { ConversationMessage, HandlerToWebviewMessage, StoredToolCall, DangerConfirmationData } from "@/adapters/messages/Webview";
-import type { PermissionMode } from "@/adapters";
+import type { ConversationMessage, HandlerToWebviewMessage, StoredToolCall, DangerConfirmationData } from "@/contracts/messages/Webview";
+import type { PermissionMode } from "@/contracts";
 
 export type { StoredToolCall, DangerConfirmationData };
 
@@ -59,6 +59,7 @@ export type CodeAction = "copy" | "insert";
 /** Chat message section props. */
 export type MessagesSectionProps = {
   conversationId?: string;
+  activeGenerationId?: string;
   messages?: ChatMessage[];
   onMessagesChange?: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
   isProcessing?: boolean;
@@ -70,6 +71,6 @@ export type MessagesSectionProps = {
   onModelChanged?: (modelId: string) => void;
   onProcessingChange?: (isProcessing: boolean) => void;
   onFocusInput?: () => void;
-  onGenerationCancelled?: () => void;
+  onGenerationCancelled?: (draft?: import("@/contracts").QueuedGenerationMessage) => void;
   usageBreakdown?: boolean;
 };

@@ -1,13 +1,13 @@
 import * as assert from "assert";
 import * as path from "path";
-import { searchContentHandler } from "@/core/tools/definitions/SearchContent";
+import { searchContentHandler } from "@/infrastructure/tools/definitions/SearchContent";
 import {
   setToolWorkspaceHost,
   type ToolWorkspaceEntryType,
   type ToolWorkspaceFindOptions,
   type ToolWorkspaceHost,
   type ToolWorkspaceStat,
-} from "@/core/tools/ToolWorkspace";
+} from "@/infrastructure/tools/ToolWorkspace";
 
 interface SearchPayload {
   query: string;

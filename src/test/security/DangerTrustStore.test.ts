@@ -1,7 +1,7 @@
 import * as assert from "node:assert";
-import type { ToolCall } from "@/adapters";
-import type { ConfirmationRequiredResult } from "@/core/tools/Types";
-import { DangerTrustStore, type DangerTrustScope } from "@/vscodeApi/webviews/handlers/chat/toolCalls/DangerTrustStore";
+import type { ToolCall } from "@/contracts";
+import type { ConfirmationRequiredResult } from "@/application/tools/Types";
+import { DangerTrustStore, type DangerTrustScope } from "@/platform/vscode/webviews/handlers/chat/toolCalls/DangerTrustStore";
 
 suite("danger trust store", () => {
   const baseScope: DangerTrustScope = {

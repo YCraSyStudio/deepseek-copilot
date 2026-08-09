@@ -1,5 +1,5 @@
-import { resolveToolExecutionMode } from "@/adapters";
-import type { PermissionMode, ToolExecutionMode, ToolExecutionModes } from "@/adapters";
+import { resolveToolExecutionMode } from "@/contracts";
+import type { PermissionMode, ToolExecutionMode, ToolExecutionModes } from "@/contracts";
 import type { ToolsSectionProps } from "../model";
 import "./ToolsSection.css";
 import { t } from "@webview/i18n";

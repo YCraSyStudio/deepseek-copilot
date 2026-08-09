@@ -34,7 +34,11 @@ In Extension Development Host:
 - send messages in different conversations and verify they can run concurrently up to the configured limit.
 - send a second message in the same conversation and verify it remains queued.
 - use Interrupt and guide and verify the guidance runs before older queued prompts.
-- cancel a generation and verify its user message and partial assistant output remain marked as interrupted.
+- cancel conversation A, immediately create conversation B, then deliver late stream, tool, error, and terminal events for A; verify B keeps a new identity and never renders or receives A's work.
+- cancel a generation and verify its complete turn disappears from visible and provider context, its draft is restored, and repeated or stale Stop requests are harmless.
+- switch repeatedly between two concurrent conversations; verify both complete, history shows queued/running/cancelling activity, and snapshots rebuild only the selected chat.
+- verify steering retains continuity without restoring the interrupted prompt as though Stop had been pressed.
+- cancel before run creation and during context, compaction, partial streaming, confirmation, browser work, terminal work, and mutation-lock wait; verify exactly one terminal event and no deferred mutation after cancellation.
 - reload or recreate the webview during a run and verify the generation snapshot restores visible state.
 - close VS Code with active and queued work, then verify partial output and queued prompts recover on activation.
 - use history.

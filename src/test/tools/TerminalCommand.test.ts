@@ -1,10 +1,11 @@
 import * as assert from "node:assert";
 import * as path from "node:path";
 import {
+  getTerminalRoutingError,
   normalizeLeadingDirectoryChange,
   terminalCommandHandler,
-} from "@/core/tools/definitions/TerminalCommand";
-import { setToolWorkspaceHost } from "@/core/tools/ToolWorkspace";
+} from "@/infrastructure/tools/definitions/TerminalCommand";
+import { setToolWorkspaceHost } from "@/infrastructure/tools/ToolWorkspace";
 
 suite("terminal command confirmation", () => {
   test("includes the exact command and resolved execution environment", async () => {
@@ -44,5 +45,35 @@ suite("terminal command confirmation", () => {
   test("does not rewrite compound commands that do not begin with directory navigation", () => {
     const command = "mkdir project && cd project && npm install";
     assert.deepStrictEqual(normalizeLeadingDirectoryChange(command), { command, cwd: undefined });
+  });
+
+  test("routes workspace inspection away from terminal when dedicated tools are available", () => {
+    const context = {
+      trustedUserRequest: "review the project",
+      availableToolNames: ["list_directory", "read_file", "search_content", "edit_file"],
+    };
+
+    assert.match(getTerminalRoutingError("dir src", context) ?? "", /Use list_directory/);
+    assert.match(getTerminalRoutingError("type package.json", context) ?? "", /Use read_file/);
+    assert.match(getTerminalRoutingError("findstr DeepSeek README.md", context) ?? "", /Use search_content/);
+    assert.match(
+      getTerminalRoutingError('powershell -Command "$bytes=[IO.File]::ReadAllBytes(\'App.css\'); $crlf=0"', context) ?? "",
+      /without line-ending probes/,
+    );
+  });
+
+  test("keeps executable workflows and explicit terminal requests available", () => {
+    const availableToolNames = ["list_directory", "read_file", "search_content"];
+
+    assert.strictEqual(getTerminalRoutingError("npm run build", { availableToolNames }), undefined);
+    assert.strictEqual(getTerminalRoutingError("git status --short", { availableToolNames }), undefined);
+    assert.strictEqual(getTerminalRoutingError("dir src", {
+      availableToolNames,
+      trustedUserRequest: "usa la terminal para listar src",
+    }), undefined);
+    assert.match(getTerminalRoutingError("dir src", {
+      availableToolNames,
+      trustedUserRequest: "sin terminal, revisa src",
+    }) ?? "", /Use list_directory/);
   });
 });

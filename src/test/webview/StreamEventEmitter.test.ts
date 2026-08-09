@@ -1,17 +1,15 @@
 import * as assert from "assert";
-import { StreamEventEmitter } from "@/vscodeApi/webviews/handlers/chat/StreamEventEmitter";
+import { StreamEventEmitter } from "@/platform/vscode/webviews/handlers/chat/StreamEventEmitter";
 
 suite("StreamEventEmitter", () => {
   test("creates ordered native events across reasoning, tools and content", () => {
     const posted: unknown[] = [];
     const emitter = new StreamEventEmitter({
-      webview: {
-        postMessage: (message: unknown) => {
-          posted.push(message);
-          return Promise.resolve(true);
-        },
+      publish: (message: unknown) => {
+        posted.push(message);
+        return Promise.resolve();
       },
-    } as never);
+    });
 
     emitter.reasoning("First ");
     emitter.reasoning("thought");

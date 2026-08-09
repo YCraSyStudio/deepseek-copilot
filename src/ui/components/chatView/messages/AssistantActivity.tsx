@@ -1,5 +1,5 @@
 import React from "react";
-import type { AssistantTimelineEvent } from "@/adapters";
+import type { AssistantTimelineEvent } from "@/contracts";
 import type {
   ChatMessage,
   ToolCallGroup,

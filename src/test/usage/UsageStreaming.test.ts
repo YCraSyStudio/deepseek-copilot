@@ -1,10 +1,10 @@
 import * as assert from "node:assert";
-import type { StreamChunk } from "@/adapters";
-import { DEFAULT_CONFIG } from "@/adapters/Config";
-import type { BaseProvider } from "@/deepseekApi/BaseProvider";
-import { chatCompletionStream } from "@/deepseekApi/providers/deepseek/features/Chat";
-import { PartialStreamError } from "@/core/errors/PartialStreamError";
-import { sendMessageStreaming } from "@/vscodeApi/webviews/handlers/chat/Streaming";
+import type { StreamChunk } from "@/contracts";
+import { DEFAULT_CONFIG } from "@/contracts/Config";
+import type { ModelProvider } from "@/application/ports";
+import { chatCompletionStream } from "@/infrastructure/deepseek/providers/deepseek/features/Chat";
+import { PartialStreamError } from "@/application/errors/PartialStreamError";
+import { sendMessageStreaming } from "@/platform/vscode/webviews/handlers/chat/Streaming";
 import type { ProviderUsage } from "@/shared/usage/Usage";
 
 suite("usage streaming", () => {
@@ -73,7 +73,7 @@ suite("usage streaming", () => {
         onChunk({ type: "usage", usage: last });
         onChunk({ type: "done", finish_reason: "stop" });
       }),
-      webviewView: fakeWebview(),
+      eventSink: fakeEventSink(),
       signal: new AbortController().signal,
       onUsage: (value) => reported.push(value),
     });
@@ -93,7 +93,7 @@ suite("usage streaming", () => {
           onChunk({ type: "usage", usage: finalUsage });
           throw new Error("missing terminal marker");
         }),
-        webviewView: fakeWebview(),
+        eventSink: fakeEventSink(),
         signal: new AbortController().signal,
         onUsage: (value) => reported.push(value),
       }),
@@ -112,7 +112,7 @@ suite("usage streaming", () => {
         onChunk({ type: "content", content: "done" });
         onChunk({ type: "done", finish_reason: "stop" });
       }),
-      webviewView: fakeWebview(),
+      eventSink: fakeEventSink(),
       signal: new AbortController().signal,
       onUsage: (value) => reported.push(value),
     });
@@ -139,7 +139,7 @@ suite("usage streaming", () => {
           onChunk({ type: "done", finish_reason: "stop" });
         }
       }),
-      webviewView: fakeWebview(),
+      eventSink: fakeEventSink(),
       signal: new AbortController().signal,
       onUsage: (value) => reported.push(value),
     });
@@ -148,12 +148,12 @@ suite("usage streaming", () => {
   });
 });
 
-function fakeProvider(chatCompletionStreamImpl: BaseProvider["chatCompletionStream"]): BaseProvider {
-  return { chatCompletionStream: chatCompletionStreamImpl } as BaseProvider;
+function fakeProvider(chatCompletionStreamImpl: ModelProvider["chatCompletionStream"]): ModelProvider {
+  return { chatCompletionStream: chatCompletionStreamImpl } as ModelProvider;
 }
 
-function fakeWebview() {
-  return { webview: { postMessage: () => Promise.resolve(true) } } as never;
+function fakeEventSink() {
+  return { publish: () => undefined };
 }
 
 function payload() {

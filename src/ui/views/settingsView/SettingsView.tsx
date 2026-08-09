@@ -5,7 +5,7 @@ import "./SettingsView.css";
 import { ApiTab, GeneralTab, ToolsTab, WebSearchTab } from "./tabs";
 import { getVsCodeApi } from "../../VsCodeApi";
 import { DEFAULT_CONFIG, MODEL_OPTIONS, REASONING_EFFORT_OPTIONS, type ApiCredentialState, type SaveOnBlurFn, type SettingsConfig } from "./model";
-import type { AvailableToolInfo, HandlerToWebviewMessage, ToolExecutionModes } from "@/adapters";
+import type { AvailableToolInfo, HandlerToWebviewMessage, ToolExecutionModes } from "@/contracts";
 import { setInterfaceLanguage, t } from "@webview/i18n";
 import { shouldApplyConfigRevision } from "@webview/config/ConfigRevision";
 

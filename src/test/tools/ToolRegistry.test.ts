@@ -1,7 +1,7 @@
 import * as assert from "assert";
-import type { ToolCall } from "@/adapters";
-import { readFileDefinition, readFileHandler, readFileMetadata } from "@/core/tools/definitions/ReadFile";
-import { ToolRegistry } from "@/core/tools/ToolRegistry";
+import type { ToolCall } from "@/contracts";
+import { readFileDefinition, readFileHandler, readFileMetadata } from "@/infrastructure/tools/definitions/ReadFile";
+import { ToolRegistry } from "@/application/tools/ToolRegistry";
 
 suite("tool registry validation", () => {
   test("rejects unknown tools", () => {

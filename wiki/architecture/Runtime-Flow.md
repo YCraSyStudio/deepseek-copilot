@@ -26,13 +26,16 @@
 5. `ChatHandler` loads settings and the API key, calculates the total request budget, and starts streaming. If needed, it summarizes complete older generations and reduces large references to literal relevant line ranges; auxiliary calls use the selected model with thinking and tools disabled and have a deterministic local fallback.
 6. Every generation event carries `generationId` and `conversationId` so stale or background events cannot mutate the selected chat.
 7. Progress and the hidden canonical provider transcript are checkpointed, with streaming writes coalesced and tool-state transitions persisted immediately.
-8. The completed or interrupted presentation turn is saved to schema-v2 history. Only a complete protocol-valid transcript is eligible for later API replay.
+8. The completed or recoverably interrupted presentation turn is saved to schema-v2 history. Only a complete protocol-valid transcript is eligible for later API replay.
+9. `GenerationExecutor` reconciles persistence and then publishes exactly one terminal event.
 
 ## Queue, steering, and cancellation
 
 - Sending while the same conversation is active appends a queued prompt.
 - `steerGeneration` places guidance at the front of that conversation queue, then interrupts the named generation.
-- `cancelGeneration` targets a specific `generationId`; partial assistant output remains in history as interrupted.
+- Explicit `cancelGeneration` targets one conversation and generation, enters `cancelling`, aborts all pending work, and atomically removes that generation's prompt, partial response, reasoning, context markers, and tool presentation. Its prompt and still-valid references return as a per-conversation draft.
+- Steering is not Stop: it preserves the interrupted turn required for continuity and places guidance at the front of that conversation's queue without restoring the old prompt.
+- Workspace changes, shutdown, deletion, and history transitions use typed interruption reasons and retain their own recoverable behavior.
 - Different conversations can continue concurrently, subject to the global limit of 1–16, default 8.
 
 ## Tool calls

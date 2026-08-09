@@ -5,24 +5,25 @@ import { InputCtrls, InputFooter, MessagesSection } from "./sections";
 import { useChatConfig } from "./hooks";
 import type { ApiKeyStatus, ChatMessage } from "./ChatViewTypes";
 import { getVsCodeApi } from "@webview/VsCodeApi";
-import type { Conversation, PermissionMode, ReferencedFile, WorkspaceContextStatus } from "@/adapters";
-import type { GenerationSnapshot } from "@/adapters";
+import type { Conversation, PermissionMode, QueuedGenerationMessage, ReferencedFile, WorkspaceContextStatus } from "@/contracts";
+import type { GenerationSnapshot } from "@/contracts";
 import { t } from "@webview/i18n";
+import { beginNavigationRequest } from "@webview/NavigationRequests";
 
 type ChatCommandMessage =
   | { type: "addReferencedFiles"; files: ReferencedFile[] }
   | { type: "clearChat" }
   | { type: "setDraft"; text: string }
-  | { type: "activeConversationChanged"; id: string }
   | { type: "generationAccepted"; generationId: string; conversationId: string; clientRequestId: string }
+  | { type: "messageQueued"; conversationId: string; clientRequestId: string; position: number }
   | { type: "requestRejected"; requestId?: string; action?: string; error: string }
   | { type: "protocolError"; supportedVersion: number; error: string }
-  | { type: "streamDone"; generationId?: string; conversationId?: string }
+  | { type: "streamDone"; generationId?: string; conversationId?: string; restoredDraft?: QueuedGenerationMessage }
   | { type: "streamError"; generationId?: string; conversationId?: string }
-  | { type: "workspaceContextChanged"; context: WorkspaceContextStatus }
+  | { type: "workspaceContextChanged"; requestId?: string; conversationId?: string; context: WorkspaceContextStatus }
   | { type: "workspaceRebindResult"; success: boolean; context?: WorkspaceContextStatus; error?: string }
   | { type: "contextFilesSelected"; files: ReferencedFile[] }
-  | { type: "generationSnapshot"; generations: GenerationSnapshot[]; recoveredDrafts: Array<{ conversationId: string; messages: Array<{ clientRequestId: string; text: string }> }> };
+  | { type: "generationSnapshot"; generations: GenerationSnapshot[]; recoveredDrafts: Array<{ conversationId: string; messages: QueuedGenerationMessage[] }> };
 
 interface PersistentChatViewState {
   schemaVersion: 4;
@@ -41,9 +42,10 @@ type ChatViewState = PersistentChatViewState | IncognitoChatViewState;
 
 interface ChatViewProps {
   loadedConversation?: Conversation | null;
+  navigationPending?: boolean;
 }
 
-function ChatView({ loadedConversation }: ChatViewProps) {
+function ChatView({ loadedConversation, navigationPending = false }: ChatViewProps) {
   const [apiKeyStatus, setApiKeyStatus] = useState<ApiKeyStatus>("missing");
   const [isProcessing, setIsProcessing] = useState(false);
   const [draft, setDraft] = useState("");
@@ -52,7 +54,7 @@ function ChatView({ loadedConversation }: ChatViewProps) {
   const [conversationId, setConversationId] = useState<string | undefined>(loadedConversation?.id);
   const [stateHydrated, setStateHydrated] = useState(false);
   const [activeGenerationId, setActiveGenerationId] = useState<string | undefined>();
-  const [recoveredDrafts, setRecoveredDrafts] = useState<Array<{ clientRequestId: string; text: string }>>([]);
+  const [recoveredDrafts, setRecoveredDrafts] = useState<QueuedGenerationMessage[]>([]);
   const [workspaceContext, setWorkspaceContext] = useState<WorkspaceContextStatus>();
   const lastSubmittedPromptRef = useRef("");
   const conversationIdRef = useRef(conversationId);
@@ -62,6 +64,7 @@ function ChatView({ loadedConversation }: ChatViewProps) {
   const referencedFilesRef = useRef(referencedFiles);
   const [requestError, setRequestError] = useState<string>();
   const initialConfigHandledRef = useRef(false);
+  const workspaceRequestIdRef = useRef<string | undefined>(undefined);
 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -134,27 +137,39 @@ function ChatView({ loadedConversation }: ChatViewProps) {
     requestAnimationFrame(focusInput);
   }, []);
 
-  const handleGenerationCancelled = () => {
-    const lastSubmittedPrompt = lastSubmittedPromptRef.current;
-    setDraft((currentDraft) => currentDraft.trim() ? currentDraft : lastSubmittedPrompt);
+  const handleGenerationCancelled = (restored?: QueuedGenerationMessage) => {
+    const restoredText = restored?.text ?? lastSubmittedPromptRef.current;
+    setDraft((currentDraft) => currentDraft.trim() ? currentDraft : restoredText);
+    if (restored?.referencedFiles?.length) {
+      setReferencedFiles((current) => mergeReferencedFiles(current, restored.referencedFiles!));
+    }
+    if (restored && conversationIdRef.current) {
+      getVsCodeApi()?.postMessage({
+        type: "consumeRecoveredDraft",
+        conversationId: conversationIdRef.current,
+        clientRequestId: restored.clientRequestId,
+      });
+    }
     requestAnimationFrame(focusInput);
   };
 
   const canSend = useMemo(() => {
     const trimmedDraft = draft.trim();
     const workspaceReady = workspaceContext?.state === "connected" || workspaceContext?.state === "empty";
-    return !isPermissionUpdatePending &&
+    return !navigationPending && !isPermissionUpdatePending &&
       trimmedDraft.length > 0 &&
       (apiKeyStatus === "configured" || trimmedDraft.startsWith("/")) &&
       (workspaceReady || trimmedDraft.startsWith("/"));
-  }, [draft, apiKeyStatus, isPermissionUpdatePending, workspaceContext]);
+  }, [draft, apiKeyStatus, isPermissionUpdatePending, navigationPending, workspaceContext]);
 
   useEffect(() => {
     focusInput();
   }, []);
 
   useEffect(() => {
-    getVsCodeApi()?.postMessage({ type: "getWorkspaceContext", conversationId });
+    const requestId = crypto.randomUUID();
+    workspaceRequestIdRef.current = requestId;
+    getVsCodeApi()?.postMessage({ type: "getWorkspaceContext", requestId, conversationId });
   }, [conversationId]);
 
   useEffect(() => {
@@ -210,10 +225,6 @@ function ChatView({ loadedConversation }: ChatViewProps) {
         setDraft(message.text);
         requestAnimationFrame(focusInput);
       }
-      if (message.type === "activeConversationChanged") {
-        conversationIdRef.current = message.id;
-        setConversationId(message.id);
-      }
       if (message.type === "clearChat") {
         conversationIdRef.current = undefined;
         activeGenerationIdRef.current = undefined;
@@ -228,6 +239,12 @@ function ChatView({ loadedConversation }: ChatViewProps) {
         setRecoveredDrafts([]);
       }
       if (message.type === "workspaceContextChanged") {
+        if (message.requestId && message.requestId !== workspaceRequestIdRef.current) {
+          return;
+        }
+        if (message.conversationId !== undefined && message.conversationId !== conversationIdRef.current) {
+          return;
+        }
         setWorkspaceContext((previous) => {
           if (previous?.binding.revision && previous.binding.revision !== message.context.binding.revision) {
             setReferencedFiles((files) => files.filter((file) => file.scope === "external-snapshot"));
@@ -256,6 +273,13 @@ function ChatView({ loadedConversation }: ChatViewProps) {
           setConversationId(message.conversationId);
           setActiveGenerationId(message.generationId);
           setIsProcessing(true);
+        }
+      }
+      if (message.type === "messageQueued") {
+        const submitted = pendingRequestsRef.current.get(message.clientRequestId);
+        if (submitted && (!conversationIdRef.current || conversationIdRef.current === message.conversationId)) {
+          conversationIdRef.current = message.conversationId;
+          setConversationId(message.conversationId);
         }
       }
       if (message.type === "requestRejected") {
@@ -315,8 +339,23 @@ function ChatView({ loadedConversation }: ChatViewProps) {
 
   return (
     <div className="chatView">
+      {loadedConversation?.hasEarlierMessages && loadedConversation.historyCursor ? (
+        <button
+          type="button"
+          className="btn-secondary"
+          onClick={() => getVsCodeApi()?.postMessage({
+            type: "loadConversationPage",
+            requestId: beginNavigationRequest(),
+            id: loadedConversation.id,
+            cursor: loadedConversation.historyCursor!,
+          })}
+        >
+          {t("chat.loadEarlierMessages")}
+        </button>
+      ) : null}
       <MessagesSection
         conversationId={conversationId}
+        activeGenerationId={activeGenerationId}
         messages={messages}
         onMessagesChange={setMessages}
         isProcessing={isProcessing}
@@ -346,6 +385,9 @@ function ChatView({ loadedConversation }: ChatViewProps) {
                 type="button"
                 onClick={() => {
                   setDraft(item.text);
+                  if (item.referencedFiles?.length) {
+                    setReferencedFiles((current) => mergeReferencedFiles(current, item.referencedFiles!));
+                  }
                   setRecoveredDrafts((current) => current.filter((_, itemIndex) => itemIndex !== index));
                   if (conversationId) {
                     getVsCodeApi()?.postMessage({

@@ -1,7 +1,7 @@
 import * as assert from "assert";
 import * as path from "path";
-import { editFileHandler, editFileHandlerForced } from "@/core/tools/definitions/EditFile";
-import { setToolWorkspaceHost, type ToolWorkspaceEntryType, type ToolWorkspaceHost, type ToolWorkspaceStat } from "@/core/tools/ToolWorkspace";
+import { editFileHandler, editFileHandlerForced } from "@/infrastructure/tools/definitions/EditFile";
+import { setToolWorkspaceHost, type ToolWorkspaceEntryType, type ToolWorkspaceHost, type ToolWorkspaceStat } from "@/infrastructure/tools/ToolWorkspace";
 
 suite("edit_file tool", () => {
   const workspaceRoot = path.resolve("/tmp/deepseek-copilot-edit-file");

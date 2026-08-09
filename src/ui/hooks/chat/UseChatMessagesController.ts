@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import type { AppConfig, HandlerToWebviewMessage } from "@/adapters";
+import type { AppConfig, HandlerToWebviewMessage } from "@/contracts";
 import type { ChatMessage, InitialConfig, StoredToolCall } from "../../views/chatView/ChatViewTypes";
 import { useStreamHandler, type MessageDispatcher } from "../../views/chatView/hooks";
 
@@ -13,7 +13,7 @@ interface ChatMessagesControllerOptions {
   onConfigUpdateResult?: (message: Extract<HandlerToWebviewMessage, { type: "configUpdateResult" }>) => void;
   onModelChanged?: (modelId: string) => void;
   onProcessingChange?: (isProcessing: boolean) => void;
-  onGenerationCancelled?: () => void;
+  onGenerationCancelled?: (draft?: import("@/contracts").QueuedGenerationMessage) => void;
   focusInput: () => void;
 }
 
@@ -50,6 +50,14 @@ export function useChatMessagesController({
   );
 
   const dispatcher: MessageDispatcher = {
+    onContextCompacted: useCallback(() => {
+      setMessages((current) => [...current, { id: nextMessageId(), role: "context", content: "" }]);
+    }, [nextMessageId, setMessages]),
+
+    onResourceLimitReached: useCallback(({ error }) => {
+      setMessages((current) => [...current, { id: nextMessageId(), role: "error", content: error }]);
+    }, [nextMessageId, setMessages]),
+
     onAddMessage: useCallback(
       (message) => {
         flushTimelineDeltas();
@@ -63,7 +71,8 @@ export function useChatMessagesController({
                 content: rest.content,
                 toolCalls: rest.toolCalls as StoredToolCall[] | undefined,
                 timeline: rest.timeline,
-              usage: rest.usage,
+                usage: rest.usage,
+                generationId: rest.generationId,
               }];
             }
             return updateStreamedAssistant(current, streamingMessageIdRef.current, rest.toolCalls, rest.timeline);
@@ -78,6 +87,7 @@ export function useChatMessagesController({
               toolCalls: rest.toolCalls as StoredToolCall[] | undefined,
               timeline: rest.timeline,
               usage: rest.usage,
+              generationId: rest.generationId,
             },
           ];
         });
@@ -121,8 +131,11 @@ export function useChatMessagesController({
         setProcessing(false);
 
         if (info.cancelled) {
+          if (info.generationId) {
+            setMessages((current) => current.filter((message) => message.generationId !== info.generationId));
+          }
           resetStreaming();
-          onGenerationCancelled?.();
+          onGenerationCancelled?.(info.restoredDraft);
           focusInput();
           return;
         }

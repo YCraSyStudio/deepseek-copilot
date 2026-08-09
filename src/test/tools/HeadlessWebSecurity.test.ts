@@ -1,14 +1,14 @@
 import * as assert from "node:assert";
 import * as http from "node:http";
-import { normalizeSearchResultUrl } from "@/vscodeApi/tools/browser/BrowserContent";
-import { createHeadlessWebTools } from "@/vscodeApi/tools/browser/BrowserTools";
-import { getSystemBrowserCandidates } from "@/vscodeApi/tools/browser/BrowserDiscovery";
-import { DENIED_SANDBOX_BYPASS_ARGUMENT, getHeadlessRuntimeArguments } from "@/vscodeApi/tools/browser/BrowserLaunchPolicy";
-import { detectPromptInjection, type RenderedPage } from "@/vscodeApi/tools/browser/HeadlessWebRuntime";
-import { extractHttpsUrls, isPublicIp, registrableSite, resolvePublicHostname, validatePublicWebUrl, WebAccessPolicy } from "@/vscodeApi/tools/browser/NetworkPolicy";
-import { SafeConnectProxy } from "@/vscodeApi/tools/browser/SafeConnectProxy";
-import { getSelectedSearchProvider } from "@/vscodeApi/tools/browser/SearchProviders";
-import { validateResultLimit } from "@/vscodeApi/tools/browser/Validation";
+import { normalizeSearchResultUrl } from "@/infrastructure/browser/BrowserContent";
+import { createHeadlessWebTools } from "@/infrastructure/browser/BrowserTools";
+import { getSystemBrowserCandidates } from "@/infrastructure/browser/BrowserDiscovery";
+import { DENIED_SANDBOX_BYPASS_ARGUMENT, getHeadlessRuntimeArguments } from "@/infrastructure/browser/BrowserLaunchPolicy";
+import { detectPromptInjection, type RenderedPage } from "@/infrastructure/browser/HeadlessWebRuntime";
+import { extractHttpsUrls, isPublicIp, registrableSite, resolvePublicHostname, validatePublicWebUrl, WebAccessPolicy } from "@/infrastructure/browser/NetworkPolicy";
+import { SafeConnectProxy } from "@/infrastructure/browser/SafeConnectProxy";
+import { getSelectedSearchProvider } from "@/infrastructure/browser/SearchProviders";
+import { validateResultLimit } from "@/infrastructure/browser/Validation";
 
 suite("headless web security", () => {
   test("accepts only credential-free public HTTPS on port 443", () => {

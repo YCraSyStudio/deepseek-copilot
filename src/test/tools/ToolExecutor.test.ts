@@ -1,7 +1,7 @@
 import * as assert from "assert";
-import type { ToolCall, ToolDefinition } from "@/adapters";
-import { ToolExecutor } from "@/core/tools/ToolExecutor";
-import { ToolRegistry } from "@/core/tools/ToolRegistry";
+import type { ToolCall, ToolDefinition } from "@/contracts";
+import { ToolExecutor } from "@/application/tools/ToolExecutor";
+import { ToolRegistry } from "@/application/tools/ToolRegistry";
 
 suite("tool executor result classification", () => {
   test("marks plain handler errors as failed", async () => {
@@ -46,6 +46,39 @@ suite("tool executor result classification", () => {
     assert.strictEqual(result.status, "confirmation_required");
     assert.strictEqual(confirmation?.workspaceRoot, "C:\\workspace");
   });
+
+  test("never executes a mutation cancelled while waiting for the workspace lock", async () => {
+    let releaseFirst!: () => void;
+    let firstStarted!: () => void;
+    const blocker = new Promise<void>((resolve) => {releaseFirst = resolve;});
+    const started = new Promise<void>((resolve) => {firstStarted = resolve;});
+    let invocations = 0;
+    const registry = new ToolRegistry();
+    registry.register({
+      definition: { ...testToolDefinition, function: { ...testToolDefinition.function, name: "edit_file" } },
+      handler: async () => {
+        invocations += 1;
+        if (invocations === 1) {
+          firstStarted();
+          await blocker;
+        }
+        return "completed";
+      },
+      metadata: { dangerLevel: "safe", requiresConfirmation: false },
+    });
+    const executor = new ToolExecutor(registry, () => "workspace:test");
+    const first = executor.execute(createToolCall("first", "edit_file"));
+    await started;
+    const controller = new AbortController();
+    const second = executor.execute(createToolCall("second", "edit_file"), { signal: controller.signal });
+
+    controller.abort();
+    releaseFirst();
+    await first;
+
+    await assert.rejects(second, (error: unknown) => error instanceof Error && error.name === "AbortError");
+    assert.strictEqual(invocations, 1);
+  });
 });
 
 function createExecutor(handler: () => Promise<string>): ToolExecutor {
@@ -61,12 +94,12 @@ function createExecutor(handler: () => Promise<string>): ToolExecutor {
   return new ToolExecutor(registry);
 }
 
-function createToolCall(): ToolCall {
+function createToolCall(id = "call_1", name = "read_file"): ToolCall {
   return {
-    id: "call_1",
+    id,
     type: "function",
     function: {
-      name: "read_file",
+      name,
       arguments: JSON.stringify({ path: "src/app.ts" }),
     },
   };

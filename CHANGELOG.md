@@ -1,5 +1,18 @@
 # Change Log
 
+## [0.1.9] - 2026-08-09
+
+- Isolated concurrent chat generations with protocol-v3 conversation/generation correlation, navigation request IDs, background activity status, and snapshot-based restoration when returning to a running chat.
+- Changed explicit **Stop** to atomically remove the complete cancelled turn from UI and persisted context and restore its prompt as a per-conversation draft; steering and lifecycle interruptions retain their distinct recovery behavior.
+- Centralized terminal generation ownership so each run emits exactly one completion or error, added `cancelling`/`cancelled` states and typed stop reasons, and made repeated or stale cancellation idempotent.
+- Propagated cancellation through context discovery, project instructions, compaction, provider streaming, browser work, confirmations, mutation locks, tools, and descendant processes.
+- Removed tool-round checkpoints and per-block tool-call budgets from `auto-approve` and `full-access`; the configured limit now applies only to default, read-only, and custom modes.
+- Reworked automatic context compaction around calibrated generation budgets, with a valid `starting -> compacting -> streaming` lifecycle and safe rollover after closed tool rounds even when usage jumps directly to the hard limit.
+- Compaction now consumes its quota and emits one localized, persisted marker only when it actually reduces the request; provider-reported prompt usage calibrates primary, auxiliary, and tool-request estimates.
+- Centralized Unicode-safe UTF-8 text bounding, merged overlapping file ranges, bounded large references and summaries, and persisted only newly covered generation IDs per compaction boundary to avoid quadratic history growth.
+- Added preventive output-overflow recovery for reasoning-heavy responses while keeping incomplete completion states visible, and removed redundant budget events and checkpoint fields without breaking schema 1 or 2 recovery.
+- Added regression coverage for initial compaction, cancellation, calibrated hard limits, tool-cycle rollover, compaction quotas, Unicode byte boundaries, range normalization, incremental markers, legacy checkpoints, and extension-host state transitions.
+
 ## [0.1.8] - 2026-08-08
 
 - Replaced provider URL requests and automatic fallback with human-style headless navigation on the selected Bing, Google, or Baidu home page. Bing is the default; CAPTCHA, blocking, and timeout failures are terminal and never open a visible browser or retry automatically.

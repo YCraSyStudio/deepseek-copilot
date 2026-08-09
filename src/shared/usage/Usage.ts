@@ -60,6 +60,8 @@ export interface UsageAggregate extends PhaseUsage {
   /** Backwards-compatible request count used by persisted/webview consumers. */
   count: number;
   byPhase: Partial<Record<UsagePhase, PhaseUsage>>;
+  /** Set when a persisted numeric counter reached JavaScript's safe-integer ceiling. */
+  saturated?: true;
 }
 
 const OFFICIAL_DEEPSEEK_BASE_URL = "https://api.deepseek.com";
@@ -125,15 +127,15 @@ export function createUsageAggregate(officialEndpoint: boolean, model?: string):
 
 /** Records one provider request exactly once. Undefined means usage was unavailable or malformed. */
 export function recordUsage(aggregate: UsageAggregate, phase: UsagePhase, usage?: ProviderUsage): void {
-  aggregate.count += 1;
-  aggregate.requests += 1;
+  aggregate.count = safeAdd(aggregate.count, 1, aggregate);
+  aggregate.requests = safeAdd(aggregate.requests, 1, aggregate);
   const phaseUsage = aggregate.byPhase[phase] ?? createEmptyPhaseUsage();
-  phaseUsage.requests += 1;
+  phaseUsage.requests = safeAdd(phaseUsage.requests, 1, aggregate);
   aggregate.byPhase[phase] = phaseUsage;
 
   if (usage) {
-    addReportedUsage(aggregate, usage);
-    addReportedUsage(phaseUsage, usage);
+    addReportedUsage(aggregate, usage, aggregate);
+    addReportedUsage(phaseUsage, usage, aggregate);
   }
   refreshEstimatedCost(aggregate);
 }
@@ -143,6 +145,7 @@ export function estimateUsageCost(usage: ProviderUsage | UsageAggregate, model: 
   if (!tier) {
     return undefined;
   }
+  if ("saturated" in usage && usage.saturated) {return undefined;}
 
   const isAggregate = "count" in usage;
   const cacheHit = isAggregate ? usage.cacheHitTokens : usage.prompt_cache_hit_tokens;
@@ -178,15 +181,16 @@ export function aggregateUsageAggregates(values: readonly UsageAggregate[]): Usa
   const officialEndpoint = observed.every((value) => value.officialEndpoint);
   const aggregate = createUsageAggregate(officialEndpoint, models.size === 1 ? [...models][0] : undefined);
   for (const value of observed) {
-    mergePhaseUsage(aggregate, value);
-    aggregate.count += value.count;
+    if (value.saturated) {aggregate.saturated = true;}
+    mergePhaseUsage(aggregate, value, aggregate);
+    aggregate.count = safeAdd(aggregate.count, value.count, aggregate);
     for (const phase of USAGE_PHASES) {
       const phaseUsage = value.byPhase[phase];
       if (!phaseUsage) {
         continue;
       }
       const target = aggregate.byPhase[phase] ?? createEmptyPhaseUsage();
-      mergePhaseUsage(target, phaseUsage);
+      mergePhaseUsage(target, phaseUsage, aggregate);
       aggregate.byPhase[phase] = target;
     }
   }
@@ -197,7 +201,7 @@ export function aggregateUsageAggregates(values: readonly UsageAggregate[]): Usa
   } else {
     delete aggregate.priceCatalogVersion;
   }
-  if (observed.every((value) => value.currency === "USD" && value.costUsd !== undefined) && aggregate.priceCatalogVersion !== undefined) {
+  if (!aggregate.saturated && observed.every((value) => value.currency === "USD" && value.costUsd !== undefined) && aggregate.priceCatalogVersion !== undefined) {
     aggregate.currency = "USD";
     aggregate.costUsd = roundCost(observed.reduce((sum, value) => sum + (value.costUsd ?? 0), 0));
   } else {
@@ -260,6 +264,7 @@ export function normalizeUsageAggregate(value: unknown): UsageAggregate | undefi
     count: value.count,
     ...totals,
     byPhase,
+    ...(value.saturated === true ? { saturated: true } : {}),
   };
   if ((normalized.costUsd === undefined) !== (normalized.currency === undefined)) {
     return undefined;
@@ -302,34 +307,34 @@ function createEmptyPhaseUsage(): PhaseUsage {
   };
 }
 
-function addReportedUsage(target: PhaseUsage, usage: ProviderUsage): void {
-  target.reported += 1;
-  target.inputTokens = addOptional(target.inputTokens, usage.prompt_tokens);
-  target.outputTokens = addOptional(target.outputTokens, usage.completion_tokens);
-  target.totalTokens = addOptional(target.totalTokens, usage.total_tokens);
+function addReportedUsage(target: PhaseUsage, usage: ProviderUsage, aggregate: UsageAggregate): void {
+  target.reported = safeAdd(target.reported, 1, aggregate);
+  target.inputTokens = addOptional(target.inputTokens, usage.prompt_tokens, aggregate);
+  target.outputTokens = addOptional(target.outputTokens, usage.completion_tokens, aggregate);
+  target.totalTokens = addOptional(target.totalTokens, usage.total_tokens, aggregate);
   if (usage.reasoning_tokens !== undefined) {
-    target.reasoningReported += 1;
-    target.reasoningTokens = addOptional(target.reasoningTokens, usage.reasoning_tokens);
+    target.reasoningReported = safeAdd(target.reasoningReported, 1, aggregate);
+    target.reasoningTokens = addOptional(target.reasoningTokens, usage.reasoning_tokens, aggregate);
   }
   if (usage.prompt_cache_hit_tokens !== undefined) {
-    target.cacheHitReported += 1;
-    target.cacheHitTokens = addOptional(target.cacheHitTokens, usage.prompt_cache_hit_tokens);
+    target.cacheHitReported = safeAdd(target.cacheHitReported, 1, aggregate);
+    target.cacheHitTokens = addOptional(target.cacheHitTokens, usage.prompt_cache_hit_tokens, aggregate);
   }
   if (usage.prompt_cache_miss_tokens !== undefined) {
-    target.cacheMissReported += 1;
-    target.cacheMissTokens = addOptional(target.cacheMissTokens, usage.prompt_cache_miss_tokens);
+    target.cacheMissReported = safeAdd(target.cacheMissReported, 1, aggregate);
+    target.cacheMissTokens = addOptional(target.cacheMissTokens, usage.prompt_cache_miss_tokens, aggregate);
   }
 }
 
-function mergePhaseUsage(target: PhaseUsage, source: PhaseUsage): void {
-  target.requests += source.requests;
-  target.reported += source.reported;
-  target.reasoningReported += source.reasoningReported;
-  target.cacheHitReported += source.cacheHitReported;
-  target.cacheMissReported += source.cacheMissReported;
+function mergePhaseUsage(target: PhaseUsage, source: PhaseUsage, aggregate?: UsageAggregate): void {
+  target.requests = safeCountAdd(target.requests, source.requests, aggregate);
+  target.reported = safeCountAdd(target.reported, source.reported, aggregate);
+  target.reasoningReported = safeCountAdd(target.reasoningReported, source.reasoningReported, aggregate);
+  target.cacheHitReported = safeCountAdd(target.cacheHitReported, source.cacheHitReported, aggregate);
+  target.cacheMissReported = safeCountAdd(target.cacheMissReported, source.cacheMissReported, aggregate);
   for (const key of ["inputTokens", "outputTokens", "reasoningTokens", "cacheHitTokens", "cacheMissTokens", "totalTokens"] as const) {
     if (source[key] !== undefined) {
-      target[key] = addOptional(target[key], source[key]);
+      target[key] = addOptional(target[key], source[key], aggregate);
     }
   }
 }
@@ -420,8 +425,22 @@ function copyOptionalCount(source: Record<string, unknown>, target: ProviderUsag
   }
 }
 
-function addOptional(current: number | undefined, value: number): number {
-  return (current ?? 0) + value;
+function addOptional(current: number | undefined, value: number, aggregate?: UsageAggregate): number {
+  return safeCountAdd(current ?? 0, value, aggregate);
+}
+
+function safeCountAdd(left: number, right: number, aggregate?: UsageAggregate): number {
+  const result = left + right;
+  if (Number.isSafeInteger(result)) {return result;}
+  if (aggregate) {aggregate.saturated = true;}
+  return Number.MAX_SAFE_INTEGER;
+}
+
+function safeAdd(left: number, right: number, aggregate: UsageAggregate): number {
+  const result = left + right;
+  if (Number.isSafeInteger(result)) {return result;}
+  aggregate.saturated = true;
+  return Number.MAX_SAFE_INTEGER;
 }
 
 function roundCost(value: number): number {

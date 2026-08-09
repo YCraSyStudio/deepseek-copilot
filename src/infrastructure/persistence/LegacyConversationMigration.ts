@@ -1,17 +1,22 @@
 import { createHash } from "node:crypto";
 import { mkdir, readFile, readdir } from "node:fs/promises";
 import * as path from "node:path";
-import type * as vscode from "vscode";
-import type { WorkspaceBinding } from "@/adapters/messages/WebviewModels";
-import { isConversation } from "@/core/chat/ConversationValidation";
-import type { StoredConversation } from "@/core/chat/ProviderTranscript";
+import type { WorkspaceBinding } from "@/contracts/messages/WebviewModels";
+import { isConversation } from "@/application/chat/ConversationValidation";
+import type { StoredConversation } from "@/application/chat/ProviderTranscript";
 import { CONVERSATION_STORAGE_KEY } from "@/shared/constants";
-import { writeJsonFileAtomic } from "@/vscodeApi/storage/JsonFileStorage";
+import { writeJsonFileAtomic } from "./JsonFileStorage";
 
 export interface LegacyConversationMigrationDependencies {
   historyDirectory: string;
-  workspaceState: vscode.Memento;
+  workspaceState: KeyValueState;
   createWorkspaceBinding: (workspaceUri: string) => WorkspaceBinding;
+}
+
+export interface KeyValueState {
+  keys(): readonly string[];
+  get<T>(key: string): T | undefined;
+  update(key: string, value: unknown): PromiseLike<void>;
 }
 
 export interface LegacyConversationMigrationResult {

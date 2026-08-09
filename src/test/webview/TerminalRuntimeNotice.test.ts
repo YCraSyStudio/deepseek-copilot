@@ -1,6 +1,6 @@
 import * as assert from "node:assert";
-import type { WorkspaceRunSnapshot } from "@/vscodeApi/workspace";
-import { buildTerminalRuntimeNotice } from "@/vscodeApi/webviews/handlers/chat/TerminalRuntimeNotice";
+import type { WorkspaceRunSnapshot } from "@/platform/vscode/workspace";
+import { buildTerminalRuntimeNotice } from "@/platform/vscode/webviews/handlers/chat/TerminalRuntimeNotice";
 
 suite("terminal runtime workspace notice", () => {
   test("anchors a single-root agent to the trusted host path", () => {

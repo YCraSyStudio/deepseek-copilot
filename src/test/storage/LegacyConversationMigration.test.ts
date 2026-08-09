@@ -1,6 +1,6 @@
 import * as assert from "node:assert";
 import { migrateLegacyConversation } from "@/infrastructure/persistence/LegacyConversationMigration";
-import type { WorkspaceBinding } from "@/adapters/messages/WebviewModels";
+import type { WorkspaceBinding } from "@/contracts/messages/WebviewModels";
 
 suite("legacy conversation migration", () => {
   test("upgrades an unversioned conversation and assigns stable generation metadata", () => {

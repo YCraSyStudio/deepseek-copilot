@@ -10,7 +10,7 @@ import {
   type ToolWorkspaceEntryType,
   type ToolWorkspaceHost,
   type ToolWorkspaceStat,
-} from "@/core/tools/ToolWorkspace";
+} from "@/infrastructure/tools/ToolWorkspace";
 
 suite("workspace path validation", () => {
   const workspaceRoot = path.resolve("/tmp/deepseek-copilot-workspace");

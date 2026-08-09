@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from "react";
-import type { GenerationSnapshot, StoredToolCall, ToolCall } from "@/adapters";
+import type { GenerationSnapshot, StoredToolCall, ToolCall } from "@/contracts";
 import type { VsCodeApi } from "@webview/VsCodeApi";
 import type { ChatMessage, ToolCallAction, ToolCallActionOptions, ToolCallGroup, ToolCallState } from "../../views/chatView/ChatViewTypes";
 import type { MessageDispatcher } from "../../views/chatView/hooks";

@@ -1,12 +1,12 @@
 import * as vscode from "vscode";
-import type { AppConfig } from "@/adapters";
+import type { AppConfig } from "@/contracts";
 import { CONFIG_SECTION, INCLUDE_HOME_AGENTS_KEY } from "@/shared/constants";
-import { registerExtensionApi } from "@/vscodeApi/activation/RegisterExtensionApi";
-import { SettingsManager, SecretsManager } from "@/vscodeApi/storage";
-import { WebviewProvider } from "@/vscodeApi/webviews/WebviewProvider";
+import { registerExtensionApi } from "@/platform/vscode/activation/RegisterExtensionApi";
+import { SettingsManager, SecretsManager } from "@/platform/vscode/storage";
 import { setActiveProvider } from "./ExtensionRuntime";
 import { initializeLogger, logInfo } from "@/shared/logging/Logger";
-import { getWebRuntimeDiagnostics } from "@/vscodeApi/tools/browser";
+import { getWebRuntimeDiagnostics } from "@/platform/vscode/tools/browser";
+import { ExtensionCompositionRoot } from "../CompositionRoot";
 
 type LegacySettingKey = Exclude<keyof AppConfig, "apiKey" | "userId" | "includeHomeAgents" | "interfaceLanguage"> | "responseFormat";
 
@@ -33,7 +33,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // Usage summaries are the only info-level diagnostic events. They are
   // redacted aggregates and must be retained for release comparisons.
   context.subscriptions.push(initializeLogger(diagnostics, "info"));
-  logInfo("[HeadlessWeb] Runtime snapshot", getWebRuntimeDiagnostics());
   await initializeUserSettings();
   if (SettingsManager.getPersistenceError()) {
     await vscode.window.showWarningMessage(
@@ -41,10 +40,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     );
   }
   await SecretsManager.migrateLegacyApiKey(context, SettingsManager.load().baseUrl);
-  const provider = new WebviewProvider(context.extensionUri, context);
-  setActiveProvider(provider);
-  await provider.initialize();
-  registerExtensionApi(context, provider);
+  const root = new ExtensionCompositionRoot(context);
+  logInfo("[HeadlessWeb] Runtime snapshot", getWebRuntimeDiagnostics());
+  context.subscriptions.push(root);
+  setActiveProvider(root.webviewProvider);
+  await root.initialize();
+  registerExtensionApi(context, root.webviewProvider, root.settings);
 }
 
 async function initializeUserSettings(): Promise<void> {

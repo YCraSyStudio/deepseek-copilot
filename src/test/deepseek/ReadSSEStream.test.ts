@@ -1,5 +1,5 @@
 import * as assert from "assert";
-import { readSSEStream } from "@/deepseekApi/streaming/ReadSSEStream";
+import { readSSEStream } from "@/infrastructure/deepseek/streaming/ReadSSEStream";
 
 suite("SSE reader", () => {
   test("supports split chunks, comments, data without spaces and multiline events", async () => {

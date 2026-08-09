@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import type { PathCompletionItem } from "@/adapters";
+import type { PathCompletionItem } from "@/contracts";
 import "./FileSelector.css";
 import { t } from "@webview/i18n";
 import { getPathToken, type PathToken } from "./PathToken";

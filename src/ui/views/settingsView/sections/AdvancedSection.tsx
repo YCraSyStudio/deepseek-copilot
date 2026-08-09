@@ -1,6 +1,6 @@
 import { useState } from "react";
 import "./AdvancedSection.css";
-import { MAX_OUTPUT_TOKENS } from "@/adapters";
+import { MAX_OUTPUT_TOKENS } from "@/contracts";
 import { getApiOrigin, isLoopbackApiBaseUrl } from "@/shared/security/ApiOrigin";
 import type { AdvancedSectionProps } from "../model";
 import { Slider } from "@webview/components/settingsView";

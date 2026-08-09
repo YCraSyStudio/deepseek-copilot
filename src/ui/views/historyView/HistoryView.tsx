@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ConversationSummary, HandlerToWebviewMessage } from "@/adapters";
+import type { ConversationSummary, HandlerToWebviewMessage } from "@/contracts";
 import { HistoryListItem } from "@webview/components/historyView";
 import { useVsCode } from "../chatView/contexts";
 import "./HistoryView.css";
 import { t } from "@webview/i18n";
+import { beginNavigationRequest } from "@webview/NavigationRequests";
 
 type SortOrder = "date_desc" | "date_asc" | "title_asc" | "title_desc";
 const PAGE_SIZE = 25;
@@ -17,6 +18,7 @@ function HistoryView() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [historyEnabled, setHistoryEnabled] = useState<boolean | undefined>(undefined);
+  const [activity, setActivity] = useState<Record<string, "queued" | "running" | "cancelling">>({});
 
   const requestHistory = useCallback(() => {
     setIsLoading(true);
@@ -42,6 +44,21 @@ function HistoryView() {
         setError(message.error || t("history.historyCouldNotBeLoaded"));
       } else if (message.type === "conversationDeleted") {
         setConversations((current) => current.filter((conversation) => conversation.id !== message.id));
+      } else if (message.type === "generationActivityChanged") {
+        setActivity((current) => {
+          const next = { ...current };
+          if (message.status === "settled" && message.queuedMessages === 0) {
+            delete next[message.conversationId];
+          } else {
+            next[message.conversationId] = message.status === "settled" ? "queued" : message.status;
+          }
+          return next;
+        });
+      } else if (message.type === "generationSnapshot") {
+        setActivity(Object.fromEntries(message.generations.map((generation) => [
+          generation.conversationId,
+          generation.status === "cancelling" ? "cancelling" : "running",
+        ])));
       } else if (message.type === "configLoaded" || message.type === "configUpdateResult") {
         if (message.config.historyEnabled !== undefined) {
           setHistoryEnabled(message.config.historyEnabled);
@@ -52,6 +69,7 @@ function HistoryView() {
     window.addEventListener("message", handleMessage);
     requestHistory();
     vscode.postMessage({ type: "getConfig" });
+    vscode.postMessage({ type: "getGenerationSnapshot" });
     return () => window.removeEventListener("message", handleMessage);
   }, [vscode, requestHistory]);
 
@@ -137,7 +155,8 @@ function HistoryView() {
             datetime={new Date(conversation.updatedAt)}
             messageCount={conversation.messageCount}
             workspace={formatWorkspaceName(conversation.workspaceUri)}
-            onClick={() => vscode?.postMessage({ type: "loadConversation", id: conversation.id })}
+            activity={activity[conversation.id]}
+            onClick={() => vscode?.postMessage({ type: "loadConversation", requestId: beginNavigationRequest(), id: conversation.id })}
             onDelete={() => vscode?.postMessage({ type: "deleteConversation", id: conversation.id })}
           />
         )) : null}

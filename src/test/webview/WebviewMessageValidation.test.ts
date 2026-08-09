@@ -1,10 +1,10 @@
 import * as assert from "assert";
-import { isWebviewToHandlerMessage } from "@/vscodeApi/webviews/WebviewMessageValidation";
+import { isWebviewToHandlerMessage } from "@/platform/vscode/webviews/WebviewMessageValidation";
 
 suite("webview message validation", () => {
   test("accepts every valid message shape", () => {
     const messages = [
-      { type: "initializeProtocol", protocolVersion: 1 },
+      { type: "initializeProtocol", protocolVersion: 3 },
       { type: "getConfig" },
       { type: "saveConfig", requestId: "config-1", config: { interfaceLanguage: "es", permissionMode: "auto-approve", temperature: 1, maxTokens: 384_000, toolExecutionModes: { read_file: "auto_approve" } } },
       { type: "saveConfig", requestId: "config-custom", config: { permissionMode: "custom", toolExecutionModes: { read_file: "enabled", create_file: "disabled" } } },
@@ -22,19 +22,20 @@ suite("webview message validation", () => {
       { type: "testConnection", baseUrl: "http://127.0.0.1:11434/v1", model: "local-model" },
       { type: "sendMessage", clientRequestId: "request-1", text: "hello", modelId: "deepseek-v4-flash", reasoning: "high", conversationId: "conversation-1", referencedFiles: [{ path: "README.md", content: "text", type: "file" }] },
       { type: "steerGeneration", generationId: "generation-1", clientRequestId: "request-2", text: "guide", modelId: "deepseek-v4-flash", reasoning: "high", conversationId: "conversation-1" },
-      { type: "cancelGeneration", generationId: "generation-1" },
+      { type: "cancelGeneration", requestId: "cancel-1", generationId: "generation-1", conversationId: "conversation-1" },
       { type: "getGenerationSnapshot" },
       { type: "consumeRecoveredDraft", conversationId: "conversation-1", clientRequestId: "request-1" },
       { type: "copyCode", code: "const x = 1;" },
       { type: "insertCode", code: "const x = 1;" },
       { type: "selectModel", modelId: "deepseek-v4-flash" },
-      { type: "newConversation" },
-      { type: "getWorkspaceContext", conversationId: "conversation-1" },
+      { type: "newConversation", requestId: "navigation-new" },
+      { type: "getWorkspaceContext", requestId: "workspace-1", conversationId: "conversation-1" },
       { type: "rebindConversationWorkspace", conversationId: "conversation-1", workspaceRevision: "revision-1" },
       { type: "openConversationWorkspace", conversationId: "conversation-1" },
       { type: "selectContextFiles", conversationId: "conversation-1" },
       { type: "getHistory" },
-      { type: "loadConversation", id: "conversation-1" },
+      { type: "loadConversation", requestId: "navigation-load", id: "conversation-1" },
+      { type: "loadConversationPage", requestId: "navigation-page", id: "conversation-1", cursor: "opaque-cursor" },
       { type: "deleteConversation", id: "conversation-1" },
       { type: "executeToolCall", generationId: "generation-1", toolCallId: "call-1", action: "execute", trustForSession: false },
       { type: "toolCallLimitDecision", generationId: "generation-1", action: "continue" },
@@ -53,13 +54,19 @@ suite("webview message validation", () => {
     const messages = [
       null,
       { type: "initializeProtocol", protocolVersion: 0 },
-      { type: "initializeProtocol", protocolVersion: 1, injected: true },
+      { type: "initializeProtocol", protocolVersion: 3, injected: true },
       { type: "getConfig", injected: true },
       { type: "resetConfig" },
       { type: "resolveHistoryTransition", requestId: "history", decision: "wait" },
       { type: "resolveHistoryTransition", decision: "cancel" },
       { type: "deleteApiKey" },
       { type: "deleteApiKey", requestId: "credential-1", injected: true },
+      { type: "cancelGeneration", generationId: "generation-1" },
+      { type: "cancelGeneration", requestId: "cancel-1", generationId: "generation-1" },
+      { type: "newConversation" },
+      { type: "loadConversation", id: "conversation-1" },
+      { type: "loadConversationPage", id: "conversation-1" },
+      { type: "getWorkspaceContext", conversationId: "conversation-1" },
       { type: "sendMessage", text: "", modelId: "model", reasoning: "high" },
       { type: "sendMessage", text: "hello", modelId: "model", reasoning: "invalid" },
       { type: "saveConfig", requestId: "legacy-enabled", config: { permissionMode: "enabled" } },

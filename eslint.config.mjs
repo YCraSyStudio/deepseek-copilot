@@ -25,32 +25,52 @@ export default [{
         semi: "warn",
     },
 }, {
-    files: ["src/adapters/**/*.{ts,tsx}"],
+    files: ["src/contracts/**/*.{ts,tsx}"],
     rules: {
         "no-restricted-imports": ["error", {
             patterns: [{
-                group: ["@/core/**", "@/deepseekApi/**", "@/extension/**", "@/vscodeApi/**", "@webview/**", "react", "react/**", "vscode"],
-                message: "Adapters may depend only on other contracts and shared framework-free utilities.",
+                group: ["@/application/**", "@/domain/**", "@/extension/**", "@/infrastructure/**", "@/platform/**", "@webview/**", "react", "react/**", "vscode", "node:*"],
+                message: "Contracts may depend only on other contracts and shared framework-free utilities.",
             }],
         }],
     },
 }, {
-    files: ["src/core/**/*.{ts,tsx}"],
+    files: ["src/domain/**/*.{ts,tsx}"],
     rules: {
         "no-restricted-imports": ["error", {
             patterns: [{
-                group: ["@/deepseekApi/**", "@/extension/**", "@/vscodeApi/**", "@webview/**", "react", "react/**", "vscode"],
-                message: "Core must remain independent from providers, VS Code, and React.",
+                group: ["@/application/**", "@/contracts/**", "@/extension/**", "@/infrastructure/**", "@/platform/**", "@webview/**", "react", "react/**", "vscode", "node:*"],
+                message: "Domain must remain independent from application, transports, providers, VS Code, Node, and React.",
             }],
         }],
     },
 }, {
-    files: ["src/deepseekApi/**/*.{ts,tsx}"],
+    files: ["src/application/**/*.{ts,tsx}"],
     rules: {
         "no-restricted-imports": ["error", {
             patterns: [{
-                group: ["@/extension/**", "@/vscodeApi/**", "@webview/**", "react", "react/**", "vscode"],
-                message: "DeepSeek integration must not depend on VS Code or the webview.",
+                group: ["@/extension/**", "@/infrastructure/**", "@/platform/**", "@webview/**", "react", "react/**", "vscode"],
+                message: "Application may depend only on domain, contracts, application modules, and shared utilities.",
+            }],
+        }],
+    },
+}, {
+    files: ["src/infrastructure/**/*.{ts,tsx}"],
+    rules: {
+        "no-restricted-imports": ["error", {
+            patterns: [{
+                group: ["@/extension/**", "@/platform/**", "@webview/**", "react", "react/**", "vscode"],
+                message: "Infrastructure implements application ports and must not depend on VS Code, the extension shell, or React.",
+            }],
+        }],
+    },
+}, {
+    files: ["src/platform/**/*.{ts,tsx}"],
+    rules: {
+        "no-restricted-imports": ["error", {
+            patterns: [{
+                group: ["@/extension/**", "@webview/**", "react", "react/**"],
+                message: "Platform adapters must not depend on the composition root or the React webview.",
             }],
         }],
     },
@@ -60,8 +80,8 @@ export default [{
     rules: {
         "no-restricted-imports": ["error", {
             patterns: [{
-                group: ["@/core/**", "@/deepseekApi/**", "@/extension/**", "@/vscodeApi/**", "vscode", "node:*"],
-                message: "The webview may depend only on adapters, shared browser-safe utilities, and UI modules.",
+                group: ["@/application/**", "@/domain/**", "@/extension/**", "@/infrastructure/**", "@/platform/**", "vscode", "node:*"],
+                message: "The webview may depend only on contracts, shared browser-safe utilities, and UI modules.",
             }],
         }],
     },

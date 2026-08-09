@@ -1,11 +1,11 @@
 import * as assert from "node:assert";
 import { join, resolve } from "node:path";
-import type { AppConfig, ChatCompletionResponse, ToolCall } from "@/adapters";
-import { setToolWorkspaceHost } from "@/core/tools/ToolWorkspace";
+import type { AppConfig, ChatCompletionResponse, ToolCall } from "@/contracts";
+import { setToolWorkspaceHost } from "@/infrastructure/tools/ToolWorkspace";
 import {
   parseCommandSafetyReview,
   reviewCommandSafety,
-} from "@/deepseekApi/security/CommandSafetyReviewer";
+} from "@/infrastructure/deepseek/security/CommandSafetyReviewer";
 
 suite("DeepSeek command safety reviewer", () => {
   test("accepts an exact high-confidence approval", () => {

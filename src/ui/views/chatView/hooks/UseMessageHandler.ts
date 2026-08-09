@@ -1,9 +1,11 @@
 import { useEffect, useRef } from "react";
 import type { VsCodeApi } from "@webview/VsCodeApi";
-import { WEBVIEW_PROTOCOL_VERSION, type AssistantTimelineEvent, type HandlerToWebviewMessage, type AppConfig, type StoredToolCall, type ToolCall } from "@/adapters";
+import { WEBVIEW_PROTOCOL_VERSION, type AssistantTimelineEvent, type HandlerToWebviewMessage, type AppConfig, type StoredToolCall, type ToolCall } from "@/contracts";
 import type { UsageAggregate } from "@/shared/usage/Usage";
 import type { ApiKeyStatus, DangerConfirmationData, ToolCallStatus } from "../ChatViewTypes";
+import type { QueuedGenerationMessage } from "@/contracts";
 import { setInterfaceLanguage } from "@webview/i18n";
+import { acceptMessageForScope } from "./GenerationEventScope";
 
 /**
  * Additional streamDone event data.
@@ -11,6 +13,7 @@ import { setInterfaceLanguage } from "@webview/i18n";
 export type StreamDoneInfo = {
   cancelled?: boolean;
   finish_reason?: string;
+  restoredDraft?: QueuedGenerationMessage;
 };
 
 /**
@@ -26,6 +29,7 @@ export type MessageDispatcher = {
     toolCallId?: string;
     toolName?: string;
     usage?: UsageAggregate;
+    generationId: string;
   }) => void;
   onShowTyping?: (generationId?: string) => void;
   onStreamTimelineDelta?: (data: { generationId?: string; eventId: string; eventType: "reasoning" | "content"; content: string }) => void;
@@ -49,6 +53,9 @@ export type MessageDispatcher = {
     toolCallBudget: number;
   }) => void;
   onContextCompactionUpdated?: (data: { generationId: string; status: "compacting" | "completed" }) => void;
+  onContextCompacted?: (data: { generationId: string }) => void;
+  onGenerationRecoveryStarted?: (data: { generationId?: string; message: string }) => void;
+  onResourceLimitReached?: (data: { generationId?: string; resource: string; error: string }) => void;
   onGenerationSnapshot?: (message: Extract<HandlerToWebviewMessage, { type: "generationSnapshot" }>) => void;
   onAssistantUsageUpdated?: (data: { generationId?: string; usage: UsageAggregate }) => void;
 };
@@ -56,9 +63,15 @@ export type MessageDispatcher = {
 /**
  * Registers the webview message listener and routes messages to the dispatcher.
  */
-export function useMessageHandler(vscode: VsCodeApi | null, dispatcher: MessageDispatcher): void {
+export function useMessageHandler(
+  vscode: VsCodeApi | null,
+  dispatcher: MessageDispatcher,
+  scope?: { conversationId?: string; activeGenerationId?: string },
+): void {
   const dispatcherRef = useRef(dispatcher);
   dispatcherRef.current = dispatcher;
+  const scopeRef = useRef(scope);
+  scopeRef.current = scope;
 
   useEffect(() => {
     if (!vscode) {
@@ -67,6 +80,9 @@ export function useMessageHandler(vscode: VsCodeApi | null, dispatcher: MessageD
 
     const handleMessage = (event: MessageEvent<HandlerToWebviewMessage>) => {
       const message = event.data;
+      if (!acceptMessageForScope(message, scopeRef.current)) {
+        return;
+      }
 
       switch (message.type) {
         case "addMessage":
@@ -90,6 +106,7 @@ export function useMessageHandler(vscode: VsCodeApi | null, dispatcher: MessageD
             cancelled: message.cancelled,
             finish_reason: message.finish_reason,
             generationId: message.generationId,
+            restoredDraft: message.restoredDraft,
           });
           break;
 
@@ -165,6 +182,18 @@ export function useMessageHandler(vscode: VsCodeApi | null, dispatcher: MessageD
 
         case "contextCompactionUpdated":
           dispatcherRef.current.onContextCompactionUpdated?.({ generationId: message.generationId, status: message.status });
+          break;
+
+        case "contextCompacted":
+          dispatcherRef.current.onContextCompacted?.({ generationId: message.generationId });
+          break;
+
+        case "generationRecoveryStarted":
+          dispatcherRef.current.onGenerationRecoveryStarted?.({ generationId: message.generationId, message: message.message });
+          break;
+
+        case "resourceLimitReached":
+          dispatcherRef.current.onResourceLimitReached?.({ generationId: message.generationId, resource: message.resource, error: message.error });
           break;
 
         case "generationSnapshot":

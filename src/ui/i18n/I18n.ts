@@ -1,4 +1,4 @@
-import type { InterfaceLanguage } from "@/adapters";
+import type { InterfaceLanguage } from "@/contracts";
 import { en } from "./locales/en";
 import { localeCatalogs } from "./locales";
 import type { TranslationCatalog, TranslationKey as CatalogKey } from "./locales/Types";

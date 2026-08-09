@@ -3,9 +3,10 @@ import "./App.css";
 import { Header, HistoryTransitionPanel, type HistoryTransition } from "@webview/components/shared";
 import { ChatView, SettingsView, HistoryView } from "./views";
 import { VsCodeProvider } from "./views/chatView/contexts";
-import type { Conversation, HandlerToWebviewMessage } from "@/adapters";
+import type { Conversation, HandlerToWebviewMessage } from "@/contracts";
 import { getVsCodeApi } from "./VsCodeApi";
 import { getUiLocale, subscribeUiLocale } from "./i18n";
+import { beginNavigationRequest, isLatestNavigationRequest, NAVIGATION_STARTED_EVENT } from "./NavigationRequests";
 
 type ViewType = "chat" | "settings" | "history";
 
@@ -17,39 +18,52 @@ function App() {
   const [historyEnabled, setHistoryEnabled] = useState<boolean>();
   const [historyUpdatePending, setHistoryUpdatePending] = useState(false);
   const [historyTransition, setHistoryTransition] = useState<HistoryTransition | null>(null);
+  const [navigationPending, setNavigationPending] = useState(false);
   const pendingHistoryRequestRef = useRef<string | undefined>(undefined);
 
   const handleNewConversation = useCallback(() => {
     const vscode = getVsCodeApi();
-    if (historyEnabled === false) {
-      vscode?.setState({ schemaVersion: 3, mode: "incognito" });
-    } else {
-      vscode?.setState({
-        schemaVersion: 3,
-        mode: "persistent",
-        draft: "",
-        referencedFiles: [],
-        messages: [],
-      });
-    }
-    setLoadedConversation(null);
     setCurrentView("chat");
-    setChatRevision((revision) => revision + 1);
-    vscode?.postMessage({ type: "newConversation" });
-  }, [historyEnabled]);
+    setNavigationPending(true);
+    vscode?.postMessage({ type: "newConversation", requestId: beginNavigationRequest() });
+  }, []);
 
   useEffect(() => {
+    const handleNavigationStarted = () => setNavigationPending(true);
     const handleMessage = (event: MessageEvent<HandlerToWebviewMessage>) => {
       const message = event.data;
       if (message.type === "conversationLoaded") {
+        if (!isLatestNavigationRequest(message.requestId)) {return;}
         setLoadedConversation(message.conversation);
+        setNavigationPending(false);
         setChatRevision((revision) => revision + 1);
         setCurrentView("chat");
+      } else if (message.type === "conversationPageLoaded") {
+        if (!isLatestNavigationRequest(message.requestId)) {return;}
+        setLoadedConversation((current) => current?.id === message.id ? {
+          ...current,
+          messages: [...message.messages, ...current.messages],
+          hasEarlierMessages: message.hasEarlierMessages,
+          historyCursor: message.cursor,
+        } : current);
+        setNavigationPending(false);
+        setChatRevision((revision) => revision + 1);
       } else if (message.type === "conversationDeleted") {
         const deletedId = message.id;
         setLoadedConversation((current) => (current?.id === deletedId ? null : current));
       } else if (message.type === "clearChat") {
         setLoadedConversation(null);
+        setNavigationPending(false);
+        setChatRevision((revision) => revision + 1);
+      } else if (message.type === "newConversationReady") {
+        if (!isLatestNavigationRequest(message.requestId)) {return;}
+        const vscode = getVsCodeApi();
+        vscode?.setState({ schemaVersion: 4, mode: "persistent", draft: "", referencedFiles: [] });
+        setLoadedConversation(null);
+        setNavigationPending(false);
+        setChatRevision((revision) => revision + 1);
+      } else if (message.type === "historyError" && message.requestId && isLatestNavigationRequest(message.requestId)) {
+        setNavigationPending(false);
       } else if (message.type === "configLoaded") {
         if (message.config.historyEnabled !== undefined) {setHistoryEnabled(message.config.historyEnabled);}
       } else if (message.type === "configUpdateResult") {
@@ -68,10 +82,12 @@ function App() {
       }
     };
 
+    window.addEventListener(NAVIGATION_STARTED_EVENT, handleNavigationStarted);
     window.addEventListener("message", handleMessage);
     getVsCodeApi()?.postMessage({ type: "getConfig" });
     return () => {
       window.removeEventListener("message", handleMessage);
+      window.removeEventListener(NAVIGATION_STARTED_EVENT, handleNavigationStarted);
     };
   }, []);
 
@@ -96,7 +112,7 @@ function App() {
           onIncognitoToggle={handleIncognitoToggle}
         />
         <div className={`viewPane ${currentView === "chat" ? "active" : "hidden"}`} aria-hidden={currentView !== "chat"}>
-          <ChatView key={chatRevision} loadedConversation={loadedConversation} />
+          <ChatView key={chatRevision} loadedConversation={loadedConversation} navigationPending={navigationPending} />
         </div>
         {currentView === "settings" ? (
           <div className="viewPane active">

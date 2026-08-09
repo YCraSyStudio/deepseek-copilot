@@ -1,4 +1,4 @@
-import type { AssistantTimelineEvent } from "@/adapters";
+import type { AssistantTimelineEvent } from "@/contracts";
 import type { ToolCallGroup, ToolCallStatus } from "@webview/views/chatView/ChatViewTypes";
 
 type ActivityEvent = Exclude<AssistantTimelineEvent, { type: "content" }>;

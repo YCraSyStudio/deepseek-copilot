@@ -1,5 +1,5 @@
 import * as assert from "node:assert";
-import { createNormalizedDocument, extractSemanticDocument, selectDocumentContent } from "@/vscodeApi/tools/browser/SemanticContent";
+import { createNormalizedDocument, extractSemanticDocument, selectDocumentContent } from "@/infrastructure/browser/SemanticContent";
 
 suite("semantic browser content", () => {
   test("groups each h1 with following subtitles and paragraphs", () => {

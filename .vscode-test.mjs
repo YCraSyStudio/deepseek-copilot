@@ -13,8 +13,8 @@ mkdirSync(historyDirectory, { recursive: true });
 writeFileSync(invalidConversationPath, JSON.stringify({
 	id: 'unversioned-integration',
 	title: 'Unversioned',
-	createdAt: 1,
-	updatedAt: 1,
+	createdAt: Date.now(),
+	updatedAt: Date.now(),
 	model: 'deepseek-v4-flash',
 	workspaceUri: 'file:///workspace',
 	messages: [

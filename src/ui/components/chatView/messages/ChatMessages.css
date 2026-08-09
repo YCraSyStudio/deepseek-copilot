@@ -34,6 +34,15 @@
   line-height: 1.65;
 }
 
+.contextCompactionMarker {
+  color: var(--text-secondary);
+  align-items: center;
+  gap: 7px;
+  padding: 2px 0;
+  font-size: 12px;
+  display: flex;
+}
+
 .messageContent {
   border: 1px solid color-mix(in srgb, var(--border-color) 70%, transparent);
   background: var(--bg-chat-user);

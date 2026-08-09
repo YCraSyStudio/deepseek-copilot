@@ -24,7 +24,8 @@ Official reference:
 4. The provider opens an SSE request for chat responses.
 5. Each chunk is normalized as content or reasoning and tagged with its generation and conversation.
 6. `Streaming.ts` publishes events to the webview, where the UI renders accumulated deltas progressively rather than jumping per transport chunk.
-7. Progress is checkpointed and the accumulated result is persisted with `completed`, `interrupted`, or `error` generation status.
+7. Progress is checkpointed and the accumulated result is persisted with `completed`, `interrupted`, or `error` generation status; explicit Stop instead removes the generation.
+8. `GenerationExecutor` owns terminal publication and emits it once after persistence reconciliation.
 
 ## DeepSeek contract
 
@@ -37,11 +38,11 @@ Official reference:
 
 ## Cancellation
 
-`cancelGeneration` names the target `generationId` and aborts only that run. Cancellation preserves the user message and any partial assistant output as an interrupted turn. `steerGeneration` queues guidance at the front before cancelling the current run.
+`cancelGeneration` carries a request, conversation, and generation ID and aborts only that run. Explicit Stop removes the whole generation from visible and provider context and restores the prompt as a draft. Already completed external effects are recorded but are not rolled back. `steerGeneration` queues guidance at the front and preserves an interrupted turn for continuity instead of applying Stop semantics.
 
 ## Errors
 
-Errors should arrive as `streamError` with a useful message. Do not leak the API key or full sensitive response bodies.
+Errors before a generation is accepted arrive as `requestRejected`; identified run failures arrive as `streamError`. Do not leak the API key or full sensitive response bodies.
 
 Review [Error Codes](https://api-docs.deepseek.com/quick_start/error_codes) before changing HTTP error mapping.
 

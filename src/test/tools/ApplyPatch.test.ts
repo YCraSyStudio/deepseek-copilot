@@ -1,8 +1,8 @@
 import * as assert from "assert";
 import { createHash } from "crypto";
 import * as path from "path";
-import { applyPatchHandler, applyPatchHandlerForced } from "@/core/tools/definitions/ApplyPatch";
-import { setToolWorkspaceHost, type ToolWorkspaceEntryType, type ToolWorkspaceHost, type ToolWorkspaceStat } from "@/core/tools/ToolWorkspace";
+import { applyPatchHandler, applyPatchHandlerForced } from "@/infrastructure/tools/definitions/ApplyPatch";
+import { setToolWorkspaceHost, type ToolWorkspaceEntryType, type ToolWorkspaceHost, type ToolWorkspaceStat } from "@/infrastructure/tools/ToolWorkspace";
 
 suite("apply_patch tool", () => {
   const workspaceRoot = path.resolve("/tmp/deepseek-copilot-apply-patch");

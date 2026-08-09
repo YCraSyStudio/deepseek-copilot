@@ -1,5 +1,5 @@
 import * as assert from "assert";
-import { isConversation } from "@/core/chat/ConversationValidation";
+import { isConversation } from "@/application/chat/ConversationValidation";
 
 suite("history validation", () => {
   test("accepts native timeline history and rejects malformed persisted data", () => {

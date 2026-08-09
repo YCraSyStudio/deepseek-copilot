@@ -1,0 +1,131 @@
+import {
+  DEFAULT_CONFIG,
+  MAX_OUTPUT_TOKENS,
+  type AppConfig,
+  type InterfaceLanguage,
+  type PermissionMode,
+  type ToolExecutionMode,
+  type ToolExecutionModes,
+  type WebSearchEngine,
+} from "@/contracts";
+import { normalizeApiBaseUrlOrDefault } from "@/shared/security/ApiOrigin";
+
+export type StoredSettingKey = Exclude<keyof AppConfig, "apiKey" | "userId">;
+export type StoredSettings = Pick<AppConfig, StoredSettingKey>;
+
+export const STORED_SETTING_KEYS = new Set<StoredSettingKey>([
+  "interfaceLanguage", "baseUrl", "model", "thinkingMode", "reasoningEffort",
+  "temperature", "topP", "maxTokens", "maxToolRounds", "maxConcurrentGenerations",
+  "permissionMode", "toolExecutionModes", "autoContext", "historyEnabled",
+  "historyRetentionDays", "includeHomeAgents", "usageBreakdown", "webSearchEngine",
+]);
+
+export function normalizeConfig(value: unknown): AppConfig {
+  const config = isConfigRecord(value) ? value : {};
+  return {
+    interfaceLanguage: normalizeInterfaceLanguage(config.interfaceLanguage),
+    apiKey: "",
+    baseUrl: normalizeApiBaseUrlOrDefault(config.baseUrl, DEFAULT_CONFIG.baseUrl),
+    model: normalizeNonEmptyString(config.model, DEFAULT_CONFIG.model),
+    thinkingMode: normalizeBoolean(config.thinkingMode, DEFAULT_CONFIG.thinkingMode),
+    reasoningEffort: normalizeReasoningEffort(config.reasoningEffort),
+    temperature: clampNumber(config.temperature, 0, 2, DEFAULT_CONFIG.temperature),
+    topP: clampNumber(config.topP, 0, 1, DEFAULT_CONFIG.topP),
+    maxTokens: clampInteger(config.maxTokens, 1, MAX_OUTPUT_TOKENS, DEFAULT_CONFIG.maxTokens),
+    maxToolRounds: clampInteger(config.maxToolRounds, 1, 20, DEFAULT_CONFIG.maxToolRounds),
+    maxConcurrentGenerations: clampInteger(config.maxConcurrentGenerations, 1, 16, DEFAULT_CONFIG.maxConcurrentGenerations),
+    permissionMode: normalizePermissionMode(config.permissionMode),
+    toolExecutionModes: normalizeToolExecutionModes(config.toolExecutionModes),
+    autoContext: normalizeBoolean(config.autoContext, DEFAULT_CONFIG.autoContext),
+    historyEnabled: normalizeBoolean(config.historyEnabled, DEFAULT_CONFIG.historyEnabled),
+    historyRetentionDays: clampInteger(config.historyRetentionDays, 0, 3650, DEFAULT_CONFIG.historyRetentionDays),
+    includeHomeAgents: normalizeBoolean(config.includeHomeAgents, DEFAULT_CONFIG.includeHomeAgents),
+    usageBreakdown: normalizeBoolean(config.usageBreakdown, DEFAULT_CONFIG.usageBreakdown),
+    webSearchEngine: normalizeWebSearchEngine(config.webSearchEngine),
+  };
+}
+
+export function toStoredSettings(config: AppConfig): StoredSettings {
+  const stored = {} as StoredSettings;
+  for (const key of STORED_SETTING_KEYS) {
+    Object.assign(stored, { [key]: config[key] });
+  }
+  return stored;
+}
+
+export function isStoredSettingKey(key: string): key is StoredSettingKey {
+  return STORED_SETTING_KEYS.has(key as StoredSettingKey);
+}
+
+export function normalizeSettingValue(key: StoredSettingKey, value: unknown): unknown {
+  if (key === "interfaceLanguage") {return normalizeInterfaceLanguage(value);}
+  if (key === "toolExecutionModes") {return normalizeToolExecutionModes(value);}
+  if (key === "permissionMode") {return normalizePermissionMode(value);}
+  if (key === "reasoningEffort") {return normalizeReasoningEffort(value);}
+  if (["thinkingMode", "autoContext", "historyEnabled", "includeHomeAgents", "usageBreakdown"].includes(key)) {
+    return normalizeBoolean(value, DEFAULT_CONFIG[key] as boolean);
+  }
+  if (key === "model") {return normalizeNonEmptyString(value, DEFAULT_CONFIG.model);}
+  if (key === "baseUrl") {return normalizeApiBaseUrlOrDefault(value, DEFAULT_CONFIG.baseUrl);}
+  if (key === "temperature") {return clampNumber(value, 0, 2, DEFAULT_CONFIG.temperature);}
+  if (key === "topP") {return clampNumber(value, 0, 1, DEFAULT_CONFIG.topP);}
+  if (key === "maxTokens") {return clampInteger(value, 1, MAX_OUTPUT_TOKENS, DEFAULT_CONFIG.maxTokens);}
+  if (key === "maxToolRounds") {return clampInteger(value, 1, 20, DEFAULT_CONFIG.maxToolRounds);}
+  if (key === "maxConcurrentGenerations") {return clampInteger(value, 1, 16, DEFAULT_CONFIG.maxConcurrentGenerations);}
+  if (key === "historyRetentionDays") {return clampInteger(value, 0, 3650, DEFAULT_CONFIG.historyRetentionDays);}
+  if (key === "webSearchEngine") {return normalizeWebSearchEngine(value);}
+  return value;
+}
+
+export function isConfigRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function normalizeInterfaceLanguage(value: unknown): InterfaceLanguage {
+  return value === "auto" || value === "en" || value === "es" || value === "zh" ? value : DEFAULT_CONFIG.interfaceLanguage;
+}
+
+function normalizePermissionMode(value: unknown): PermissionMode {
+  if (value === "approve-for-me") {return "auto-approve";}
+  if (value === "workspace") {return "full-access";}
+  if (value === "chat" || value === "enabled") {return "default";}
+  return value === "default" || value === "read-only" || value === "custom" || value === "full-access" || value === "auto-approve"
+    ? value
+    : DEFAULT_CONFIG.permissionMode;
+}
+
+function normalizeToolExecutionModes(value: unknown): ToolExecutionModes {
+  if (!isConfigRecord(value)) {return DEFAULT_CONFIG.toolExecutionModes;}
+  return Object.fromEntries(Object.entries(value).flatMap(([name, mode]) => {
+    if (mode === "approve_for_me") {return [[name, "auto_approve" as const]];}
+    return isToolExecutionMode(mode) ? [[name, mode]] : [];
+  }));
+}
+
+function isToolExecutionMode(value: unknown): value is ToolExecutionMode {
+  return value === "disabled" || value === "enabled" || value === "auto_approve";
+}
+
+function normalizeReasoningEffort(value: unknown): AppConfig["reasoningEffort"] {
+  return value === "high" || value === "max" ? value : DEFAULT_CONFIG.reasoningEffort;
+}
+
+function normalizeWebSearchEngine(value: unknown): WebSearchEngine {
+  return value === "bing" || value === "google" || value === "baidu" ? value : DEFAULT_CONFIG.webSearchEngine;
+}
+
+function normalizeBoolean(value: unknown, fallback: boolean): boolean {
+  return typeof value === "boolean" ? value : fallback;
+}
+
+function normalizeNonEmptyString(value: unknown, fallback: string): string {
+  return typeof value === "string" && value.trim().length > 0 ? value : fallback;
+}
+
+function clampNumber(value: unknown, min: number, max: number, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback;
+}
+
+function clampInteger(value: unknown, min: number, max: number, fallback: number): number {
+  return typeof value === "number" && Number.isInteger(value) ? Math.min(max, Math.max(min, value)) : fallback;
+}

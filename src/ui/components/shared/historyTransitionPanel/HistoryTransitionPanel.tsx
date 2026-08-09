@@ -1,5 +1,5 @@
 import { useId } from "react";
-import type { HandlerToWebviewMessage } from "@/adapters";
+import type { HandlerToWebviewMessage } from "@/contracts";
 import { t } from "@webview/i18n";
 import { useDialogFocus } from "@webview/components/chatView/tools/confirmations/UseDialogFocus";
 import "./HistoryTransitionPanel.css";

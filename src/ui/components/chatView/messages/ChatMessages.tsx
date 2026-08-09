@@ -6,6 +6,7 @@ import "./ChatMessages.css";
 import { AssistantActivity } from "./AssistantActivity";
 import { PlainText } from "./MarkdownMessage";
 import UsageBreakdown from "./UsageBreakdown";
+import { t } from "@webview/i18n";
 import {
   buildMessageToolCallGroups,
   mergeToolCallGroups,
@@ -72,6 +73,9 @@ function MessageBody({
 }) {
   if (message.role === "error") {
     return <div className="errorMessage">{message.content}</div>;
+  }
+  if (message.role === "context") {
+    return <div className="contextCompactionMarker"><span aria-hidden="true">⇄</span> {t("chat.contextAutomaticallyCompacted")}</div>;
   }
   if (message.role === "assistant") {
     return (

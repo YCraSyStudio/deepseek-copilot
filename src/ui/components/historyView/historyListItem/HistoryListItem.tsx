@@ -8,14 +8,16 @@ type Props = {
   datetime?: Date;
   messageCount?: number;
   workspace?: string;
+  activity?: "queued" | "running" | "cancelling";
 };
 
-function HistoryListItem({ title, onClick, onDelete, datetime, messageCount, workspace }: Props) {
+function HistoryListItem({ title, onClick, onDelete, datetime, messageCount, workspace, activity }: Props) {
   return (
     <div className="historyListItem">
       <button className="openConversationBtn" type="button" onClick={onClick} aria-label={t("history.openTitle", { title })}>
         <span className="historyContent">
           <span className="title">{title}</span>
+          {activity ? <span className={`historyActivity ${activity}`} role="status">{activity}</span> : null}
           <span className="metadata">
             {datetime ? formatUiDate(datetime) : null}
             {messageCount !== undefined ? ` · ${t("history.countMessages", { count: messageCount })}` : null}

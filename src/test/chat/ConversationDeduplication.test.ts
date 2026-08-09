@@ -1,6 +1,6 @@
 import * as assert from "assert";
-import type { Conversation } from "@/adapters";
-import { findDuplicateConversationIds } from "@/core/chat/ConversationDeduplication";
+import type { Conversation } from "@/contracts";
+import { findDuplicateConversationIds } from "@/application/chat/ConversationDeduplication";
 
 suite("conversation history deduplication", () => {
   test("removes contained fragments but keeps unrelated conversations", () => {

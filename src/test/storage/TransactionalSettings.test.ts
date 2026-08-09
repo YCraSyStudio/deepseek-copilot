@@ -2,10 +2,11 @@ import * as assert from "node:assert";
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { SettingsManager } from "@/vscodeApi/storage/SettingsManager";
-import { getSettingsFilePath } from "@/vscodeApi/storage/UserDataPaths";
-import { getGenerationCheckpointDirectory } from "@/vscodeApi/storage/UserDataPaths";
-import { GenerationCheckpointStore } from "@/vscodeApi/storage/GenerationCheckpointStore";
+import { SettingsManager } from "@/platform/vscode/storage/SettingsManager";
+import { getSettingsFilePath } from "@/infrastructure/persistence/UserDataPaths";
+import { getGenerationCheckpointDirectory } from "@/infrastructure/persistence/UserDataPaths";
+import { GenerationCheckpointStore } from "@/platform/vscode/storage/GenerationCheckpointStore";
+import { VsCodeSettingsRepository } from "@/platform/vscode/storage/RepositoryAdapters";
 
 suite("transactional settings", () => {
   const previousNodeEnv = process.env.NODE_ENV;
@@ -95,7 +96,7 @@ suite("transactional settings", () => {
   });
 
   test("does not write checkpoints while history is disabled and clears stale files", async () => {
-    const store = new GenerationCheckpointStore();
+    const store = new GenerationCheckpointStore(new VsCodeSettingsRepository());
     const checkpoint = {
       conversationId: "incognito-conversation",
       status: "streaming" as const,
@@ -119,5 +120,35 @@ suite("transactional settings", () => {
     await SettingsManager.save({ historyEnabled: false });
     await store.clearAll();
     assert.strictEqual(readdirSync(directory).filter((name) => name.endsWith(".json")).length, 0);
+  });
+
+  test("recovers schema-2 checkpoints that still contain retired budget metadata", async () => {
+    await SettingsManager.save({ historyEnabled: true });
+    const store = new GenerationCheckpointStore(new VsCodeSettingsRepository());
+    await store.clearAll();
+    await store.save({
+      conversationId: "legacy-budget-checkpoint",
+      status: "compacting",
+      content: "",
+      timeline: [],
+      toolCalls: [],
+      queue: [],
+      workspaceUri: "file:///workspace",
+      updatedAt: Date.now(),
+    });
+    const directory = getGenerationCheckpointDirectory();
+    const filePath = path.join(directory, readdirSync(directory).find((name) => name.endsWith(".json"))!);
+    const persisted = JSON.parse(readFileSync(filePath, "utf8")) as Record<string, unknown>;
+    writeFileSync(filePath, JSON.stringify({
+      ...persisted,
+      budget: { model: "legacy", effectiveMaxTokens: 1, automaticCompactions: 1, conciseRecoveries: 0 },
+      conciseRecoveryUsed: false,
+      compactionBoundary: { id: "legacy" },
+    }));
+
+    const recovered = await new GenerationCheckpointStore(new VsCodeSettingsRepository()).recover();
+    assert.strictEqual(recovered.length, 1);
+    assert.strictEqual(recovered[0].conversationId, "legacy-budget-checkpoint");
+    await store.clearAll();
   });
 });

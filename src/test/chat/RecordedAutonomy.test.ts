@@ -1,15 +1,15 @@
 import * as assert from "node:assert";
 import type * as vscode from "vscode";
-import type { AppConfig, ChatCompletionResponse, ToolCall } from "@/adapters";
-import type { ToolExecutor } from "@/core/tools/ToolExecutor";
-import { setToolWorkspaceHost } from "@/core/tools/ToolWorkspace";
-import type { ConfirmationRequiredResult } from "@/core/tools/Types";
-import { reviewCommandSafety } from "@/deepseekApi/security/CommandSafetyReviewer";
-import { executeToolCall } from "@/vscodeApi/webviews/handlers/chat/toolCalls/ToolExecution";
+import type { AppConfig, ChatCompletionResponse, ToolCall } from "@/contracts";
+import type { ToolExecutor } from "@/application/tools/ToolExecutor";
+import { setToolWorkspaceHost } from "@/infrastructure/tools/ToolWorkspace";
+import type { ConfirmationRequiredResult } from "@/application/tools/Types";
+import { reviewCommandSafety } from "@/infrastructure/deepseek/security/CommandSafetyReviewer";
+import { executeToolCall } from "@/platform/vscode/webviews/handlers/chat/toolCalls/ToolExecution";
 import type {
   StoredExecution,
   ToolExecutionContext,
-} from "@/vscodeApi/webviews/handlers/chat/toolCalls/Types";
+} from "@/platform/vscode/webviews/handlers/chat/toolCalls/Types";
 
 const ORIGINAL_REQUEST = [
   "Create a local work-time tracker using ASP.NET and Astro with JSON persistence.",
@@ -145,9 +145,7 @@ function createContext(
 ): ToolExecutionContext {
   return {
     toolExecutor,
-    webviewView: {
-      webview: { postMessage: () => Promise.resolve(true) },
-    } as unknown as vscode.WebviewView,
+    eventSink: { publish: () => undefined },
     executedToolCalls: new Map<string, StoredExecution>(),
     autoApproveMode: true,
     fullAccessMode: false,

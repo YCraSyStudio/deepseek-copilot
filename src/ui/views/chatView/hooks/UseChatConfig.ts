@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useVsCode } from "../contexts";
-import { MODEL_OPTIONS } from "@/adapters/deepseek/Models";
-import type { AppConfig, HandlerToWebviewMessage, PermissionMode } from "@/adapters";
+import { MODEL_OPTIONS } from "@/contracts/deepseek/Models";
+import type { AppConfig, HandlerToWebviewMessage, PermissionMode } from "@/contracts";
 import { shouldApplyConfigRevision } from "@webview/config/ConfigRevision";
 
 /**

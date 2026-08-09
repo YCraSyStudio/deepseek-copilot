@@ -1,6 +1,6 @@
 import * as assert from "assert";
-import type { StoredToolCall } from "@/adapters";
-import { buildInterruptedContextContent } from "@/core/chat/InterruptedContext";
+import type { StoredToolCall } from "@/contracts";
+import { buildInterruptedContextContent } from "@/application/chat/InterruptedContext";
 
 suite("interrupted execution context", () => {
   test("keeps bounded operation metadata without raw file content or diffs", () => {

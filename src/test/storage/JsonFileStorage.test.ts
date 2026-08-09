@@ -2,7 +2,7 @@ import * as assert from "node:assert";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { withFileLock, writeJsonFileAtomic } from "@/vscodeApi/storage/JsonFileStorage";
+import { withFileLock, writeJsonFileAtomic } from "@/infrastructure/persistence/JsonFileStorage";
 
 suite("JSON file storage", () => {
   test("creates parent directories and replaces an existing JSON file", async () => {

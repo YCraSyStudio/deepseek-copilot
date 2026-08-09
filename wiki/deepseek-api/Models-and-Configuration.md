@@ -26,11 +26,9 @@ subtracts this output allowance and a safety margin from the total context
 before admitting input, tool schemas, and the canonical tool transcript.
 
 `maxToolRounds` is a safety-checkpoint interval, not an unconditional lifetime
-cap. It defaults to 6 and accepts values from 1 to 20. At each checkpoint,
-`auto-approve` and `full-access` send DeepSeek an explicit reassessment
-instruction: call another tool only for concrete remaining work, ask the user
-for missing instructions or a material choice, or stop with the best final
-answer. Other permission modes pause for the user's continue/stop decision.
+cap. It defaults to 6 and accepts values from 1 to 20. Default, read-only, and
+custom modes pause at each checkpoint for the user's continue/stop decision.
+Auto-approve and full-access do not apply round or per-block tool-call limits.
 
 ## Streaming behavior
 

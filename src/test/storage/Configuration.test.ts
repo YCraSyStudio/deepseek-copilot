@@ -1,7 +1,7 @@
 import * as assert from "assert";
 import * as os from "node:os";
 import * as path from "node:path";
-import { getHistoryDirectory, getSettingsFilePath, getUserDataDirectory } from "@/vscodeApi/storage/UserDataPaths";
+import { getHistoryDirectory, getSettingsFilePath, getUserDataDirectory } from "@/infrastructure/persistence/UserDataPaths";
 
 suite("user data paths", () => {
   test("stores settings and history below the user profile", () => {
