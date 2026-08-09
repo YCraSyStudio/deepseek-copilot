@@ -1,6 +1,6 @@
 import * as assert from "node:assert";
 import { randomUUID } from "node:crypto";
-import { readdir } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import * as path from "node:path";
 import * as vscode from "vscode";
 import { searchContentHandler } from "@/core/tools/definitions/SearchContent";
@@ -26,9 +26,14 @@ suite("Extension integration", () => {
     const manager = new HistoryManager(extension.exports?.context ?? createHistoryTestContext());
     await manager.initialize();
     await manager.getSummaries();
-    await assert.rejects(readdir(unversionedPath), /ENOTDIR|ENOENT/);
-    const isolated = await readdir(path.join(historyDirectory, "corrupt"));
-    assert.ok(isolated.some((name) => name.endsWith("unversioned-integration.json")));
+    const migrated = JSON.parse(await readFile(unversionedPath, "utf8")) as {
+      schemaVersion?: number;
+      workspaceBinding?: { revision?: string };
+      messages?: Array<{ generationId?: string }>;
+    };
+    assert.strictEqual(migrated.schemaVersion, 2);
+    assert.ok(migrated.workspaceBinding?.revision);
+    assert.match(migrated.messages?.[0]?.generationId ?? "", /^legacy-/);
     const commands = await vscode.commands.getCommands(true);
     assert.ok(commands.includes("yrs-dpsk-copilot.openChat"));
     assert.ok(commands.includes("yrs-dpsk-copilot.installChromiumHeadless"));

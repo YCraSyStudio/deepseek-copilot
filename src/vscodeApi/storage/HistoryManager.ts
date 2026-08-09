@@ -14,6 +14,8 @@ import { SettingsManager } from "./SettingsManager";
 import { withFileLock, writeJsonFileAtomic } from "./JsonFileStorage";
 import { getCorruptHistoryDirectory, getHistoryDirectory } from "./UserDataPaths";
 import { captureCurrentWorkspaceBinding } from "@/vscodeApi/workspace";
+import { createLegacyWorkspaceBinding } from "@/vscodeApi/workspace";
+import { migrateLegacyConversations } from "@/infrastructure/persistence/LegacyConversationMigration";
 
 const MAX_CONVERSATIONS = 100;
 const MAX_TOTAL_BYTES = 24 * 1024 * 1024;
@@ -30,10 +32,16 @@ type StoredConversationData = import("@/core/chat/ProviderTranscript").StoredCon
 export class HistoryManager {
   private mutationQueue: Promise<void> = Promise.resolve();
 
-  constructor(_context: vscode.ExtensionContext) {}
+  constructor(private readonly context: vscode.ExtensionContext) {}
 
   async initialize(): Promise<void> {
-    await mkdir(getHistoryDirectory(), { recursive: true });
+    await withFileLock(getHistoryMutationTarget(), async () => {
+      await migrateLegacyConversations({
+        historyDirectory: getHistoryDirectory(),
+        workspaceState: this.context.workspaceState,
+        createWorkspaceBinding: createLegacyWorkspaceBinding,
+      });
+    });
   }
 
   getWorkspaceUri(): string {
