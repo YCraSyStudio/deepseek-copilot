@@ -4,8 +4,18 @@ export const changelog: PageContent = {
   navTitle: "Changelog",
   title: "Changelog",
   description: "Cambios relevantes y estado preview.",
-  lead: "La versión 0.1.8 sustituye el fallback del navegador por búsquedas headless de estilo humano, secciones semánticas estables, lecturas web aisladas mediante nonce y ajustes propios para API y búsqueda web.",
+  lead: "La versión 0.1.9 aísla los chats concurrentes, hace atómica la cancelación, calibra la compactación del contexto, recupera desbordamientos de salida y publica builds Preview mediante el canal normal de releases.",
   sections: [
+    {
+      title: "0.1.9 aislamiento de chats concurrentes, cancelación y contexto calibrado",
+      items: [
+        "Las generaciones concurrentes usan ahora eventos de protocolo asociados a conversación y generación, IDs de navegación, actividad en segundo plano y restauración por snapshots sin filtrar actualizaciones a otro chat.",
+        "Stop elimina el turno cancelado completo y restaura su prompt como borrador. La cancelación se propaga por el descubrimiento de contexto, streaming, navegador, confirmaciones, herramientas, descendientes del terminal y persistencia con un único resultado terminal.",
+        "La compactación automática usa presupuestos calibrados por el proveedor, texto UTF-8 acotado y rangos de archivo fusionados; solo registra reducciones efectivas y transfiere de forma segura ciclos de herramientas cerrados cerca del límite de contexto.",
+        "Las respuestas con mucho razonamiento reciben recuperación preventiva ante desbordamiento de salida, manteniendo visibles los estados incompletos y la compatibilidad con historiales y checkpoints antiguos.",
+        "Marketplace y GitHub reciben ahora releases normales mientras package.json conserva preview: true. Una conversación restaurada desde otro workspace o ventana de VS Code inicia automáticamente un chat nuevo ligado al workspace actual.",
+      ],
+    },
     {
       title: "0.1.8 búsqueda headless humana y lecturas semánticas aisladas",
       items: [

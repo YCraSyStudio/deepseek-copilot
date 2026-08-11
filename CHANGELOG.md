@@ -1,7 +1,9 @@
 # Change Log
 
-## [0.1.9] - 2026-08-09
+## [0.1.9] - 2026-08-11
 
+- Publish Marketplace and GitHub versions through their normal release channels while retaining the extension's `preview: true` product status.
+- Start a new chat automatically when restored conversation state belongs to another VS Code workspace or window.
 - Isolated concurrent chat generations with protocol-v3 conversation/generation correlation, navigation request IDs, background activity status, and snapshot-based restoration when returning to a running chat.
 - Changed explicit **Stop** to atomically remove the complete cancelled turn from UI and persisted context and restore its prompt as a per-conversation draft; steering and lifecycle interruptions retain their distinct recovery behavior.
 - Centralized terminal generation ownership so each run emits exactly one completion or error, added `cancelling`/`cancelled` states and typed stop reasons, and made repeated or stale cancellation idempotent.

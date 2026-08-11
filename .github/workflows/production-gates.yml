@@ -126,5 +126,4 @@ jobs:
           artifacts/sha256.txt
           --title "Yar's DeepSeek Copilot $GITHUB_REF_NAME"
           --notes-file release-notes.md
-          --prerelease
           --verify-tag

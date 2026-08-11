@@ -21,7 +21,6 @@ type ChatCommandMessage =
   | { type: "streamDone"; generationId?: string; conversationId?: string; restoredDraft?: QueuedGenerationMessage }
   | { type: "streamError"; generationId?: string; conversationId?: string }
   | { type: "workspaceContextChanged"; requestId?: string; conversationId?: string; context: WorkspaceContextStatus }
-  | { type: "workspaceRebindResult"; success: boolean; context?: WorkspaceContextStatus; error?: string }
   | { type: "contextFilesSelected"; files: ReferencedFile[] }
   | { type: "generationSnapshot"; generations: GenerationSnapshot[]; recoveredDrafts: Array<{ conversationId: string; messages: QueuedGenerationMessage[] }> };
 
@@ -65,6 +64,7 @@ function ChatView({ loadedConversation, navigationPending = false }: ChatViewPro
   const [requestError, setRequestError] = useState<string>();
   const initialConfigHandledRef = useRef(false);
   const workspaceRequestIdRef = useRef<string | undefined>(undefined);
+  const workspaceMismatchRef = useRef<string | undefined>(undefined);
 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -173,6 +173,20 @@ function ChatView({ loadedConversation, navigationPending = false }: ChatViewPro
   }, [conversationId]);
 
   useEffect(() => {
+    if (
+      !conversationId ||
+      (workspaceContext?.state !== "changed" && workspaceContext?.state !== "disconnected")
+    ) {
+      workspaceMismatchRef.current = undefined;
+      return;
+    }
+    const mismatch = `${conversationId}:${workspaceContext.binding.revision}`;
+    if (workspaceMismatchRef.current === mismatch) {return;}
+    workspaceMismatchRef.current = mismatch;
+    getVsCodeApi()?.postMessage({ type: "newConversation", requestId: beginNavigationRequest() });
+  }, [conversationId, workspaceContext]);
+
+  useEffect(() => {
     if (historyEnabled === undefined) {
       return;
     }
@@ -251,10 +265,6 @@ function ChatView({ loadedConversation, navigationPending = false }: ChatViewPro
           }
           return message.context;
         });
-      }
-      if (message.type === "workspaceRebindResult" && message.success && message.context) {
-        setReferencedFiles([]);
-        setWorkspaceContext(message.context);
       }
       if (message.type === "generationAccepted") {
         const submitted = pendingRequestsRef.current.get(message.clientRequestId);

@@ -4,8 +4,8 @@
 
 ## Target release
 
-The current target is `0.1.8` pre-release. Use the version declared in
-`package.json` and keep the root lockfile aligned.
+The current target is the preview release declared in `package.json`. Keep the
+root lockfile aligned with that version.
 
 ## Marketplace metadata
 
@@ -39,7 +39,7 @@ The Astro build output is the repository root `docs/` folder. Configure GitHub P
 Package the VSIX:
 
 ```bash
-npx @vscode/vsce package --pre-release --no-dependencies
+npx @vscode/vsce package --no-dependencies
 ```
 
 Do not use the deprecated `vsce` package. Older versions still require explicit `activationEvents`; modern VS Code generates activation events from contribution declarations.
@@ -49,22 +49,23 @@ Do not use the deprecated `vsce` package. Older versions still require explicit 
 Push a `vX.Y.Z` tag after `main` points at the release commit:
 
 ```bash
-git tag v0.1.8
-git push origin v0.1.8
+git tag v0.1.9
+git push origin v0.1.9
 ```
 
-The production workflow validates the tag against `package.json`, extracts the matching section from `CHANGELOG.md`, waits for the quality, extension-host, and packaged-VSIX smoke gates, verifies `sha256.txt`, and creates a GitHub pre-release with the verified VSIX and checksum attached.
+The production workflow validates the tag against `package.json`, extracts the matching section from `CHANGELOG.md`, waits for the quality, extension-host, and packaged-VSIX smoke gates, verifies `sha256.txt`, and creates a normal GitHub release with the verified VSIX and checksum attached.
 
 Publish only after installing the packaged VSIX in a clean profile and testing
 an upgrade from `0.1.3`:
 
 ```bash
-npx @vscode/vsce publish --pre-release
+npx @vscode/vsce publish
 ```
 
-Marketplace pre-releases use ordinary `major.minor.patch` versions; SemVer
-suffixes such as `-preview.1` are not supported. `preview: true` marks the
-extension as a preview product but does not replace the `--pre-release` channel.
+Every Marketplace publication uses the normal release channel. The manifest
+keeps `preview: true`, so Marketplace presents the extension as a preview
+product without placing it in the pre-release channel. SemVer suffixes such as
+`-preview.1` are not supported.
 
 ## Manual beta validation
 

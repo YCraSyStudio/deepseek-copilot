@@ -8,6 +8,7 @@ if (!existsSync(vsixPath)) {
 }
 
 const entries = await listEntries(vsixPath);
+const manifest = await readTextEntry(vsixPath, "extension.vsixmanifest");
 const required = [
   "extension/package.json",
   "extension/dist/extension.js",
@@ -36,8 +37,14 @@ const unexpected = [...entries].filter((file) =>
 if (unexpected.length > 0) {
   throw new Error(`Unexpected files outside the VSIX allowlist:\n${unexpected.join("\n")}`);
 }
+if (/Microsoft\.VisualStudio\.Code\.PreRelease/i.test(manifest)) {
+  throw new Error("The VSIX must use the normal Marketplace release channel, not pre-release.");
+}
+if (!/<GalleryFlags>\s*Public Preview\s*<\/GalleryFlags>/i.test(manifest)) {
+  throw new Error("The VSIX must retain the Public Preview gallery flag from package.json.");
+}
 
-console.log(`Verified ${entries.size} intentional VSIX entries.`);
+console.log(`Verified ${entries.size} intentional VSIX entries and the normal-release/Public-Preview channel.`);
 
 function listEntries(file) {
   return new Promise((resolveList, reject) => {
@@ -55,6 +62,43 @@ function listEntries(file) {
       });
       zip.once("error", reject);
       zip.once("end", () => resolveList(names));
+      zip.readEntry();
+    });
+  });
+}
+
+function readTextEntry(file, entryName) {
+  return new Promise((resolveText, reject) => {
+    yauzl.open(file, { lazyEntries: true }, (error, zip) => {
+      if (error || !zip) {
+        reject(error ?? new Error("Unable to open VSIX"));
+        return;
+      }
+      let found = false;
+      zip.on("entry", (entry) => {
+        if (entry.fileName !== entryName) {
+          zip.readEntry();
+          return;
+        }
+        found = true;
+        zip.openReadStream(entry, (streamError, stream) => {
+          if (streamError || !stream) {
+            reject(streamError ?? new Error(`Unable to read ${entryName}`));
+            return;
+          }
+          const chunks = [];
+          stream.on("data", (chunk) => chunks.push(chunk));
+          stream.once("error", reject);
+          stream.once("end", () => {
+            zip.close();
+            resolveText(Buffer.concat(chunks).toString("utf8"));
+          });
+        });
+      });
+      zip.once("error", reject);
+      zip.once("end", () => {
+        if (!found) {reject(new Error(`VSIX entry is missing: ${entryName}`));}
+      });
       zip.readEntry();
     });
   });

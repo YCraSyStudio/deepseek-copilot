@@ -2,7 +2,7 @@
   "name": "yrs-dpsk-copilot",
   "displayName": "Yar's Deepseek copilot - A VS Code copilot specialized on Deepseek.",
   "description": "A deeply integrated VS Code coding assistant specialized in DeepSeek.",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "preview": true,
   "publisher": "yarcrasy",
   "license": "MIT",
@@ -166,7 +166,7 @@
     "test:unit": "node scripts/run-unit-tests.mjs",
     "prepare:integration": "npm run build && node scripts/build-integration-tests.mjs",
     "test:integration": "npm run prepare:integration && vscode-test",
-    "package:vsix": "node scripts/prepare-artifacts.mjs && vsce package --pre-release --no-dependencies --out artifacts/yrs-dpsk-copilot.vsix",
+    "package:vsix": "node scripts/prepare-artifacts.mjs && vsce package --no-dependencies --out artifacts/yrs-dpsk-copilot.vsix",
     "verify:vsix": "node scripts/assert-vsix-contents.mjs artifacts/yrs-dpsk-copilot.vsix"
   },
   "dependencies": {
