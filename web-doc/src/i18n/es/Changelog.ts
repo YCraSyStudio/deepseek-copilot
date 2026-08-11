@@ -4,7 +4,7 @@ export const changelog: PageContent = {
   navTitle: "Changelog",
   title: "Changelog",
   description: "Cambios relevantes y estado preview.",
-  lead: "La versión 0.1.9 aísla los chats concurrentes, hace atómica la cancelación, calibra la compactación del contexto, recupera desbordamientos de salida y publica builds Preview mediante el canal normal de releases.",
+  lead: "La versión 0.1.9 aísla los chats concurrentes, hace atómica la cancelación, calibra la compactación del contexto, recupera desbordamientos de salida y publica builds Preview en el canal normal de Marketplace mientras mantiene las releases de GitHub como prereleases.",
   sections: [
     {
       title: "0.1.9 aislamiento de chats concurrentes, cancelación y contexto calibrado",
@@ -13,7 +13,7 @@ export const changelog: PageContent = {
         "Stop elimina el turno cancelado completo y restaura su prompt como borrador. La cancelación se propaga por el descubrimiento de contexto, streaming, navegador, confirmaciones, herramientas, descendientes del terminal y persistencia con un único resultado terminal.",
         "La compactación automática usa presupuestos calibrados por el proveedor, texto UTF-8 acotado y rangos de archivo fusionados; solo registra reducciones efectivas y transfiere de forma segura ciclos de herramientas cerrados cerca del límite de contexto.",
         "Las respuestas con mucho razonamiento reciben recuperación preventiva ante desbordamiento de salida, manteniendo visibles los estados incompletos y la compatibilidad con historiales y checkpoints antiguos.",
-        "Marketplace y GitHub reciben ahora releases normales mientras package.json conserva preview: true. Una conversación restaurada desde otro workspace o ventana de VS Code inicia automáticamente un chat nuevo ligado al workspace actual.",
+        "Marketplace recibe ahora builds por el canal normal mientras package.json conserva preview: true, y las releases de GitHub siguen marcadas como prereleases. Una conversación restaurada desde otro workspace o ventana de VS Code inicia automáticamente un chat nuevo ligado al workspace actual.",
       ],
     },
     {

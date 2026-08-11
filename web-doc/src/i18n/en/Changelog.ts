@@ -4,7 +4,7 @@ export const changelog: PageContent = {
   navTitle: "Changelog",
   title: "Changelog",
   description: "Relevant changes and preview status.",
-  lead: "Version 0.1.9 isolates concurrent chats, makes cancellation atomic, calibrates context compaction, recovers from output overflow, and publishes Preview builds through the normal release channel.",
+  lead: "Version 0.1.9 isolates concurrent chats, makes cancellation atomic, calibrates context compaction, recovers from output overflow, and publishes Marketplace Preview builds through the normal release channel while GitHub releases remain prereleases.",
   sections: [
     {
       title: "0.1.9 concurrent chat isolation, cancellation, and calibrated context",
@@ -13,7 +13,7 @@ export const changelog: PageContent = {
         "Stop removes the complete cancelled turn and restores its prompt as a draft. Cancellation now propagates through context discovery, streaming, browser work, confirmations, tools, terminal descendants, and persistence with one terminal outcome.",
         "Automatic compaction uses provider-calibrated generation budgets, bounded UTF-8 text and merged file ranges, records only effective reductions, and safely rolls over closed tool cycles near the hard context limit.",
         "Reasoning-heavy responses receive preventive output-overflow recovery while incomplete states remain visible and legacy history and checkpoints remain compatible.",
-        "Marketplace and GitHub now receive normal releases while package.json retains preview: true. A restored conversation from another VS Code workspace or window starts a new workspace-bound chat automatically.",
+        "Marketplace now receives normal-channel builds while package.json retains preview: true, and GitHub releases remain prereleases. A restored conversation from another VS Code workspace or window starts a new workspace-bound chat automatically.",
       ],
     },
     {

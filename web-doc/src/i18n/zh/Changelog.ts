@@ -4,7 +4,7 @@ export const changelog: PageContent = {
   navTitle: "更新日志",
   title: "更新日志",
   description: "重要变更和预览状态。",
-  lead: "0.1.9 隔离并发对话，实现原子取消、校准上下文压缩和输出溢出恢复，并通过正常发布渠道提供 Preview 版本。",
+  lead: "0.1.9 隔离并发对话，实现原子取消、校准上下文压缩和输出溢出恢复；Marketplace 通过正常渠道提供 Preview 版本，GitHub Release 仍标记为预发布。",
   sections: [
     {
       title: "0.1.9 并发对话隔离、取消与校准上下文",
@@ -13,7 +13,7 @@ export const changelog: PageContent = {
         "Stop 会删除完整的已取消轮次，并将提示词恢复为草稿。取消会贯穿上下文发现、流式输出、浏览器、确认、工具、终端子进程和持久化，且只产生一个终止结果。",
         "自动压缩使用提供商校准的生成预算、有界 UTF-8 文本和合并的文件范围；仅记录有效缩减，并在接近上下文硬限时安全转换已闭合的工具周期。",
         "推理密集型回复获得预防性输出溢出恢复，同时保留可见的未完成状态，并兼容旧版历史和检查点。",
-        "Marketplace 和 GitHub 现接收正常 release，package.json 仍保留 preview: true。从其他 VS Code 工作区或窗口恢复的对话会自动开始一个绑定当前工作区的新对话。",
+        "Marketplace 现通过正常渠道接收构建，package.json 仍保留 preview: true；GitHub Release 继续标记为预发布。从其他 VS Code 工作区或窗口恢复的对话会自动开始一个绑定当前工作区的新对话。",
       ],
     },
     {
