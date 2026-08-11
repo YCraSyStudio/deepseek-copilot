@@ -158,16 +158,16 @@
     "watch": "tsc -watch -p ./ --noEmit",
     "build": "npm run build:extension && npm run build:webview",
     "build:extension": "node esbuild.js --production",
-    "build:webview": "vite build --config src/ui/vite.config.ts",
-    "dev:webview": "vite --config src/ui/vite.config.ts --host 0.0.0.0 --port 5175 --strictPort",
+    "build:webview": "vite build --config src/ui/vite.config.mts",
+    "dev:webview": "vite --config src/ui/vite.config.mts --host 0.0.0.0 --port 5175 --strictPort",
     "pretest": "npm run compile && npm run lint",
     "lint": "eslint src",
     "test": "npm run test:unit && npm run test:integration",
     "test:unit": "node scripts/run-unit-tests.mjs",
     "prepare:integration": "npm run build && node scripts/build-integration-tests.mjs",
     "test:integration": "npm run prepare:integration && vscode-test",
-    "package:vsix": "node scripts/prepare-artifacts.mjs && vsce package --no-dependencies --out artifacts/yrs-dpsk-copilot.vsix",
-    "verify:vsix": "node scripts/assert-vsix-contents.mjs artifacts/yrs-dpsk-copilot.vsix"
+    "package:vsix": "node scripts/prepare-artifacts.mjs && vsce package --no-dependencies --out artifacts",
+    "verify:vsix": "node scripts/assert-vsix-contents.mjs"
   },
   "dependencies": {
     "@puppeteer/browsers": "^3.1.0",

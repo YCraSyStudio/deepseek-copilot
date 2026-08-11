@@ -1,8 +1,10 @@
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import path from 'path';
 
-const srcRoot = path.resolve(__dirname, '..');
+const uiRoot = dirname(fileURLToPath(import.meta.url));
+const srcRoot = resolve(uiRoot, '..');
 const productionCsp = [
   "default-src 'none'",
   "connect-src {{CSP_SOURCE}}",
@@ -14,7 +16,7 @@ const productionCsp = [
 
 // https://vite.dev/Config/
 export default defineConfig({
-  root: __dirname,
+  root: uiRoot,
   plugins: [
     react(),
     {
@@ -40,7 +42,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': srcRoot,
-      '@webview': __dirname,
+      '@webview': uiRoot,
     },
   },
   build: {
@@ -52,7 +54,7 @@ export default defineConfig({
           groups: [
             {
               name: "markdown",
-              test: /node_modules\/(?:react-markdown|remark-gfm|rehype-sanitize|refractor|prismjs|micromark|mdast-util|hast-util|unified|remark-|rehype-|property-information|space-separated-tokens|comma-separated-tokens|decode-named-character-reference|character-entities|trim-lines|zwitch|vfile|unist-util|bail|devlop|html-url-attributes|parse-entities|ccount|stringify-entities)/,
+              test: /node_modules\/(?:react-markdown|remark-gfm|rehype-sanitize|refractor|prismjs|micromark|mdast-util|hast-util|unified|remark-|rehype-|property-information|space-separated-tokens|comma-separated-tokens|decode-named-character-reference|character-entities|trim-lines|zwitch|vfile|unist-util|bail|devlop|html-url-attributes|parse-entities)/,
             },
           ],
         },

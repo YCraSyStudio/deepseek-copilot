@@ -1,8 +1,15 @@
-import { existsSync } from "node:fs";
-import { resolve } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { basename, dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import yauzl from "yauzl";
 
-const vsixPath = resolve(process.argv[2] ?? "");
+const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const packageJson = JSON.parse(readFileSync(join(projectRoot, "package.json"), "utf8"));
+const expectedFileName = `yrs-dpsk-copilot-${packageJson.version}.vsix`;
+const vsixPath = resolve(process.argv[2] ?? join(projectRoot, "artifacts", expectedFileName));
+if (basename(vsixPath) !== expectedFileName) {
+  throw new Error(`Unexpected VSIX filename: expected ${expectedFileName}, received ${basename(vsixPath)}`);
+}
 if (!existsSync(vsixPath)) {
   throw new Error(`VSIX not found: ${vsixPath}`);
 }

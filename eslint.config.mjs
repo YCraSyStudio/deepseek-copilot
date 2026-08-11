@@ -76,7 +76,7 @@ export default [{
     },
 }, {
     files: ["src/ui/**/*.{ts,tsx}"],
-    ignores: ["src/ui/vite.config.ts"],
+    ignores: ["src/ui/vite.config.mts"],
     rules: {
         "no-restricted-imports": ["error", {
             patterns: [{
