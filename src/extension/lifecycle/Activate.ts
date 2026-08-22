@@ -8,7 +8,7 @@ import { initializeLogger, logInfo } from "@/shared/logging/Logger";
 import { getWebRuntimeDiagnostics } from "@/platform/vscode/tools/browser";
 import { ExtensionCompositionRoot } from "../CompositionRoot";
 
-type LegacySettingKey = Exclude<keyof AppConfig, "apiKey" | "userId" | "includeHomeAgents" | "interfaceLanguage"> | "responseFormat";
+type LegacySettingKey = Exclude<keyof AppConfig, "apiKey" | "userId" | "includeHomeAgents" | "interfaceLanguage" | "webSearchEnabled"> | "responseFormat" | "toolExecutionModes";
 
 const LEGACY_SETTING_KEYS: ReadonlyArray<LegacySettingKey> = [
   "baseUrl",

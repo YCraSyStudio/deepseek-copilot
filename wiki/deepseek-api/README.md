@@ -2,7 +2,7 @@
 
 # DeepSeek API
 
-The AI integration lives in `src/deepseekApi` and is exclusive to DeepSeek.
+The AI integration lives in `src/infrastructure/deepseek` and is exclusive to DeepSeek.
 
 Responsibilities:
 
@@ -10,6 +10,8 @@ Responsibilities:
 - run chat completion and streaming.
 - keep FIM unavailable until a dedicated beta endpoint and request contract are implemented.
 - support tool calls.
+- upload, reference, and delete images through the DeepSeek Files API.
+- provide V4 Vision directly and as the visual analyzer used by V4 Pro.
 - map HTTP/SSE errors into errors handlers can consume.
 
 Do not reintroduce `Ollama`, a multiprovider selector, or placeholders for other providers.
@@ -21,6 +23,7 @@ The source of truth for the HTTP contract is the official documentation:
 - [DeepSeek API Docs](https://api-docs.deepseek.com/)
 - [API Reference](https://api-docs.deepseek.com/api/deepseek-api)
 - [Create Chat Completion](https://api-docs.deepseek.com/api/create-chat-completion)
+- [Vision and Files API](https://api-docs.deepseek.com/guides/vision)
 
 Before changing request/response parameters, review those pages and update [Official references](Official-References.md).
 

@@ -1,5 +1,5 @@
-export type { AppConfig, InterfaceLanguage, PermissionMode, PermissionSnapshot, ToolExecutionMode, ToolExecutionModes, WebSearchEngine } from "./Config";
-export { DEFAULT_CONFIG, resolveToolExecutionMode } from "./Config";
+export type { AppConfig, InterfaceLanguage, PermissionMode, PermissionSnapshot, WebSearchEngine } from "./Config";
+export { DEFAULT_CONFIG } from "./Config";
 export type {
   WebviewToHandlerMessage,
   HandlerToWebviewMessage,
@@ -22,6 +22,7 @@ export type {
   WorkspaceContextStatus,
   WorkspaceRebinding,
   ReferencedFile,
+  ImageAttachment,
   ChatPersistenceMode,
   HistoryTransitionPhase,
   HistoryTransitionDecision,
@@ -35,8 +36,17 @@ export type {
   ChatCompletionResponse,
   StreamChunk,
   MessageRole,
+  ChatMessageContent,
+  ChatContentPart,
+  ImageDetail,
 } from "./deepseek/Chat";
-export type { DeepSeekModelId, DeepSeekModelInfo, ReasoningEffort, ModelOption } from "./deepseek/Models";
-export { MAX_OUTPUT_TOKENS, MODEL_REGISTRY } from "./deepseek/Models";
+export type { DeepSeekModelId, DeepSeekModelInfo, DeepSeekTransportModelId, ReasoningEffort, ModelOption } from "./deepseek/Models";
+export {
+  DEEPSEEK_FLASH_FALLBACK_MODEL_ID,
+  DEEPSEEK_PRO_MODEL_ID,
+  DEEPSEEK_VISION_MODEL_ID,
+  MAX_OUTPUT_TOKENS,
+  MODEL_REGISTRY,
+} from "./deepseek/Models";
 export { WEBVIEW_PROTOCOL_VERSION, WEBVIEW_INPUT_LIMITS } from "./messages/WebviewProtocol";
 export type { ReferencedFilePayload } from "./messages/WebviewModels";

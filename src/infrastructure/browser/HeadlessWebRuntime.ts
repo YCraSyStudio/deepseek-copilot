@@ -428,7 +428,9 @@ async function extractVisibleDocument(page: Page): Promise<{ title: string; url:
     const candidates = providerSelector ? [...document.querySelectorAll(providerSelector)] : [];
     const links = candidates.flatMap((element) => {
       const anchor = (element.closest("a[href]") ?? element) as HTMLAnchorElement;
-      if (!anchor || hidden(anchor)) {return [] as Array<{ title: string; url: string; snippet: string; sponsored: boolean }>;}
+      // Search providers can reveal result anchors with client-side scripts. Those scripts are
+      // intentionally blocked here, so a structurally valid organic result may remain CSS-hidden.
+      if (!anchor) {return [] as Array<{ title: string; url: string; snippet: string; sponsored: boolean }>;}
       const title = (anchor.textContent ?? "").replace(/\s+/g, " ").trim();
       const attributed = anchor.getAttribute("data-landurl") ?? anchor.closest("[mu]")?.getAttribute("mu") ?? anchor.getAttribute("data-url");
       const url = attributed && /^https:\/\//i.test(attributed) ? attributed : anchor.href;

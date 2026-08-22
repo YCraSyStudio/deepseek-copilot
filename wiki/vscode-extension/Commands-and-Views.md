@@ -21,7 +21,7 @@
 
 - The separate drop zone view was removed.
 - Explorer copy/paste integration was not kept because VS Code does not expose copied Explorer URIs to webviews as normal clipboard data.
-- Workspace context can be entered through `./` path autocomplete, Explorer/editor commands, or the native attachment button. Autocomplete never offers `../`. Explicit external attachments remain temporary read-only snapshots; separate tool access follows the active permission mode.
+- Workspace context can be entered through `./` path autocomplete, Explorer/editor commands, or the unified native attachment button. Autocomplete never offers `../`. The same picker routes JPEG, PNG, GIF, and WebP images to DeepSeek's Files API and turns other external files into temporary read-only snapshots. Images can also be pasted with `Ctrl+V`/`Cmd+V`; separate tool access still follows the active permission mode.
 
 ## Icons
 

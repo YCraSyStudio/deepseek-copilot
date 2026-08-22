@@ -4,8 +4,6 @@ import {
   type AppConfig,
   type InterfaceLanguage,
   type PermissionMode,
-  type ToolExecutionMode,
-  type ToolExecutionModes,
   type WebSearchEngine,
 } from "@/contracts";
 import { normalizeApiBaseUrlOrDefault } from "@/shared/security/ApiOrigin";
@@ -16,8 +14,8 @@ export type StoredSettings = Pick<AppConfig, StoredSettingKey>;
 export const STORED_SETTING_KEYS = new Set<StoredSettingKey>([
   "interfaceLanguage", "baseUrl", "model", "thinkingMode", "reasoningEffort",
   "temperature", "topP", "maxTokens", "maxToolRounds", "maxConcurrentGenerations",
-  "permissionMode", "toolExecutionModes", "autoContext", "historyEnabled",
-  "historyRetentionDays", "includeHomeAgents", "usageBreakdown", "webSearchEngine",
+  "permissionMode", "autoContext", "historyEnabled",
+  "historyRetentionDays", "includeHomeAgents", "usageBreakdown", "webSearchEnabled", "webSearchEngine",
 ]);
 
 export function normalizeConfig(value: unknown): AppConfig {
@@ -35,12 +33,12 @@ export function normalizeConfig(value: unknown): AppConfig {
     maxToolRounds: clampInteger(config.maxToolRounds, 1, 20, DEFAULT_CONFIG.maxToolRounds),
     maxConcurrentGenerations: clampInteger(config.maxConcurrentGenerations, 1, 16, DEFAULT_CONFIG.maxConcurrentGenerations),
     permissionMode: normalizePermissionMode(config.permissionMode),
-    toolExecutionModes: normalizeToolExecutionModes(config.toolExecutionModes),
     autoContext: normalizeBoolean(config.autoContext, DEFAULT_CONFIG.autoContext),
     historyEnabled: normalizeBoolean(config.historyEnabled, DEFAULT_CONFIG.historyEnabled),
     historyRetentionDays: clampInteger(config.historyRetentionDays, 0, 3650, DEFAULT_CONFIG.historyRetentionDays),
     includeHomeAgents: normalizeBoolean(config.includeHomeAgents, DEFAULT_CONFIG.includeHomeAgents),
     usageBreakdown: normalizeBoolean(config.usageBreakdown, DEFAULT_CONFIG.usageBreakdown),
+    webSearchEnabled: normalizeBoolean(config.webSearchEnabled, DEFAULT_CONFIG.webSearchEnabled),
     webSearchEngine: normalizeWebSearchEngine(config.webSearchEngine),
   };
 }
@@ -59,10 +57,9 @@ export function isStoredSettingKey(key: string): key is StoredSettingKey {
 
 export function normalizeSettingValue(key: StoredSettingKey, value: unknown): unknown {
   if (key === "interfaceLanguage") {return normalizeInterfaceLanguage(value);}
-  if (key === "toolExecutionModes") {return normalizeToolExecutionModes(value);}
   if (key === "permissionMode") {return normalizePermissionMode(value);}
   if (key === "reasoningEffort") {return normalizeReasoningEffort(value);}
-  if (["thinkingMode", "autoContext", "historyEnabled", "includeHomeAgents", "usageBreakdown"].includes(key)) {
+  if (["thinkingMode", "autoContext", "historyEnabled", "includeHomeAgents", "usageBreakdown", "webSearchEnabled"].includes(key)) {
     return normalizeBoolean(value, DEFAULT_CONFIG[key] as boolean);
   }
   if (key === "model") {return normalizeNonEmptyString(value, DEFAULT_CONFIG.model);}
@@ -88,22 +85,10 @@ function normalizeInterfaceLanguage(value: unknown): InterfaceLanguage {
 function normalizePermissionMode(value: unknown): PermissionMode {
   if (value === "approve-for-me") {return "auto-approve";}
   if (value === "workspace") {return "full-access";}
-  if (value === "chat" || value === "enabled") {return "default";}
-  return value === "default" || value === "read-only" || value === "custom" || value === "full-access" || value === "auto-approve"
+  if (value === "chat" || value === "enabled" || value === "read-only" || value === "custom") {return "default";}
+  return value === "default" || value === "full-access" || value === "auto-approve"
     ? value
     : DEFAULT_CONFIG.permissionMode;
-}
-
-function normalizeToolExecutionModes(value: unknown): ToolExecutionModes {
-  if (!isConfigRecord(value)) {return DEFAULT_CONFIG.toolExecutionModes;}
-  return Object.fromEntries(Object.entries(value).flatMap(([name, mode]) => {
-    if (mode === "approve_for_me") {return [[name, "auto_approve" as const]];}
-    return isToolExecutionMode(mode) ? [[name, mode]] : [];
-  }));
-}
-
-function isToolExecutionMode(value: unknown): value is ToolExecutionMode {
-  return value === "disabled" || value === "enabled" || value === "auto_approve";
 }
 
 function normalizeReasoningEffort(value: unknown): AppConfig["reasoningEffort"] {

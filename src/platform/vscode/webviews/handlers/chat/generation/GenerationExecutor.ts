@@ -4,10 +4,10 @@ import type {
   AppConfig,
   AssistantTimelineEvent,
   PermissionSnapshot,
-  QueuedGenerationMessage,
   StoredToolCall,
 } from "@/contracts";
-import { mapReasoningEffort } from "@/contracts/deepseek/Chat";
+import { DEEPSEEK_PRO_MODEL_ID, DEEPSEEK_VISION_MODEL_ID } from "@/contracts";
+import { getTextContent, mapReasoningEffort } from "@/contracts/deepseek/Chat";
 import { ConversationState } from "@/application/chat/ConversationState";
 import { buildInterruptedContextContent } from "@/application/chat/InterruptedContext";
 import { getGenerationStopReason, type GenerationTask } from "@/application/chat/GenerationCoordinator";
@@ -44,14 +44,11 @@ import {
 import { StreamEventEmitter } from "../StreamEventEmitter";
 import { sendMessageStreaming } from "../Streaming";
 import type { SendMessagePayload } from "../Types";
-import type { DangerTrustStore } from "../toolCalls/DangerTrustStore";
 import { ToolCallSession } from "../toolCalls/ToolCallSession";
 import {
   appendToolAvailabilityContext,
-  getEffectiveToolExecutionModes,
   getErrorMessage,
   isCancellationError,
-  normalizeWorkspaceUri,
 } from "../ChatHandlerSupport";
 import {
   buildGenerationMessages,
@@ -59,7 +56,6 @@ import {
 } from "./GenerationContext";
 import {
   createGenerationEventSink,
-  handleGenerationEvent,
   publishGenerationTerminal,
   transitionGenerationRun,
   type GenerationEventCallbacks,
@@ -73,7 +69,8 @@ interface SaveAssistantResultOptions {
   toolCalls?: StoredToolCall[];
   state: ConversationState;
   generationId: string;
-  status: "completed" | "interrupted" | "error";
+  status: "completed" | "cancelled" | "interrupted" | "error";
+  stopReason?: "user_cancelled" | "steered" | "workspace_changed" | "shutdown" | "deleted" | "history_transition";
   providerTranscript?: ProviderTranscript;
   usage?: UsageAggregate;
 }
@@ -82,7 +79,6 @@ interface GenerationExecutorDependencies {
   historyManager: HistoryManager;
   activeConversationState: ConversationState;
   toolRegistry: ToolRegistry;
-  dangerTrustStore: DangerTrustStore;
   checkpointStore: GenerationCheckpointStore;
   runs: Map<string, GenerationRunRecord>;
   generationEventCallbacks: GenerationEventCallbacks;
@@ -93,8 +89,6 @@ interface GenerationExecutorDependencies {
   settings: SettingsRepository;
   secrets: SecretStore;
   modelProviderFactory: ModelProviderFactory;
-  recoverCancelledDraft: (conversationId: string, draft: QueuedGenerationMessage) => void;
-  syncCancelledConversation: (conversationId: string, conversation: ReturnType<ConversationState["getConversation"]>) => void;
 }
 
 export class GenerationExecutor {
@@ -111,19 +105,17 @@ export class GenerationExecutor {
         activeConversationState.getActiveConversationId() === task.conversationId
           ? activeConversationState.getConversation()
           : undefined
-      );
+    );
 
     if (signal.aborted) {
-      const restoredDraft = this.createCancelledDraft(task);
-      if (getGenerationStopReason(signal) === "user_cancelled") {
-        this.dependencies.recoverCancelledDraft(task.conversationId, restoredDraft);
-      }
+      const generationStopReason = getGenerationStopReason(signal);
+      const status = generationStopReason === "user_cancelled" ? "cancelled" : "interrupted";
       this.dependencies.post({
         type: "streamDone",
         generationId,
         conversationId: task.conversationId,
-        cancelled: true,
-        ...(getGenerationStopReason(signal) === "user_cancelled" ? { restoredDraft } : {}),
+        status,
+        generationStopReason,
       });
       return;
     }
@@ -146,79 +138,38 @@ export class GenerationExecutor {
     } catch (error: unknown) {
       const record = this.dependencies.runs.get(generationId);
       if (record) {
-        const cancelled = signal.aborted;
-        const userCancelled = cancelled && getGenerationStopReason(signal) === "user_cancelled";
-        if (userCancelled) {
-          this.logCompletedToolsNotRolledBack(record);
-          const remaining = await record.state.removeGeneration(generationId);
-          if (!remaining) {
-            await historyManager.delete(record.conversationId);
-          }
-          this.dependencies.syncCancelledConversation(record.conversationId, remaining);
-          const restoredDraft = this.createCancelledDraft(task);
-          this.dependencies.recoverCancelledDraft(record.conversationId, restoredDraft);
-          if (record.status === "cancelling") {
-            transitionGenerationRun(record, "cancelled");
-          }
-          handleGenerationEvent(
-            record,
-            { type: "streamDone", cancelled: true, restoredDraft },
-            this.dependencies.generationEventCallbacks,
-          );
-          await this.dependencies.checkpointStore.delete(record.conversationId).catch(() => undefined);
-          publishGenerationTerminal(record, this.dependencies.generationEventCallbacks, {
-            type: "streamDone",
-            cancelled: true,
-            restoredDraft,
-          });
-          this.dependencies.runs.delete(generationId);
-          return;
+        const aborted = signal.aborted || isCancellationError(error);
+        const status = getGenerationStopReason(signal) === "user_cancelled" ? "cancelled" : "interrupted";
+        if (aborted) {
+          if (status === "cancelled") {this.logCompletedToolsNotRolledBack(record);}
+          await this.persistTerminalAssistant(record, task.payload.modelId, status, getGenerationStopReason(signal));
+          this.transitionToTerminal(record, status);
+        } else {
+          transitionGenerationRun(record, "error");
         }
-        if (record.status !== "cancelling") {
-          transitionGenerationRun(record, cancelled ? "interrupted" : "error");
-        }
-        handleGenerationEvent(
-          record,
-          cancelled
-            ? { type: "streamDone", cancelled: true }
-            : { type: "streamError", error: getErrorMessage(error) },
-          this.dependencies.generationEventCallbacks,
-        );
-        await this.dependencies.checkpoint(record, true).catch(() => undefined);
+        await this.dependencies.checkpointStore.delete(record.conversationId).catch(() => undefined);
         publishGenerationTerminal(
           record,
           this.dependencies.generationEventCallbacks,
-          cancelled
-            ? { type: "streamDone", cancelled: true }
+          aborted
+            ? { type: "streamDone", status, generationStopReason: getGenerationStopReason(signal) }
             : { type: "streamError", error: getErrorMessage(error) },
         );
         this.dependencies.runs.delete(generationId);
       } else {
-        const userCancelled = getGenerationStopReason(signal) === "user_cancelled";
-        const restoredDraft = this.createCancelledDraft(task);
-        if (userCancelled) {
-          this.dependencies.recoverCancelledDraft(task.conversationId, restoredDraft);
-        }
         this.dependencies.post({
           type: signal.aborted ? "streamDone" : "streamError",
           generationId,
           conversationId: task.conversationId,
           ...(signal.aborted
-            ? { cancelled: true, ...(userCancelled ? { restoredDraft } : {}) }
+            ? {
+                status: getGenerationStopReason(signal) === "user_cancelled" ? "cancelled" : "interrupted",
+                generationStopReason: getGenerationStopReason(signal),
+              }
             : { error: getErrorMessage(error) }),
         });
       }
     }
-  }
-
-  private createCancelledDraft(task: GenerationTask<SendMessagePayload>): QueuedGenerationMessage {
-    return {
-      clientRequestId: task.clientRequestId,
-      text: task.payload.text,
-      queuedAt: task.queuedAt,
-      reason: "cancelled",
-      referencedFiles: task.payload.referencedFiles,
-    };
   }
 
   private logCompletedToolsNotRolledBack(record: GenerationRunRecord): void {
@@ -246,7 +197,6 @@ export class GenerationExecutor {
     const {
       activeConversationState,
       checkpointStore,
-      dangerTrustStore,
       historyManager,
       runs,
       toolRegistry,
@@ -286,7 +236,7 @@ export class GenerationExecutor {
     const session = new ToolCallSession(new ToolExecutor(toolRegistry, () => {
       const host = getToolWorkspaceHost();
       return host.getWorkspaceId?.() ?? host.getRootPath() ?? "workspace:unknown";
-    }), dangerTrustStore);
+    }));
     const record: GenerationRunRecord = {
       generationId,
       conversationId: task.conversationId,
@@ -328,7 +278,10 @@ export class GenerationExecutor {
       recordUsage(usageAggregate, "primary", usage);
     };
     const stream = new StreamEventEmitter(eventSink);
-    const userMessage = runState.createMessage("user", payload.text, { generationId });
+    const userMessage = runState.createMessage("user", payload.text, {
+      generationId,
+      imageAttachments: payload.imageAttachments,
+    });
     record.userMessage = userMessage;
     let messages = await buildGenerationMessages({
       payload,
@@ -345,22 +298,12 @@ export class GenerationExecutor {
 
     await eventSink.publish({
       type: "addMessage",
-      message: { role: "user", content: userMessage.content },
+      message: { role: "user", content: userMessage.content, imageAttachments: userMessage.imageAttachments },
     });
     stream.showTyping();
 
     try {
       const allTools = toolRegistry.getDefinitionsForAPI();
-      const toolExecutionModes = getEffectiveToolExecutionModes(
-        initialPermissionSnapshot.toolExecutionModes,
-        allTools,
-        initialPermissionSnapshot.permissionMode,
-      );
-      const toolProviderConfig: AppConfig = {
-        ...providerConfig,
-        thinkingMode: true,
-        reasoningEffort: providerConfig.reasoningEffort ?? "high",
-      };
       const workspaceTools = allTools.filter((tool) => {
         const registered = toolRegistry.get(tool.function.name);
         if (registered?.metadata.scope === "global") {
@@ -372,14 +315,19 @@ export class GenerationExecutor {
         return tool.function.name !== "run_terminal_command" ||
           workspaceSnapshot.binding.capabilities.terminal;
       });
-      const tools = workspaceTools.filter(
-        (tool) => toolExecutionModes[tool.function.name] !== "disabled",
-      );
+      const tools = workspaceTools.filter((tool) => {
+        if (!providerConfig.webSearchEnabled && (tool.function.name === "search_web" || tool.function.name === "read_web")) {
+          return false;
+        }
+        if (tool.function.name === "analyze_images") {
+          return requestedModel === DEEPSEEK_PRO_MODEL_ID && (payload.imageAttachments?.length ?? 0) > 0;
+        }
+        return true;
+      });
       appendToolAvailabilityContext(
         messages,
         initialPermissionSnapshot.permissionMode,
         tools,
-        toolExecutionModes,
         workspaceSnapshot,
       );
       messages = await fitGenerationRequestContext({
@@ -395,7 +343,6 @@ export class GenerationExecutor {
         tools,
         permissionMode: initialPermissionSnapshot.permissionMode,
         enabledTools: tools,
-        toolExecutionModes,
         signal,
         checkpoint: (run) => this.dependencies.checkpoint(run, true),
         onUsage: (phase, usage) => recordUsage(usageAggregate, phase, usage),
@@ -404,8 +351,8 @@ export class GenerationExecutor {
       if (tools.length > 0) {
         const result = await session.run({
           messages,
-          tools: workspaceTools,
-          providerConfig: toolProviderConfig,
+          tools,
+          providerConfig,
           eventSink,
           permissionSnapshot: initialPermissionSnapshot,
           capturePermissionSnapshot: () =>
@@ -427,6 +374,7 @@ export class GenerationExecutor {
           trustedUserRequest: payload.text,
           authorizedUserUrls: extractHttpsUrls(payload.text),
           budgetManager: record.budgetManager,
+          analyzeImages: this.createImageAnalyzer(payload, providerConfig, usageAggregate),
           onContextCompacted: async ({ estimatedTokensBefore, estimatedTokensAfter }) => {
             const previous = runState.getConversation()?.contextSummary;
             const now = Date.now();
@@ -455,21 +403,16 @@ export class GenerationExecutor {
             });
             await runState.saveMessages({
               messages: [runState.createMessage("context", "Context automatically compacted", { generationId })],
-              model: toolProviderConfig.model,
+              model: providerConfig.model,
             });
             this.dependencies.syncSelectedConversation(runState);
-          },
-          trustScope: {
-            conversationId: task.conversationId,
-            workspaceUri: normalizeWorkspaceUri(workspaceSnapshot.binding.uri),
-            configFingerprint: initialPermissionSnapshot.fingerprint,
           },
         });
         if (result) {
           await this.saveAssistantResult({
             content: result.content,
             timeline: result.timeline,
-            model: toolProviderConfig.model,
+            model: providerConfig.model,
             toolCalls: result.toolCalls as StoredToolCall[] | undefined,
             state: runState,
             generationId,
@@ -483,7 +426,7 @@ export class GenerationExecutor {
           onUsage: recordPrimaryUsage,
           messages,
           payload,
-          config,
+          config: providerConfig,
           provider,
           eventSink,
           signal,
@@ -504,21 +447,21 @@ export class GenerationExecutor {
         });
       }
     } catch (error: unknown) {
-      const userCancelled = signal.aborted && getGenerationStopReason(signal) === "user_cancelled";
       if (error instanceof PartialStreamError) {
-        if (!userCancelled) {
-          await this.saveAssistantResult({
-            content: error.partial.content,
-            timeline: error.partial.timeline,
-            model: providerConfig.model,
-            state: runState,
-            generationId,
-            status: "interrupted",
-            usage: usageAggregate,
-          });
-        }
+        const stopReason = getGenerationStopReason(signal);
+        const status = stopReason === "user_cancelled" ? "cancelled" : "interrupted";
+        await this.saveAssistantResult({
+          content: error.partial.content,
+          timeline: error.partial.timeline,
+          model: providerConfig.model,
+          state: runState,
+          generationId,
+          status,
+          stopReason,
+          usage: usageAggregate,
+        });
         if (error.reason === "cancelled") {
-          stream.done({ cancelled: true });
+          stream.done({ status, generationStopReason: stopReason });
         } else {
           stream.error(error.message);
         }
@@ -527,7 +470,7 @@ export class GenerationExecutor {
 
       const cancelled = signal.aborted || isCancellationError(error);
       this.handleSendError(error, stream, signal);
-      transitionGenerationRun(record, cancelled ? "interrupted" : "error");
+      if (!cancelled) {transitionGenerationRun(record, "error");}
       if (!cancelled) {
         await runState.saveMessages({
           messages: [
@@ -557,57 +500,52 @@ export class GenerationExecutor {
       }
       const stopReason = getGenerationStopReason(signal);
       const userCancelled = signal.aborted && stopReason === "user_cancelled";
+      const interrupted = signal.aborted && !userCancelled;
+      const terminalStatus = userCancelled ? "cancelled" : interrupted ? "interrupted" : undefined;
       if (
-        signal.aborted && !userCancelled &&
+        terminalStatus &&
         !runState.getConversation()?.messages.some(
           (message) =>
             message.role === "assistant" &&
             message.generationId === generationId,
         )
       ) {
-        await runState.saveMessages({
-          messages: [
-            runState.createMessage("assistant", "", {
-              generationId,
-              generationStatus: "interrupted",
-              timeline: record.timeline,
-              toolCalls: record.toolCalls,
-              contextContent: buildInterruptedContextContent("", record.toolCalls),
-            }),
-          ],
+        await this.saveAssistantResult({
+          content: record.content,
+          timeline: record.timeline,
+          toolCalls: record.toolCalls,
+          generationId,
+          status: terminalStatus,
+          stopReason,
           model: providerConfig.model,
+          state: runState,
+          providerTranscript: record.providerTranscript,
+          usage: usageAggregate.count > 0 ? usageAggregate : undefined,
         });
-        this.dependencies.syncSelectedConversation(runState);
       }
-      if (signal.aborted) {
-        stream.done({ cancelled: true });
+      if (terminalStatus) {
+        stream.done({ status: terminalStatus, generationStopReason: stopReason });
       }
       if (record.checkpointTimer) {
         clearTimeout(record.checkpointTimer);
       }
       if (userCancelled) {
         this.logCompletedToolsNotRolledBack(record);
-        const remaining = await runState.removeGeneration(generationId);
-        if (!remaining) {
-          await historyManager.delete(record.conversationId);
-        }
-        this.dependencies.syncCancelledConversation(record.conversationId, remaining);
-        const restoredDraft = this.createCancelledDraft(task);
-        this.dependencies.recoverCancelledDraft(record.conversationId, restoredDraft);
-        if (record.status !== "cancelling") {
-          transitionGenerationRun(record, "cancelling");
-        }
-        transitionGenerationRun(record, "cancelled");
+        this.transitionToTerminal(record, "cancelled");
         await checkpointStore.delete(record.conversationId);
         publishGenerationTerminal(record, this.dependencies.generationEventCallbacks, {
           type: "streamDone",
-          cancelled: true,
-          restoredDraft,
+          status: "cancelled",
+          generationStopReason: stopReason,
         });
       } else {
-        await this.dependencies.checkpoint(record, true);
-        if ((record.status as string) === "completed") {
+        if (interrupted) {
+          this.transitionToTerminal(record, "interrupted");
+        }
+        if ((record.status as string) === "completed" || interrupted) {
           await checkpointStore.delete(record.conversationId);
+        } else {
+          await this.dependencies.checkpoint(record, true);
         }
         const pendingIsError = record.pendingTerminalEvent?.type === "streamError" || record.status === "error";
         publishGenerationTerminal(
@@ -615,7 +553,11 @@ export class GenerationExecutor {
           this.dependencies.generationEventCallbacks,
           pendingIsError
             ? { type: "streamError", error: String(record.pendingTerminalEvent?.error ?? "Generation failed") }
-            : { type: "streamDone", ...(signal.aborted ? { cancelled: true } : {}) },
+            : {
+                type: "streamDone",
+                status: interrupted ? "interrupted" : "completed",
+                ...(interrupted ? { generationStopReason: stopReason } : {}),
+              },
         );
       }
       runs.delete(generationId);
@@ -630,6 +572,7 @@ export class GenerationExecutor {
     state,
     generationId,
     status,
+    stopReason,
     providerTranscript,
     usage,
   }: SaveAssistantResultOptions): Promise<void> {
@@ -640,6 +583,7 @@ export class GenerationExecutor {
           toolCalls,
           generationId,
           generationStatus: status,
+          generationStopReason: stopReason,
           contextContent: status === "completed" ? content : buildInterruptedContextContent(content, toolCalls),
           providerTranscript: status === "completed" ? undefined : providerTranscript,
           ...(usage !== undefined ? { usage } : {}),
@@ -658,11 +602,101 @@ export class GenerationExecutor {
     this.dependencies.syncSelectedConversation(state);
   }
 
+  private async persistTerminalAssistant(
+    record: GenerationRunRecord,
+    model: string,
+    status: "cancelled" | "interrupted",
+    stopReason: ReturnType<typeof getGenerationStopReason>,
+  ): Promise<void> {
+    const existing = record.state.getConversation()?.messages.some(
+      (message) => message.role === "assistant" && message.generationId === record.generationId,
+    );
+    if (existing) {return;}
+    await this.saveAssistantResult({
+      content: record.content,
+      timeline: record.timeline,
+      toolCalls: record.toolCalls,
+      model,
+      state: record.state,
+      generationId: record.generationId,
+      status,
+      stopReason,
+      providerTranscript: record.providerTranscript,
+    });
+  }
+
+  private transitionToTerminal(record: GenerationRunRecord, status: "cancelled" | "interrupted"): void {
+    if (status === "cancelled" && record.status !== "cancelling" && record.status !== "cancelled") {
+      transitionGenerationRun(record, "cancelling");
+    }
+    transitionGenerationRun(record, status);
+  }
+
+  private createImageAnalyzer(
+    payload: SendMessagePayload,
+    providerConfig: AppConfig,
+    usageAggregate: UsageAggregate,
+  ): ((question: string, imageIds: string[], signal?: AbortSignal) => Promise<string>) | undefined {
+    const attachments = payload.imageAttachments ?? [];
+    if (providerConfig.model !== DEEPSEEK_PRO_MODEL_ID || attachments.length === 0) {return undefined;}
+
+    return async (question, imageIds, signal) => {
+      const selectedIds = new Set(imageIds);
+      const selected = selectedIds.size > 0
+        ? attachments.filter((attachment) => selectedIds.has(attachment.id))
+        : attachments;
+      if (selected.length === 0) {throw new Error("None of the requested image IDs belongs to the current user message.");}
+      if (selected.some((attachment) => attachment.expiresAt <= Date.now())) {
+        throw new Error("One or more attached DeepSeek files have expired. Attach the images again.");
+      }
+      if (selected.some((attachment) => normalizeBaseUrl(attachment.apiBaseUrl) !== normalizeBaseUrl(providerConfig.baseUrl))) {
+        throw new Error("The attached image was uploaded to a different DeepSeek API endpoint. Attach it again.");
+      }
+
+      const visionConfig: AppConfig = {
+        ...providerConfig,
+        model: DEEPSEEK_VISION_MODEL_ID,
+        thinkingMode: false,
+        reasoningEffort: undefined,
+        maxTokens: Math.min(providerConfig.maxTokens, 8_192),
+      };
+      const response = await this.dependencies.modelProviderFactory.create(visionConfig).chatCompletion({
+        model: visionConfig.model,
+        messages: [{
+          role: "user",
+          content: [
+            { type: "text", text: question },
+            ...selected.map((attachment) => ({ type: "file" as const, file_id: attachment.fileId })),
+          ],
+        }],
+        stream: false,
+        max_tokens: visionConfig.maxTokens,
+        thinking: { type: "disabled" },
+      }, signal);
+      delete usageAggregate.model;
+      delete usageAggregate.priceCatalogVersion;
+      delete usageAggregate.currency;
+      delete usageAggregate.costUsd;
+      recordUsage(usageAggregate, "vision_analysis", response.usage);
+      const content = getTextContent(response.choices[0]?.message.content).trim();
+      if (!content) {throw new Error("DeepSeek V4 Vision returned an empty image analysis.");}
+      return content;
+    };
+  }
+
   private handleSendError(error: unknown, stream: StreamEventEmitter, signal?: AbortSignal): void {
     if (signal?.aborted || isCancellationError(error)) {
-      stream.done({ cancelled: true });
+      const generationStopReason = signal ? getGenerationStopReason(signal) : undefined;
+      stream.done({
+        status: generationStopReason === "user_cancelled" ? "cancelled" : "interrupted",
+        generationStopReason,
+      });
       return;
     }
     stream.error(getErrorMessage(error));
   }
+}
+
+function normalizeBaseUrl(value: string): string {
+  return value.replace(/\/+$/, "").toLowerCase();
 }

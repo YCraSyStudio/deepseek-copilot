@@ -2,35 +2,26 @@
 
 # State and Messaging
 
-## Channel
+The UI uses `src/ui/VsCodeApi.ts` and validated protocol-v5 `postMessage` contracts from `src/contracts/messages`.
 
-The UI uses `src/ui/VsCodeApi.ts` and `postMessage`.
+## Relevant state
 
-## Relevant hooks
-
-- `useMessageHandler`: processes messages from the backend.
-- `useStreamHandler`: accumulates chunks and reasoning, then renders text progressively so transport chunk boundaries are not exposed directly to the user.
-- `useChatConfig`: loads and maintains configuration.
-- `useToolCallController`: coordinates approvals and results for the owning `generationId`.
-- `FileSelector`: renders revision-bound path autocomplete suggestions only for `./`; `../` never opens the selector.
+- `useMessageHandler` applies correlated host events.
+- `useStreamHandler` batches text while preserving chronological boundaries.
+- `useChatConfig` tracks authoritative configuration revisions.
+- `useToolCallController` owns approvals and results for one generation.
+- `FileSelector` offers only safe `./` workspace completions.
+- `ChatView` state schema 5 retains the current draft, context references, pending image metadata, presentation messages, conversation identity, and mode-safe recovery data.
 
 ## Rules
 
-- Do not access the filesystem directly from React.
-- Do not store API keys in localStorage.
-- Avoid duplicating contracts outside `src/adapters/messages/WebviewModels.ts`,
-  `WebviewRequests.ts`, and `WebviewEvents.ts`.
-- Backend errors should be shown without blocking the whole UI.
-- Local state should be rebuildable from `configLoaded`, `history`, `conversationLoaded`, and `generationSnapshot`.
-- Chat state remains mounted while switching between Chat, History, and Settings so pending generation and tool confirmations are not lost.
-- Switching between Chat, History, and Settings does not recreate the webview
-  and therefore does not discard an incognito session. A real webview or
-  extension-host recreation does discard it.
-- Webview state schema v3 is mode-discriminated. Persistent mode may retain the
-  draft, references, presentation messages, and conversation id; Incognito mode
-  stores only `{ schemaVersion: 3, mode: "incognito" }`.
-- Stream and tool events are accepted only for the active `generationId`; events from background or superseded runs must not mutate the selected chat.
-- Cancelling preserves the user message and partial assistant output as an interrupted turn.
-- Queued prompts recovered after shutdown are offered as drafts and removed from the checkpoint recovery list only when consumed.
+- React never accesses the filesystem, API key, or DeepSeek API directly.
+- Host messages are the authority for attachment upload/deletion, tool state, permissions, history, and workspace binding.
+- Stream and tool events are accepted only for their active conversation/generation pair.
+- Explicit Stop preserves the submitted message and partial timeline as a terminal `cancelled` turn; it does not recreate a draft.
+- Steering queues the guidance first, persists bounded partial continuity as `interrupted`, and links the continuation to that exact source generation. The next system context identifies the latest message as live guidance; the webview suppresses the internal interruption warning for `steered` only.
+- Queued prompts recovered after shutdown are offered as drafts and removed only after consumption.
+- Clipboard image Base64 is discarded after upload acknowledgement and never placed in `vscode.setState`, history, or provider messages.
+- Switching Chat, History, and Settings keeps the webview mounted. Incognito state remains memory-only across those internal views and disappears on actual extension/webview recreation.
 
 [Back](INDEX.md)

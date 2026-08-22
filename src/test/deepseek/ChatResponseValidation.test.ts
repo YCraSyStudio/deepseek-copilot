@@ -76,7 +76,7 @@ suite("DeepSeek chat response validation", () => {
       id: "response-2",
       object: "chat.completion",
       created: 2,
-      model: "deepseek-v4-flash",
+      model: "deepseek-v4-flash-vision-exp",
       choices: [{ index: 0, message: { role: "assistant", content: "done" }, finish_reason: "stop" }],
       usage: {
         prompt_tokens: 120,
@@ -100,7 +100,7 @@ suite("DeepSeek chat response validation", () => {
       id: "response-3",
       object: "chat.completion",
       created: 3,
-      model: "deepseek-v4-flash",
+      model: "deepseek-v4-flash-vision-exp",
       choices: [{ index: 0, message: { role: "assistant", content: "done" }, finish_reason: "stop" }],
     });
     assert.strictEqual(withoutUsage.usage, undefined);
@@ -109,7 +109,7 @@ suite("DeepSeek chat response validation", () => {
       id: "response-4",
       object: "chat.completion",
       created: 4,
-      model: "deepseek-v4-flash",
+      model: "deepseek-v4-flash-vision-exp",
       choices: [{ index: 0, message: { role: "assistant", content: "done" }, finish_reason: "stop" }],
       usage: { prompt_tokens: -1, completion_tokens: 2, total_tokens: 1 },
     });

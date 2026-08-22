@@ -60,6 +60,31 @@
   }
 }
 
+.messageImages {
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-bottom: 8px;
+  display: flex;
+
+  img {
+    border: 1px solid var(--border-color);
+    object-fit: cover;
+    border-radius: 8px;
+    width: 72px;
+    height: 72px;
+  }
+}
+
+.messageImageFallback {
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  border-radius: 8px;
+  align-items: center;
+  gap: 5px;
+  padding: 7px;
+  display: inline-flex;
+}
+
 .errorMessage {
   border: 1px solid color-mix(in srgb, var(--danger-color) 42%, var(--border-color));
   background: color-mix(in srgb, var(--danger-color) 10%, transparent);
@@ -72,6 +97,16 @@
   gap: 12px;
   display: flex;
   min-width: 0;
+}
+
+.generationTerminalStatus {
+  color: var(--text-secondary);
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  display: flex;
+
+  &.cancelled .codicon { color: var(--warning-color, #d9a441); }
 }
 
 .activity-block {

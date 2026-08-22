@@ -18,8 +18,7 @@ suite("ToolExecutionPipeline", () => {
       stage("argument_validation"),
       stage("workspace_trust"),
       stage("permission_policy"),
-      stage("web_contamination"),
-      stage("local_security"),
+      stage("prepare_remote_review"),
       stage("remote_review"),
       stage("user_confirmation"),
       stage("execution"),
@@ -32,14 +31,13 @@ suite("ToolExecutionPipeline", () => {
       "argument_validation",
       "workspace_trust",
       "permission_policy",
-      "web_contamination",
-      "local_security",
+      "prepare_remote_review",
       "remote_review",
       "user_confirmation",
       "execution",
       "record_and_publish",
     ]);
-    assert.deepStrictEqual(decision, { kind: "continue", context: 9 });
+    assert.deepStrictEqual(decision, { kind: "continue", context: 8 });
   });
 
   test("short-circuits after a resolved policy", async () => {

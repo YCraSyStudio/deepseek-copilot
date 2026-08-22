@@ -1,5 +1,5 @@
 import * as assert from "assert";
-import type { ChatCompletionResponse } from "@/contracts";
+import type { ChatCompletionResponse, ChatMessage } from "@/contracts";
 import { requestToolRoundLimitDecision, runToolCallCycle } from "@/application/chat/toolCall/ToolCallCycle";
 
 suite("tool call round limit", () => {
@@ -73,6 +73,53 @@ suite("tool call round limit", () => {
     }), /output limit.*No truncated tool was executed/);
     assert.strictEqual(executed, false);
   });
+
+  test("retries once when a stopped response only announces a future action", async () => {
+    const responses = [stalledResponse, finalResponse];
+    const requests: ChatMessage[][] = [];
+    const streamed: string[] = [];
+
+    const result = await runToolCallCycle({
+      initialMessages: [{ role: "user", content: "busca la versión absoluta" }],
+      tools: [toolDefinition],
+      model: "model",
+      modelClient: {
+        completeRound: async ({ messages }) => {
+          requests.push(messages);
+          return responses.shift()!;
+        },
+        streamRound: async () => {throw new Error("unexpected streaming round");},
+      },
+      executeToolCall: async () => "unused",
+      cycleOptions: { onStreamChunk: (content) => streamed.push(content) },
+    });
+
+    assert.strictEqual(requests.length, 2);
+    assert.match(String(requests[1][0]?.content ?? ""), /completion_recovery/);
+    assert.deepStrictEqual(streamed, ["\n\n"]);
+    assert.strictEqual(result.finalMessage.content, "done");
+    assert.strictEqual(result.rounds, 2);
+  });
+
+  test("does not loop when the recovery response also only announces an action", async () => {
+    let requests = 0;
+    const result = await runToolCallCycle({
+      initialMessages: [{ role: "user", content: "search" }],
+      tools: [toolDefinition],
+      model: "model",
+      modelClient: {
+        completeRound: async () => {
+          requests++;
+          return stalledResponse;
+        },
+        streamRound: async () => {throw new Error("unexpected streaming round");},
+      },
+      executeToolCall: async () => "unused",
+    });
+
+    assert.strictEqual(requests, 2);
+    assert.strictEqual(result.finalMessage.content, stalledResponse.choices[0].message.content);
+  });
 });
 
 const toolDefinition = {
@@ -132,4 +179,19 @@ const finalResponse: ChatCompletionResponse = {
   created: 1,
   model: "model",
   choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content: "done" } }],
+};
+
+const stalledResponse: ChatCompletionResponse = {
+  id: "response-stalled",
+  object: "chat.completion",
+  created: 1,
+  model: "model",
+  choices: [{
+    index: 0,
+    finish_reason: "stop",
+    message: {
+      role: "assistant",
+      content: "I need to clarify the absolute latest version. Let me check.",
+    },
+  }],
 };

@@ -9,31 +9,16 @@ import { serializeToolExecutionOutcome } from "@/domain/tools/ToolExecutionOutco
 import { ToolExecutionPipeline } from "@/application/tools/ToolExecutionPipeline";
 
 const DANGER_CANCELLED = "Tool call cancelled by user (dangerous operation)";
-const EXTERNAL_ACCESS_CANCELLED = "Tool call cancelled because access outside the workspace was not approved";
 const USER_REJECTED = "Tool call rejected by user";
 const CYCLE_UNAVAILABLE = "Tool call cycle not available";
-const TOOL_DISABLED = "Tool call rejected because the tool is disabled";
 const UNTRUSTED_WORKSPACE = "Tool call rejected because the workspace is not trusted";
 const MUTATING_TOOLS = new Set(["create_file", "edit_file", "apply_patch", "run_terminal_command"]);
-const NON_DELEGABLE_REASON_CODES = new Set([
-  "outside-workspace",
-  "destructive-delete",
-  "destructive-git",
-  "destructive-disk",
-  "download-execute",
-  "publish",
-  "deployment",
-  "remote-mutation",
-  "elevation",
-  "process-termination",
-]);
 
 export async function executeToolCall(toolCall: ToolCall, ctx: ToolExecutionContext): Promise<string> {
   recordInitialToolCall(toolCall, ctx);
   const decision = await createToolExecutionPipeline().execute({
     toolCall,
     ctx,
-    mode: ctx.getToolMode(toolCall.function.name),
   });
   if (decision.kind === "resolved") {return decision.result;}
   throw new Error("Tool execution pipeline completed without a result");
@@ -42,7 +27,6 @@ export async function executeToolCall(toolCall: ToolCall, ctx: ToolExecutionCont
 interface ToolPipelineContext {
   toolCall: ToolCall;
   ctx: ToolExecutionContext;
-  mode: ReturnType<ToolExecutionContext["getToolMode"]>;
   resultText?: string;
   executionResult?: ExecutionResult;
   confirmation?: import("@/application/tools/Types").ConfirmationRequiredResult;
@@ -71,70 +55,23 @@ function createToolExecutionPipeline(): ToolExecutionPipeline<ToolPipelineContex
     {
       name: "permission_policy",
       async handle(context) {
-        if (context.resultText) {return { kind: "continue", context };}
-        if (context.mode === "disabled") {
-          postToolCallResult(context.ctx, createRejectedResult(context.toolCall, TOOL_DISABLED));
-          context.resultText = TOOL_DISABLED;
-          return { kind: "continue", context };
-        }
-        if (context.mode === "enabled" && isApprovalOwnedByVsCode(context.toolCall, context.ctx)) {
-          const result = await context.ctx.toolExecutor.execute(context.toolCall, handlerContext(context.ctx));
-          postToolCallResult(context.ctx, result);
-          context.resultText = serializeExecutionResult(result);
-        }
         return { kind: "continue", context };
       },
     },
     {
-      name: "web_contamination",
-      async handle(context) {
-        if (context.resultText || !isAutomaticExecution(context) || !context.ctx.isWebTainted?.() || !MUTATING_TOOLS.has(context.toolCall.function.name)) {
-          return { kind: "continue", context };
-        }
-        context.resultText = await executeWebTaintedMutation(context.toolCall, context.ctx);
-        return { kind: "continue", context };
-      },
-    },
-    {
-      name: "local_security",
+      name: "prepare_remote_review",
       async handle(context) {
         if (context.resultText) {return { kind: "continue", context };}
-        if (context.ctx.fullAccessMode) {
-          const result = await context.ctx.toolExecutor.executeForced(context.toolCall, handlerContext(context.ctx));
-          postToolCallResult(context.ctx, result);
-          context.resultText = serializeExecutionResult(result);
-          return { kind: "continue", context };
-        }
         if (!isAutomaticExecution(context)) {return { kind: "continue", context };}
-        const externalAccess = await getExternalAccessConfirmation(context.toolCall);
-        if (externalAccess) {
-          if (context.ctx.isDangerTrusted(context.toolCall, externalAccess)) {
-            context.resultText = await executeForcedAfterTrust(context.toolCall, context.ctx, externalAccess);
-            return { kind: "continue", context };
-          }
-          updateStoredToolCall(context.ctx, context.toolCall.id, { status: "awaiting_confirmation" });
-          const decision = await context.ctx.requestDangerConfirmation(context.toolCall, externalAccess, {
-            announceStarted: true,
-            round: context.ctx.getCurrentRound(),
-          });
-          if (!decision.confirmed) {
-            postToolCallResult(context.ctx, createRejectedResult(context.toolCall, EXTERNAL_ACCESS_CANCELLED));
-            context.resultText = EXTERNAL_ACCESS_CANCELLED;
-            return { kind: "continue", context };
-          }
-          if (decision.trustForSession) {context.ctx.trustDangerForSession(context.toolCall, externalAccess);}
-          updateStoredToolCall(context.ctx, context.toolCall.id, { status: "running" });
-          context.resultText = await executeForcedAfterTrust(context.toolCall, context.ctx, externalAccess);
-          return { kind: "continue", context };
-        }
-        if (context.toolCall.function.name !== "run_terminal_command") {
+        if (!MUTATING_TOOLS.has(context.toolCall.function.name)) {
           const result = await context.ctx.toolExecutor.executeForced(context.toolCall, handlerContext(context.ctx));
           postToolCallResult(context.ctx, result);
           context.resultText = serializeExecutionResult(result);
           return { kind: "continue", context };
         }
         context.executionResult = await context.ctx.toolExecutor.execute(context.toolCall, handlerContext(context.ctx));
-        context.confirmation = ToolExecutor.isConfirmationRequired(context.executionResult.result) ?? undefined;
+        const confirmation = ToolExecutor.isConfirmationRequired(context.executionResult.result) ?? undefined;
+        context.confirmation = confirmation ? await addProvenFileScope(context.toolCall, confirmation) : undefined;
         if (!context.confirmation) {
           context.resultText = await handleExecutionResult({
             toolCall: context.toolCall,
@@ -152,18 +89,12 @@ function createToolExecutionPipeline(): ToolExecutionPipeline<ToolPipelineContex
       async handle(context) {
         const confirmation = context.confirmation;
         if (context.resultText || !context.executionResult || !confirmation) {return { kind: "continue", context };}
-        if (context.ctx.isDangerTrusted(context.toolCall, confirmation)) {
-          context.resultText = await executeForcedAfterTrust(context.toolCall, context.ctx, confirmation);
-          return { kind: "continue", context };
-        }
-        const guidance = getLocalRevisionGuidance(confirmation);
-        if (guidance) {
-          context.resultText = rejectCommandForRevision(context.toolCall, guidance, context.ctx);
-          return { kind: "continue", context };
-        }
-        if (!isDeepSeekReviewEligible(confirmation)) {return { kind: "continue", context };}
         const review = await reviewDangerousCommandFailClosed(context.toolCall, confirmation, context.ctx);
-        if (review.decision === "approve" && isAutomaticConfidence(review.confidence) && confirmation.workspaceContained === true) {
+        const risk = review.risk;
+        const canRunAutomatically = context.ctx.fullAccessMode
+          ? risk !== "critical"
+          : risk === "routine";
+        if (review.decision === "approve" && isAutomaticConfidence(review.confidence) && canRunAutomatically) {
           context.resultText = await executeForcedAfterTrust(context.toolCall, context.ctx, confirmation);
           return { kind: "continue", context };
         }
@@ -171,12 +102,10 @@ function createToolExecutionPipeline(): ToolExecutionPipeline<ToolPipelineContex
           context.resultText = rejectCommandForRevision(context.toolCall, review.reason, context.ctx);
           return { kind: "continue", context };
         }
-        const reason = review.decision === "approve" && isAutomaticConfidence(review.confidence)
-          ? `${review.reason} The local analyzer did not prove that every filesystem effect stays inside the active workspace.`
-          : review.reason;
         context.dangerOverride = {
           ...confirmation,
-          warningMessage: `${confirmation.warningMessage} DeepSeek review: ${reason}`,
+          dangerLevel: risk === "critical" ? "destructive" : risk === "elevated" ? "dangerous" : "caution",
+          warningMessage: `${confirmation.warningMessage} DeepSeek classified this action as ${risk}: ${review.reason}`,
         };
         return { kind: "continue", context };
       },
@@ -193,7 +122,7 @@ function createToolExecutionPipeline(): ToolExecutionPipeline<ToolPipelineContex
             announceStarted: true,
             round: context.ctx.getCurrentRound(),
           }, context.dangerOverride);
-        } else if (context.mode === "enabled") {
+        } else if (!isAutomaticExecution(context)) {
           context.resultText = await executeManualToolCall(context.toolCall, context.ctx);
         }
         return { kind: "continue", context };
@@ -226,33 +155,12 @@ function createToolExecutionPipeline(): ToolExecutionPipeline<ToolPipelineContex
 }
 
 function isAutomaticExecution(context: ToolPipelineContext): boolean {
-  return context.ctx.fullAccessMode || context.ctx.autoApproveMode || context.mode === "auto_approve";
+  return context.ctx.fullAccessMode || context.ctx.autoApproveMode;
 }
 
 export function recordSyntheticToolError(toolCall: ToolCall, ctx: ToolExecutionContext, result: string): void {
   recordInitialToolCall(toolCall, ctx);
   postToolCallResult(ctx, createErrorResult(toolCall, result));
-}
-
-async function getExternalAccessConfirmation(
-  toolCall: ToolCall,
-): Promise<import("@/application/tools/Types").ConfirmationRequiredResult | undefined> {
-  const pathArgument = getPathArgument(toolCall);
-  if (!pathArgument) {
-    return undefined;
-  }
-  const workspace = getToolWorkspaceHost();
-  if (!workspace.isPathInsideWorkspace || await workspace.isPathInsideWorkspace(pathArgument)) {
-    return undefined;
-  }
-  return {
-    requiresConfirmation: true,
-    dangerLevel: "dangerous",
-    warningMessage: "This operation accesses a path outside the active workspace.",
-    filePath: pathArgument,
-    reasonCode: "outside-workspace",
-    workspaceContained: false,
-  };
 }
 
 function getPathArgument(toolCall: ToolCall): string | undefined {
@@ -270,9 +178,7 @@ function getPathArgument(toolCall: ToolCall): string | undefined {
 }
 
 function recordInitialToolCall(toolCall: ToolCall, ctx: ToolExecutionContext): void {
-  const requiresConfirmation = !ctx.autoApproveMode && !ctx.fullAccessMode &&
-    ctx.getToolMode(toolCall.function.name) === "enabled" &&
-    !isApprovalOwnedByVsCode(toolCall, ctx);
+  const requiresConfirmation = !ctx.autoApproveMode && !ctx.fullAccessMode;
   ctx.executedToolCalls.set(toolCall.id, {
     toolCallId: toolCall.id,
     toolName: toolCall.function.name,
@@ -281,11 +187,6 @@ function recordInitialToolCall(toolCall: ToolCall, ctx: ToolExecutionContext): v
     requiresConfirmation,
     status: requiresConfirmation ? "awaiting_confirmation" : "running",
   });
-}
-
-function isApprovalOwnedByVsCode(toolCall: ToolCall, ctx: ToolExecutionContext): boolean {
-  return typeof ctx.toolExecutor.getMetadata === "function" &&
-    ctx.toolExecutor.getMetadata(toolCall.function.name)?.approvalOwner === "vscode";
 }
 
 async function executeManualToolCall(toolCall: ToolCall, ctx: ToolExecutionContext): Promise<string> {
@@ -328,20 +229,12 @@ async function handleExecutionResult(
     return serializeExecutionResult(result);
   }
 
-  if (ctx.isDangerTrusted(toolCall, dangerInfo)) {
-    return executeForcedAfterTrust(toolCall, ctx, dangerInfo);
-  }
-
   updateStoredToolCall(ctx, toolCall.id, { status: "awaiting_confirmation" });
   const decision = await ctx.requestDangerConfirmation(toolCall, dangerInfo, { announceStarted, round });
   if (!decision.confirmed) {
     clearFileDiffPreview();
     postToolCallResult(ctx, createRejectedResult(toolCall, DANGER_CANCELLED));
     return DANGER_CANCELLED;
-  }
-
-  if (decision.trustForSession) {
-    ctx.trustDangerForSession(toolCall, dangerInfo);
   }
 
   updateStoredToolCall(ctx, toolCall.id, { status: "running" });
@@ -358,49 +251,11 @@ async function reviewDangerousCommandFailClosed(
   } catch {
     return {
       decision: "manual_confirmation",
+      risk: "critical",
       confidence: "very_low",
       reason: "DeepSeek safety review failed, so manual confirmation is required.",
     };
   }
-}
-
-function isDeepSeekReviewEligible(confirmation: import("@/application/tools/Types").ConfirmationRequiredResult): boolean {
-  if (confirmation.dangerLevel === "destructive") {
-    return false;
-  }
-  return !confirmation.reasonCode || !NON_DELEGABLE_REASON_CODES.has(confirmation.reasonCode);
-}
-
-function getLocalRevisionGuidance(
-  confirmation: import("@/application/tools/Types").ConfirmationRequiredResult,
-): string | undefined {
-  const command = confirmation.command ?? "";
-  const startsDetachedProcess =
-    /\bstart\s+\/B\b/i.test(command) ||
-    /\bStart-Process\b(?![^\r\n;]*-Wait\b)/i.test(command);
-  const startsDevelopmentServer =
-    /\bdotnet\s+run\b/i.test(command) ||
-    /\b(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?(?:dev|start)\b/i.test(command) ||
-    /\bastro\s+dev\b/i.test(command);
-  if (startsDetachedProcess && startsDevelopmentServer) {
-    return [
-      "Do not leave a detached development server running from a finite terminal tool call.",
-      "A successful normal build is sufficient unless the user explicitly requested a runtime or HTTP check.",
-      "If runtime verification is required, re-plan with a process-scoped harness that waits for readiness and guarantees cleanup of only the child process it started.",
-    ].join(" ");
-  }
-  if (
-    confirmation.reasonCode === "process-termination" &&
-    /\bstart\s+\/B\b/i.test(command) &&
-    /\btaskkill\b[^\r\n]*\/IM\s+(?:dotnet|node)(?:\.exe)?\b/i.test(command)
-  ) {
-    return [
-      "Do not start a detached development server and then terminate every matching runtime process.",
-      "A successful backend and frontend build is sufficient unless the user explicitly requested a runtime or HTTP check.",
-      "If runtime verification is required, re-plan with a process-scoped harness that records and terminates only the child process it started.",
-    ].join(" ");
-  }
-  return undefined;
 }
 
 function rejectCommandForRevision(toolCall: ToolCall, guidance: string, ctx: ToolExecutionContext): string {
@@ -414,7 +269,11 @@ function rejectCommandForRevision(toolCall: ToolCall, guidance: string, ctx: Too
 }
 
 function clearFileDiffPreview(): void {
-  getToolWorkspaceHost().clearFileDiffPreview?.();
+  try {
+    getToolWorkspaceHost().clearFileDiffPreview?.();
+  } catch {
+    // A preview host is optional for non-file confirmations and isolated tests.
+  }
 }
 
 async function executeForcedAfterTrust(toolCall: ToolCall, ctx: ToolExecutionContext, confirmation?: import("@/application/tools/Types").ConfirmationRequiredResult): Promise<string> {
@@ -476,43 +335,8 @@ function handlerContext(ctx: ToolExecutionContext): ToolHandlerContext {
     availableToolNames: ctx.availableToolNames,
     authorizedUserUrls: ctx.authorizedUserUrls,
     webTainted: ctx.isWebTainted?.(),
+    analyzeImages: ctx.analyzeImages,
   };
-}
-
-async function executeWebTaintedMutation(toolCall: ToolCall, ctx: ToolExecutionContext): Promise<string> {
-  const external = await getExternalAccessConfirmation(toolCall);
-  if (external) {
-    return handleExecutionResult({
-      toolCall,
-      result: createConfirmationResult(toolCall, external),
-      ctx,
-      announceStarted: true,
-      round: ctx.getCurrentRound(),
-    }, external);
-  }
-  if (toolCall.function.name === "run_terminal_command" && hasNetworkOrRemoteEffect(toolCall.function.arguments)) {
-    const confirmation = {
-      requiresConfirmation: true as const,
-      dangerLevel: "dangerous" as const,
-      warningMessage: "Web-tainted generations cannot auto-approve commands with network, credential, publication, or remote effects.",
-      reasonCode: "web-tainted-external-effect",
-      workspaceContained: false,
-    };
-    return handleExecutionResult({ toolCall, result: createConfirmationResult(toolCall, confirmation), ctx, announceStarted: true, round: ctx.getCurrentRound() }, confirmation);
-  }
-  if (toolCall.function.name === "create_file") {
-    const prepared = await prepareWebTaintedCreate(toolCall);
-    if (prepared) {return reviewAnalyzedWebMutation(toolCall, createConfirmationResult(toolCall, prepared), prepared, ctx);}
-  }
-  return executeAnalyzedWebMutation(toolCall, ctx);
-}
-
-async function executeAnalyzedWebMutation(toolCall: ToolCall, ctx: ToolExecutionContext): Promise<string> {
-  const analyzed = await ctx.toolExecutor.execute(toolCall, handlerContext(ctx));
-  const confirmation = ToolExecutor.isConfirmationRequired(analyzed.result);
-  if (!confirmation) {postToolCallResult(ctx, analyzed); return analyzed.result;}
-  const scopedConfirmation = await addProvenFileScope(toolCall, confirmation);
-  return reviewAnalyzedWebMutation(toolCall, analyzed, scopedConfirmation, ctx);
 }
 
 async function addProvenFileScope(
@@ -530,85 +354,6 @@ async function addProvenFileScope(
     workspaceContained: contained,
     ...(contained ? {} : { reasonCode: "outside-workspace" }),
   };
-}
-
-async function reviewAnalyzedWebMutation(
-  toolCall: ToolCall,
-  analyzed: ExecutionResult,
-  confirmation: import("@/application/tools/Types").ConfirmationRequiredResult,
-  ctx: ToolExecutionContext,
-): Promise<string> {
-  if (!isDeepSeekReviewEligible(confirmation) || confirmation.workspaceContained !== true) {
-    return handleExecutionResult({ toolCall, result: analyzed, ctx, announceStarted: true, round: ctx.getCurrentRound() });
-  }
-  const review = await reviewDangerousCommandFailClosed(toolCall, confirmation, ctx);
-  if (review.decision === "approve" && isAutomaticConfidence(review.confidence)) {
-    return executeForcedAfterTrust(toolCall, ctx, confirmation);
-  }
-  if (review.decision === "revise" && isAutomaticConfidence(review.confidence)) {
-    clearFileDiffPreview();
-    return rejectCommandForRevision(toolCall, review.reason, ctx);
-  }
-  return handleExecutionResult({ toolCall, result: analyzed, ctx, announceStarted: true, round: ctx.getCurrentRound() }, {
-    ...confirmation,
-    warningMessage: `${confirmation.warningMessage} Automatic review: ${review.reason}`,
-  });
-}
-
-async function prepareWebTaintedCreate(
-  toolCall: ToolCall,
-): Promise<import("@/application/tools/Types").ConfirmationRequiredResult | undefined> {
-  const filePath = getPathArgument(toolCall);
-  const workspace = getToolWorkspaceHost();
-  if (!filePath || !workspace.isPathInsideWorkspace || !await workspace.isPathInsideWorkspace(filePath)) {
-    return {
-      requiresConfirmation: true,
-      dangerLevel: "dangerous",
-      warningMessage: "The workspace boundary for this web-tainted file creation could not be proven.",
-      filePath,
-      reasonCode: "outside-workspace",
-      workspaceContained: false,
-    };
-  }
-  try {
-    await workspace.stat(filePath);
-    return undefined;
-  } catch {
-    let size = 0;
-    try {
-      const args = JSON.parse(toolCall.function.arguments) as Record<string, unknown>;
-      size = Buffer.byteLength(typeof args.content === "string" ? args.content : "", "utf8");
-    } catch { /* Tool validation will report malformed arguments before forced execution. */ }
-    return {
-      requiresConfirmation: true,
-      dangerLevel: "caution",
-      warningMessage: `Create a new workspace file (${size} UTF-8 bytes) after web access. File content is omitted from review.`,
-      filePath,
-      beforeHash: "missing",
-      reasonCode: "web-tainted-workspace-mutation",
-      workspaceRoot: workspace.getRootPath?.(),
-      workspaceContained: true,
-    };
-  }
-}
-
-function hasNetworkOrRemoteEffect(argumentsJson: string): boolean {
-  return /\b(?:curl|wget|invoke-webrequest|invoke-restmethod|irm|iwr|ssh|scp|sftp|ftp|telnet|nc|ncat|netcat|ping|nslookup|resolve-dnsname|test-netconnection|certutil\s+-urlcache|bitsadmin)\b/i.test(argumentsJson) ||
-    /\bgit\b[^\r\n]{0,200}\b(?:push|pull|fetch|clone|ls-remote|submodule)\b/i.test(argumentsJson) ||
-    /\b(?:gh|az|aws|gcloud|kubectl)\s+/i.test(argumentsJson) ||
-    /\b(?:npm|pnpm|yarn|bun)\s+(?:i|install|add|update|upgrade|audit|publish|login|logout|whoami|view|info)\b/i.test(argumentsJson) ||
-    /\b(?:pip|pip3|uv)\s+(?:install|download|sync)\b|\bcargo\s+(?:install|search|publish)\b|\bgo\s+(?:get|install)\b/i.test(argumentsJson) ||
-    /\bdotnet\s+(?:restore|tool\s+install|add\s+\S+\s+package)\b|\b(?:apt|apt-get|dnf|yum|pacman|winget|choco|brew)\s+(?:install|update|upgrade)\b/i.test(argumentsJson) ||
-    /\bdocker\s+(?:push|pull|login)|\bterraform\s+(?:apply|destroy|init)\b/i.test(argumentsJson) ||
-    /(?:https?:\/\/|\\\\[^\\\s]+\\|token|password|secret|api[_-]?key|credential)/i.test(argumentsJson);
-}
-
-function createConfirmationResult(toolCall: ToolCall, confirmation: import("@/application/tools/Types").ConfirmationRequiredResult): ExecutionResult {
-  return createExecutionResult(toolCall, {
-    kind: "confirmation_required",
-    content: JSON.stringify(confirmation),
-    dangerLevel: confirmation.dangerLevel,
-  });
 }
 
 function serializeExecutionResult(result: ExecutionResult): string {

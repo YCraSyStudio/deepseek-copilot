@@ -1,9 +1,8 @@
 import * as vscode from "vscode";
-import type { SecretStore, SettingsRepository } from "@/application/ports";
+import type { ModelProviderFactory, SecretStore, SettingsRepository } from "@/application/ports";
 import { logWarning } from "@/shared/logging/Logger";
 import { redactSensitiveText } from "@/shared/security/Redaction";
-import type { AppConfig, WebviewConfig, WebviewToHandlerMessage } from "@/contracts";
-import { deepseekFetch } from "@/infrastructure/deepseek/client/DeepSeekFetch";
+import { DEEPSEEK_VISION_MODEL_ID, type AppConfig, type WebviewConfig, type WebviewToHandlerMessage } from "@/contracts";
 import { getApiOrigin, normalizeApiBaseUrl } from "@/shared/security/ApiOrigin";
 import { toWebviewConfig } from "@/platform/vscode/webviews/WebviewConfig";
 import type { ChatHandler } from "./chat/ChatHandler";
@@ -29,6 +28,7 @@ export class SettingsHandler {
     private readonly chatHandler: ChatHandler,
     private readonly settings: SettingsRepository,
     private readonly secrets: SecretStore,
+    private readonly modelProviderFactory: ModelProviderFactory,
   ) {}
 
   handleWebviewRecreation(): void {
@@ -379,15 +379,13 @@ export class SettingsHandler {
       return;
     }
     try {
-      await deepseekFetch({
-        pathOrUrl: "chat/completions",
+      const result = await this.modelProviderFactory.create({
+        ...this.settings.load(),
         apiKey,
         baseUrl,
-        requestInit: {
-          method: "POST",
-          body: JSON.stringify({ model: model || "deepseek-v4-flash", messages: [{ role: "user", content: "Hello" }], max_tokens: 2 }),
-        },
-      });
+        model: model || DEEPSEEK_VISION_MODEL_ID,
+      }).testConnection();
+      if (!result.success) {throw new Error(result.error || "Connection test failed.");}
 
       webviewView.webview.postMessage({
         type: "connectionTestResult",
@@ -421,7 +419,7 @@ async function confirmGlobalFullAccess(): Promise<boolean> {
     "Enable global full access?",
     {
       modal: true,
-      detail: "This setting applies globally. Tools may read, modify, or delete files anywhere on this computer without confirmation. Terminal commands are not OS-sandboxed.",
+      detail: "This setting applies globally. Routine and elevated operations may run anywhere. Critical actions that could make the computer unusable or cause broad irreversible loss still require confirmation.",
     },
     "Enable full access",
   );

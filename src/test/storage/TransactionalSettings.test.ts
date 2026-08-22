@@ -37,12 +37,16 @@ suite("transactional settings", () => {
 
   test("persists normalized web search settings with safe defaults", async () => {
     assert.strictEqual(SettingsManager.load().webSearchEngine, "bing");
+    assert.strictEqual(SettingsManager.load().webSearchEnabled, true);
+    await SettingsManager.save({ webSearchEnabled: false });
+    assert.strictEqual(SettingsManager.load().webSearchEnabled, false);
     await SettingsManager.save({ webSearchEngine: "google" });
     assert.strictEqual(SettingsManager.load().webSearchEngine, "google");
     const disk = JSON.parse(readFileSync(getSettingsFilePath(), "utf8")) as Record<string, unknown>;
     assert.strictEqual(Object.prototype.hasOwnProperty.call(disk, "webSearchBrowserVisible"), false);
     assert.strictEqual(Object.prototype.hasOwnProperty.call(disk, "usageBudgets"), false);
     await SettingsManager.save({ webSearchEngine: "bing" });
+    await SettingsManager.save({ webSearchEnabled: true });
   });
 
   test("rolls back memory and revision when persistence fails", async () => {
@@ -61,15 +65,10 @@ suite("transactional settings", () => {
   });
 
   test("fails closed when capturing permissions for an untrusted workspace", async () => {
-    await SettingsManager.save({
-      permissionMode: "auto-approve",
-      toolExecutionModes: { read_file: "auto_approve", run_terminal_command: "auto_approve" },
-    });
+    await SettingsManager.save({ permissionMode: "auto-approve" });
 
     const snapshot = await SettingsManager.capturePermissionSnapshot(false);
     assert.strictEqual(snapshot.permissionMode, "default");
-    assert.strictEqual(snapshot.toolExecutionModes.read_file, "enabled");
-    assert.strictEqual(snapshot.toolExecutionModes.run_terminal_command, "enabled");
     assert.strictEqual(snapshot.workspaceTrusted, false);
   });
 

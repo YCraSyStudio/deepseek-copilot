@@ -2,48 +2,46 @@
 
 # Chat Streaming
 
-Official reference:
+Official references:
 
 - [Create Chat Completion](https://api-docs.deepseek.com/api/create-chat-completion)
 - [Thinking Mode](https://api-docs.deepseek.com/guides/thinking_mode)
-- [Multi-round Conversation](https://api-docs.deepseek.com/guides/multi_round_chat)
+- [Vision](https://api-docs.deepseek.com/guides/vision)
 
-## Main path
+Main path:
 
-- `src/deepseekApi/providers/deepseek/DeepSeekProvider.ts`
-- `src/deepseekApi/providers/deepseek/features/Chat.ts`
-- `src/vscodeApi/webviews/handlers/chat/Streaming.ts`
+- `src/infrastructure/deepseek/providers/deepseek/DeepSeekProvider.ts`
+- `src/infrastructure/deepseek/providers/deepseek/VisionFallback.ts`
+- `src/infrastructure/deepseek/providers/deepseek/features/Chat.ts`
+- `src/platform/vscode/webviews/handlers/chat/Streaming.ts`
+- `src/platform/vscode/webviews/handlers/chat/generation/GenerationExecutor.ts`
 
 ## Flow
 
 1. `GenerationCoordinator` starts a queued task with a unique `generationId` and `AbortController`.
-2. `ChatHandler` coordinates the request; `GenerationExecutor` prepares the
-   isolated conversation state and `GenerationContext` builds and compacts the
-   provider request.
-3. `createDeepSeekProvider(config)` creates the provider.
-4. The provider opens an SSE request for chat responses.
-5. Each chunk is normalized as content or reasoning and tagged with its generation and conversation.
-6. `Streaming.ts` publishes events to the webview, where the UI renders accumulated deltas progressively rather than jumping per transport chunk.
-7. Progress is checkpointed and the accumulated result is persisted with `completed`, `interrupted`, or `error` generation status; explicit Stop instead removes the generation.
-8. `GenerationExecutor` owns terminal publication and emits it once after persistence reconciliation.
+2. `GenerationContext` builds a bounded provider transcript. Vision user messages may contain file-ID content blocks.
+3. The provider sends `POST /chat/completions` with `stream: true`.
+4. Content and `reasoning_content` deltas are normalized, correlated to conversation and generation, and rendered progressively.
+5. Tool rounds append complete assistant/tool protocol messages to the host-only canonical transcript.
+6. Progress is checkpointed. Persistence records `completed`, `cancelled`, `interrupted`, or `error`.
+7. `GenerationExecutor` emits one terminal event after persistence reconciliation.
+
+If the official API reports that experimental Vision is unavailable, the provider owns one bounded retry with stable V4 Flash. It does not mutate the selected UI model or persisted transcript. Image blocks are removed before the retry, and the injected fallback instruction requires the response to state that it could not inspect them. Non-stream image analysis used by V4 Pro fails closed instead.
 
 ## DeepSeek contract
 
-- The main endpoint is `POST /chat/completions`.
-- `messages` accepts `system`, `user`, `assistant`, and `tool` roles.
-- `stream: true` sends deltas through Server-Sent Events and closes with `data: [DONE]`.
-- In thinking mode, reasoning arrives as `reasoning_content`, separate from `content`.
-- `finish_reason` may indicate `stop`, `length`, `content_filter`, `tool_calls`, or insufficient resources.
-- `usage` may include prompt, completion, cache hit/miss, and reasoning tokens.
+- SSE ends with `data: [DONE]`.
+- Reasoning is separate from visible content in thinking mode.
+- When a thinking response calls tools, its `reasoning_content` is retained with the assistant tool-call message.
+- Tool use remains supported when thinking is disabled.
+- Usage may include prompt, completion, cache hit/miss, and reasoning tokens.
 
 ## Cancellation
 
-`cancelGeneration` carries a request, conversation, and generation ID and aborts only that run. Explicit Stop removes the whole generation from visible and provider context and restores the prompt as a draft. Already completed external effects are recorded but are not rolled back. `steerGeneration` queues guidance at the front and preserves an interrupted turn for continuity instead of applying Stop semantics.
+`cancelGeneration` aborts only its named run. Explicit Stop preserves the submitted user message and all available assistant timeline data as a terminal `cancelled` turn. Completed tool effects and results remain recorded; no rollback is attempted. A later message gets a fresh cancellation scope.
 
-## Errors
+`steerGeneration` is intentionally different: it queues guidance first and terminates the current turn as `interrupted` so a continuation can use bounded partial context. Host shutdown also uses interruption/recovery semantics rather than pretending the user pressed Stop.
 
-Errors before a generation is accepted arrive as `requestRejected`; identified run failures arrive as `streamError`. Do not leak the API key or full sensitive response bodies.
-
-Review [Error Codes](https://api-docs.deepseek.com/quick_start/error_codes) before changing HTTP error mapping.
+Errors before acceptance use `requestRejected`; identified run failures use `streamError`. API keys, credentials, and unbounded provider response bodies must never appear in surfaced errors.
 
 [Back](INDEX.md)

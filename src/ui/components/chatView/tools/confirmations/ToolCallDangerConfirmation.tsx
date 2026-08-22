@@ -5,7 +5,7 @@ import { t } from "@webview/i18n";
 interface DangerConfirmationProps {
   toolCallId: string;
   dangerConfirmation: DangerConfirmationData;
-  onConfirm: (toolCallId: string, options?: { trustForSession?: boolean }) => void;
+  onConfirm: (toolCallId: string) => void;
   onCancel: (toolCallId: string) => void;
   disabled?: boolean;
 }
@@ -14,18 +14,13 @@ function DangerConfirmation({ toolCallId, dangerConfirmation, onConfirm, onCance
   const dangerLevel = dangerConfirmation.dangerLevel;
   const severityClass = dangerLevel === "destructive" ? "severityDestructive" : dangerLevel === "dangerous" ? "severityDangerous" : "severityCaution";
   const isDestructive = dangerLevel === "destructive";
-  const canTrustForSession = dangerConfirmation.canTrustForSession !== false && !isDestructive;
 
   return (
     <div className={`dangerConfirmation ${severityClass}`}>
       {dangerConfirmation.cwd ? <div className="dangerExecutionContext"><strong>{t("confirmations.workingDirectory")}</strong> <code>{dangerConfirmation.cwd}</code></div> : null}
       {dangerConfirmation.shell ? <div className="dangerExecutionContext"><strong>{t("confirmations.shell")}</strong> <code>{dangerConfirmation.shell}</code></div> : null}
 
-      <p className="dangerTrustExplanation">
-        {isDestructive
-          ? t("confirmations.destructiveOnceDescription")
-          : t("confirmations.sessionTrustDescription")}
-      </p>
+      <p className="dangerTrustExplanation">{t("confirmations.destructiveOnceDescription")}</p>
 
       <div className="toolCallDecisionRow dangerDecisionRow">
         <button
@@ -34,24 +29,11 @@ function DangerConfirmation({ toolCallId, dangerConfirmation, onConfirm, onCance
           disabled={disabled}
           onClick={(event) => {
             event.stopPropagation();
-            onConfirm(toolCallId, { trustForSession: false });
+            onConfirm(toolCallId);
           }}
         >
           {isDestructive ? t("confirmations.yesExecuteOnce") : t("confirmations.executeOnce")}
         </button>
-        {canTrustForSession && (
-          <button
-            type="button"
-            className="toolCallDecisionOption dangerPrimaryAction dangerRememberBtn"
-            disabled={disabled}
-            onClick={(event) => {
-              event.stopPropagation();
-              onConfirm(toolCallId, { trustForSession: true });
-            }}
-          >
-            {t("confirmations.trustMatchingOperationsThisSession")}
-          </button>
-        )}
         <button
           type="button"
           className="toolCallDecisionOption dangerCancelBtn"

@@ -19,10 +19,6 @@ export type InitialConfig = {
 
 /** User action for a tool call. */
 export type ToolCallAction = "execute" | "reject";
-export type ToolCallActionOptions = {
-  trustForSession?: boolean;
-};
-
 /** UI status for a tool call. */
 export type ToolCallStatus = "pending" | "awaiting_confirmation" | "running" | "completed" | "error" | "rejected" | "cancelled";
 
@@ -71,6 +67,5 @@ export type MessagesSectionProps = {
   onModelChanged?: (modelId: string) => void;
   onProcessingChange?: (isProcessing: boolean) => void;
   onFocusInput?: () => void;
-  onGenerationCancelled?: (draft?: import("@/contracts").QueuedGenerationMessage) => void;
   usageBreakdown?: boolean;
 };

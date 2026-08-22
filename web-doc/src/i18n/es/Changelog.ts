@@ -4,8 +4,19 @@ export const changelog: PageContent = {
   navTitle: "Changelog",
   title: "Changelog",
   description: "Cambios relevantes y estado preview.",
-  lead: "La versión 0.1.9 aísla los chats concurrentes, hace atómica la cancelación, calibra la compactación del contexto, recupera desbordamientos de salida y publica builds Preview en el canal normal de Marketplace mientras mantiene las releases de GitHub como prereleases.",
+  lead: "La preview 0.1.10 añade visión DeepSeek, adjuntos unificados, tres modos de permisos, protocolo v5 y semántica terminal estable para la cancelación.",
   sections: [
+    {
+      title: "0.1.10 visión, permisos, composer y cancelación",
+      items: [
+        "Sustituido Flash sin visión por DeepSeek V4 Vision (Flash). Vision lee referencias de Files API directamente; V4 Pro recibe analyze_images solo cuando el prompt contiene imágenes.",
+        "Añadido un único reintento controlado por el proveedor con V4 Flash estable cuando Vision experimental no está disponible. Los chats con imágenes indican que se omitió la entrada visual, mientras que el análisis delegado de V4 Pro falla explícitamente en lugar de aceptar una descripción falsa.",
+        "Unificados archivos e imágenes bajo un selector +, añadido pegado con Ctrl+V/Cmd+V, detección JPEG/PNG/GIF/WebP por firma, expiración Files API de 30 días, previews locales y limpieza compatible con Deshacer.",
+        "Reducidos los permisos a default, auto-approve y full-access; eliminados la matriz por tool y el analizador local, movida Web search bajo Permission mode y añadido un único toggle.",
+        "Reconstruido el input como un composer compacto con selector conjunto de modelo/razonamiento y un único botón contextual: Stop con el borrador vacío, Guide con Enter y Queue al mantener Ctrl o pulsar Ctrl+Enter.",
+        "Stop conserva prompt, timeline parcial y resultados completados como cancelled. Steering ahora verifica su generación de origen, continúa explícitamente la tarea original bajo la última guía y oculta el límite interno de transporte interrupted.",
+      ],
+    },
     {
       title: "0.1.9 aislamiento de chats concurrentes, cancelación y contexto calibrado",
       items: [

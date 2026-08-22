@@ -6,9 +6,11 @@ import { createFileDefinition, createFileHandler, createFileMetadata, createFile
 import { editFileDefinition, editFileHandler, editFileMetadata, editFileHandlerForced } from "./fileSystem/EditFile";
 import { applyPatchDefinition, applyPatchHandler, applyPatchMetadata, applyPatchHandlerForced } from "./fileSystem/ApplyPatch";
 import { terminalCommandDefinition, terminalCommandHandler, terminalCommandMetadata, terminalCommandHandlerForced } from "./terminal/TerminalCommand";
+import { analyzeImagesTool } from "./vision/AnalyzeImages";
 
 /** Complete list of built-in tools. */
 export const BUILT_IN_TOOLS: RegisteredTool[] = [
+  analyzeImagesTool,
   { definition: readFileDefinition, handler: readFileHandler, metadata: readFileMetadata },
   { definition: searchContentDefinition, handler: searchContentHandler, metadata: searchContentMetadata },
   { definition: listDirDefinition, handler: listDirHandler, metadata: listDirMetadata },

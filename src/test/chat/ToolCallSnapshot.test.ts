@@ -17,7 +17,6 @@ suite("tool call snapshot restoration", () => {
           dangerLevel: "caution",
           warningMessage: "Review this command",
           command: "git status",
-          canTrustForSession: true,
         },
       }],
     });

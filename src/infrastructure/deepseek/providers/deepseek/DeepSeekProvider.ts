@@ -1,7 +1,20 @@
-import { MODEL_REGISTRY, type AppConfig, type ChatCompletionRequest, type ChatCompletionResponse, type StreamChunk } from "@/contracts";
+import {
+  MODEL_REGISTRY,
+  type AppConfig,
+  type ChatCompletionRequest,
+  type ChatCompletionResponse,
+  type StreamChunk,
+} from "@/contracts";
+import { DEEPSEEK_FLASH_FALLBACK_MODEL_ID } from "@/contracts/deepseek/Models";
 import type { ModelProvider } from "@/application/ports";
 import { chatCompletion, chatCompletionStream, buildChatBody, type ChatRequest } from "./features/Chat";
 import { listModels } from "./Models";
+import {
+  buildFlashFallbackRequest,
+  requestContainsImages,
+  shouldFallbackFromVision,
+  VisionFallbackUnavailableError,
+} from "./VisionFallback";
 
 export class DeepSeekModelProvider implements ModelProvider {
   public readonly name = "DeepSeek";
@@ -13,8 +26,15 @@ export class DeepSeekModelProvider implements ModelProvider {
     assertCompatibleModel(request.model || this.config.model, this.config.baseUrl);
     const chatRequest = this._applyDefaults(request);
     const body = buildChatBody(chatRequest, this.config);
-    const response = await chatCompletion({ ...chatRequest, ...body } as ChatRequest, this.config.apiKey, this.config.baseUrl, signal);
-    return response;
+    const preparedRequest = { ...chatRequest, ...body } as ChatRequest;
+    try {
+      return await chatCompletion(preparedRequest, this.config.apiKey, this.config.baseUrl, signal);
+    } catch (error) {
+      if (!shouldFallbackFromVision(error, preparedRequest, this.config.baseUrl)) {throw error;}
+      if (requestContainsImages(preparedRequest)) {throw new VisionFallbackUnavailableError();}
+      const fallback = buildFlashFallbackRequest(preparedRequest);
+      return chatCompletion(fallback.request, this.config.apiKey, this.config.baseUrl, signal);
+    }
   }
 
   async chatCompletionStream(request: ChatCompletionRequest, onChunk: (chunk: StreamChunk) => void, signal?: AbortSignal): Promise<void> {
@@ -22,30 +42,25 @@ export class DeepSeekModelProvider implements ModelProvider {
     const chatRequest = this._applyDefaults(request);
     const body = buildChatBody(chatRequest, this.config);
 
-    await chatCompletionStream({
-      request: { ...chatRequest, ...body } as ChatRequest,
-      apiKey: this.config.apiKey,
-      baseUrl: this.config.baseUrl,
-      onChunk: (chunk: StreamChunk) => {
-        onChunk(chunk);
-      },
-      signal,
-    });
+    const preparedRequest = { ...chatRequest, ...body } as ChatRequest;
+    try {
+      await this._stream(preparedRequest, onChunk, signal);
+    } catch (error) {
+      if (!shouldFallbackFromVision(error, preparedRequest, this.config.baseUrl)) {throw error;}
+      const fallback = buildFlashFallbackRequest(preparedRequest);
+      await this._stream(fallback.request, onChunk, signal);
+    }
   }
 
   async testConnection(): Promise<{ success: boolean; error?: string }> {
     try {
       assertCompatibleModel(this.config.model, this.config.baseUrl);
-      await chatCompletion(
-        {
-          model: this.config.model,
-          messages: [{ role: "user", content: "Hi" }],
-          max_tokens: 2,
-          thinking: { type: "disabled" },
-        },
-        this.config.apiKey,
-        this.config.baseUrl,
-      );
+      await this.chatCompletion({
+        model: this.config.model,
+        messages: [{ role: "user", content: "Hi" }],
+        max_tokens: 2,
+        thinking: { type: "disabled" },
+      });
       return { success: true };
     } catch (err: unknown) {
       return { success: false, error: err instanceof Error ? err.message : String(err) };
@@ -59,6 +74,16 @@ export class DeepSeekModelProvider implements ModelProvider {
 
   updateConfig(config: Partial<AppConfig>): void {
     this.config = { ...this.config, ...config };
+  }
+
+  private async _stream(request: ChatRequest, onChunk: (chunk: StreamChunk) => void, signal?: AbortSignal): Promise<void> {
+    await chatCompletionStream({
+      request,
+      apiKey: this.config.apiKey,
+      baseUrl: this.config.baseUrl,
+      onChunk,
+      signal,
+    });
   }
 
   private _applyDefaults(req: ChatCompletionRequest): Partial<ChatRequest> {
@@ -89,7 +114,7 @@ export function assertCompatibleModel(model: string, baseUrl: string): void {
   if (url.origin !== "https://api.deepseek.com") {
     return;
   }
-  if (!MODEL_REGISTRY.some((entry) => entry.id === model)) {
+  if (model !== DEEPSEEK_FLASH_FALLBACK_MODEL_ID && !MODEL_REGISTRY.some((entry) => entry.id === model)) {
     throw new Error(`Model "${model}" is not supported by the official DeepSeek API configuration.`);
   }
 }

@@ -4,7 +4,6 @@ import type {
   SettingsConfig,
   UpdateConfigFn,
 } from "./SettingsTypes";
-import type { AvailableToolInfo } from "@/contracts";
 import type { TranslationKey } from "@webview/i18n/I18n";
 import type { ReactNode } from "react";
 
@@ -34,8 +33,7 @@ export type GeneralSectionProps = {
 };
 
 export type ToolsSectionProps = {
-  config: Pick<SettingsConfig, "permissionMode" | "toolExecutionModes">;
-  tools: AvailableToolInfo[];
+  config: Pick<SettingsConfig, "permissionMode" | "webSearchEnabled" | "webSearchEngine">;
   updateConfig: UpdateConfigFn;
   saveOnBlur: SaveOnBlurFn;
   permissionUpdatePending?: boolean;

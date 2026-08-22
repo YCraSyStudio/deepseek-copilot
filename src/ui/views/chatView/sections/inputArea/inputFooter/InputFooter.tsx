@@ -6,6 +6,7 @@ import type { ReferencedFile } from "@/contracts";
 import type { PermissionMode } from "@/contracts";
 import { t } from "@webview/i18n";
 import { getVsCodeApi } from "@webview/VsCodeApi";
+import ModelReasoningPicker from "./ModelReasoningPicker";
 
 type Props = {
   reasoning: string;
@@ -22,7 +23,7 @@ type Props = {
   conversationId?: string;
 };
 
-const PERMISSION_MODES: readonly PermissionMode[] = ["default", "read-only", "auto-approve", "full-access", "custom"];
+const PERMISSION_MODES: readonly PermissionMode[] = ["default", "auto-approve", "full-access"];
 
 function parsePermissionMode(value: string): PermissionMode | undefined {
   return PERMISSION_MODES.find((mode) => mode === value);
@@ -45,18 +46,20 @@ function InputFooter({
   }, []);
 
   const modelOptions = useMemo(() => {
-    if (!selectedModel || MODEL_OPTIONS.some((option) => option.value === selectedModel)) {
-      return MODEL_OPTIONS;
+    const compactOptions = MODEL_OPTIONS.map((option) => ({
+      ...option,
+      label: option.label.replace(/^DeepSeek\s+/i, ""),
+    }));
+    if (!selectedModel || compactOptions.some((option) => option.value === selectedModel)) {
+      return compactOptions;
     }
-    return [...MODEL_OPTIONS, { value: selectedModel, label: selectedModel }];
+    return [...compactOptions, { value: selectedModel, label: selectedModel }];
   }, [selectedModel]);
 
   const permissionOptions: Array<{ value: PermissionMode; label: string }> = [
     { value: "default", label: t("tools.default") },
-    { value: "read-only", label: t("tools.readOnly") },
     { value: "auto-approve", label: t("tools.autoApprove") },
     { value: "full-access", label: t("tools.fullAccess") },
-    { value: "custom", label: t("tools.custom") },
   ];
 
   return (
@@ -64,29 +67,26 @@ function InputFooter({
       <ReferencedFilesChips files={referencedFiles} onRemove={onRemoveReferencedFile ?? (() => undefined)} />
       <div className="inputFooterControls">
         <div className="inputFooterPrimaryControls">
-          <span className="selectTooltipWrapper" data-tooltip={t("chat.modelSelector")}>
-            <select name="ModelSelector" id="ModelSelector" aria-label={t("chat.modelSelector")} value={selectedModel} onChange={(event) => onModelChange(event.target.value)}>
-            {modelOptions.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-            </select>
-          </span>
-          <span className="selectTooltipWrapper" data-tooltip={t("chat.reasoning")}>
-            <select name="Reasoning" id="Reasoning" aria-label={t("chat.reasoning")} value={reasoning} onChange={(event) => onReasoningChange(event.target.value)}>
-            {reasoningOptions.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-            </select>
-          </span>
           <button
             type="button"
-            className="workspaceAttachButton"
-            aria-label={t("chat.attachContext")}
-            data-tooltip={t("chat.attachContext")}
-            onClick={() => getVsCodeApi()?.postMessage({ type: "selectContextFiles", conversationId })}
+            className="attachmentPickerTrigger"
+            aria-label={t("chat.attach")}
+            onClick={() => getVsCodeApi()?.postMessage({
+              type: "selectAttachments",
+              requestId: crypto.randomUUID(),
+              conversationId,
+            })}
           >
-            <span className="codicon codicon-attach" aria-hidden="true" />
+            <span className="codicon codicon-add" aria-hidden="true" />
           </button>
+          <ModelReasoningPicker
+            model={selectedModel}
+            reasoning={reasoning}
+            modelOptions={modelOptions}
+            reasoningOptions={reasoningOptions}
+            onModelChange={onModelChange}
+            onReasoningChange={onReasoningChange}
+          />
         </div>
         <span className="selectTooltipWrapper" data-tooltip={t("tools.permissionMode")}>
           <select

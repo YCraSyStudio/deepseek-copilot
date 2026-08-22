@@ -13,7 +13,6 @@ import { ConversationState } from "@/application/chat/ConversationState";
 import { GenerationCoordinator } from "@/application/chat/GenerationCoordinator";
 import { ResourceGovernor } from "@/application/chat/ResourceGovernor";
 import type { StoredConversation } from "@/application/chat/ProviderTranscript";
-import { DangerTrustStore } from "./toolCalls/DangerTrustStore";
 import type { SendMessagePayload } from "./Types";
 import { SlashCommandService } from "./SlashCommandService";
 import {
@@ -60,7 +59,6 @@ export class ChatHandler {
     phase: "stop-work" | "exit-incognito";
   };
   private readonly lastReplayedGeneration = new WeakMap<object, string>();
-  private readonly dangerTrustStore = new DangerTrustStore();
   private readonly slashCommands: SlashCommandService;
   private readonly generationExecutor: GenerationExecutor;
   private readonly workspaceReferences: ConversationWorkspaceReferences;
@@ -99,7 +97,6 @@ export class ChatHandler {
       context: this.context,
       conversationState: this.conversationState,
       toolRegistry: this.toolRegistry,
-      dangerTrustStore: this.dangerTrustStore,
       getWorkspaceBinding: (conversationId) => this.workspaceReferences.getBinding(conversationId),
       getSelectedConversationId: () => this.selectedConversationId,
       settings: this.settings,
@@ -109,7 +106,6 @@ export class ChatHandler {
       historyManager: this.historyManager,
       activeConversationState: this.conversationState,
       toolRegistry: this.toolRegistry,
-      dangerTrustStore: this.dangerTrustStore,
       checkpointStore: this.checkpointStore,
       runs: this.runs,
       generationEventCallbacks: this.generationEventCallbacks,
@@ -125,23 +121,6 @@ export class ChatHandler {
       settings: this.settings,
       secrets: this.secrets,
       modelProviderFactory: this.modelProviderFactory,
-      recoverCancelledDraft: (conversationId, draft) => {
-        const current = this.recoveredDrafts.get(conversationId) ?? [];
-        this.recoveredDrafts.set(conversationId, [
-          ...current.filter((item) => item.clientRequestId !== draft.clientRequestId),
-          draft,
-        ]);
-      },
-      syncCancelledConversation: (conversationId, conversation) => {
-        if (this.selectedConversationId !== conversationId) {
-          return;
-        }
-        if (conversation) {
-          this.conversationState.load(conversation);
-        } else {
-          this.conversationState.reset();
-        }
-      },
     });
 
     this.coordinator = new GenerationCoordinator({
@@ -185,6 +164,7 @@ export class ChatHandler {
           conversationId: message.conversationId,
           workspaceRevision: message.workspaceRevision,
           referencedFiles: message.referencedFiles,
+          imageAttachments: message.imageAttachments,
           clientRequestId: message.clientRequestId,
         });
         break;
@@ -220,7 +200,6 @@ export class ChatHandler {
         this.runs.get(message.generationId)?.session.handleUserAction({
           toolCallId: message.toolCallId,
           action: message.action,
-          trustForSession: message.trustForSession,
         });
         break;
       case "toolCallLimitDecision":
@@ -246,7 +225,6 @@ export class ChatHandler {
         postAvailableTools(webviewView, this.toolRegistry);
         break;
       case "newConversation":
-        this.dangerTrustStore.clear();
         this.conversationState.reset();
         this.selectedConversationId = undefined;
         void webviewView.webview.postMessage({ type: "newConversationReady", requestId: message.requestId });
@@ -277,7 +255,6 @@ export class ChatHandler {
     if (!this.settings.load().historyEnabled) {
       return;
     }
-    this.dangerTrustStore.clear();
     this.conversationState.load(conversation);
     this.selectedConversationId = conversation.id;
     this.workspaceReferences.postContext(
@@ -411,7 +388,6 @@ export class ChatHandler {
   }
 
   forgetConversation(id: string): boolean {
-    this.dangerTrustStore.clear();
     const active = this.coordinator.getActiveForConversation(id);
     if (active) {
       this.runs.get(active.generationId)?.session.cancel();
@@ -502,7 +478,6 @@ export class ChatHandler {
   async enterIncognito(requestId: string): Promise<void> {
     await this.stopPendingWork();
     await this.checkpointStore.clearAll().catch(() => undefined);
-    this.dangerTrustStore.clear();
     this.workspaceReferences.clear();
     this.conversationState.reset("incognito");
     this.selectedConversationId = undefined;
@@ -520,7 +495,6 @@ export class ChatHandler {
   discardIncognito(requestId: string): void {
     this.conversationState.reset("persistent");
     this.selectedConversationId = undefined;
-    this.dangerTrustStore.clear();
     this.workspaceReferences.clear();
     this.post({ type: "clearChat" });
     this.workspaceReferences.postContext(captureCurrentWorkspaceBinding());
@@ -535,7 +509,6 @@ export class ChatHandler {
       this.conversationState.reset("incognito");
       this.selectedConversationId = undefined;
       this.recoveredDrafts.clear();
-      this.dangerTrustStore.clear();
       this.workspaceReferences.clear();
     }
   }

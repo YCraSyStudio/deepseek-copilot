@@ -6,7 +6,6 @@ import { createHash } from "crypto";
 
 async function handleCreateFile(args: Record<string, unknown>): Promise<string> {
   const filePath = args.path as string;
-  const content = (args.content as string) || "";
 
   if (!filePath) {
     return "Error: path parameter is required";
@@ -27,34 +26,16 @@ async function handleCreateFile(args: Record<string, unknown>): Promise<string> 
       }
     }
 
-    if (fileExists) {
-      const existing = await readExistingFile(filePath);
-      return JSON.stringify({
-        requiresConfirmation: true,
-        dangerLevel: "caution",
-        warningMessage: `The file "${filePath}" already exists. Creating a new file will OVERWRITE it.`,
-        filePath,
-        beforeHash: existing?.hash,
-      });
-    }
-
-    try {
-      await workspace.createParentDirectory(filePath);
-    } catch (err: unknown) {
-      return `Error creating parent directories for "${filePath}": ${getErrorMessage(err)}`;
-    }
-
-    await workspace.writeFile(filePath, Buffer.from(content, "utf-8"));
-    const diff = createUnifiedDiff({ filePath, before: "", after: content });
-    return createStructuredResult("fileWrite", {
-      path: filePath,
-      overwritten: false,
-      diff: diff.content,
-      diffTruncated: diff.truncated,
-      diffStats: diff.stats,
-      afterSize: Buffer.byteLength(content, "utf-8"),
-      afterHash: hashText(content),
-      summary: `File created: ${filePath}`,
+    const existing = fileExists ? await readExistingFile(filePath) : undefined;
+    return JSON.stringify({
+      requiresConfirmation: true,
+      dangerLevel: "caution",
+      warningMessage: fileExists
+        ? `The file "${filePath}" already exists. Creating a new file will overwrite it.`
+        : `Create the file "${filePath}"?`,
+      filePath,
+      beforeHash: existing?.hash ?? "missing",
+      reasonCode: "remote-review-required",
     });
   } catch (err: unknown) {
     return `Error creating file '${filePath}': ${getErrorMessage(err)}`;

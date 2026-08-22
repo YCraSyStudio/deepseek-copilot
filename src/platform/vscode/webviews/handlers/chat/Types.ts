@@ -1,4 +1,5 @@
-import type { ReferencedFile } from "@/contracts";
+import type { ImageAttachment, ReferencedFile } from "@/contracts";
+import type { SteeringContinuation } from "@/application/chat/SteeringContinuation";
 
 export interface SendMessagePayload {
   clientRequestId: string;
@@ -8,4 +9,6 @@ export interface SendMessagePayload {
   conversationId?: string;
   workspaceRevision?: string;
   referencedFiles?: ReferencedFile[];
+  imageAttachments?: ImageAttachment[];
+  steering?: SteeringContinuation;
 }

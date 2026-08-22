@@ -35,9 +35,12 @@ export class SettingsManager {
             isConfigRecord(storedSettings) &&
             (Object.prototype.hasOwnProperty.call(storedSettings, "webSearchBrowserVisible") ||
               Object.prototype.hasOwnProperty.call(storedSettings, "usageBudgets") ||
+              Object.prototype.hasOwnProperty.call(storedSettings, "toolExecutionModes") ||
               storedSettings.permissionMode === "workspace" ||
               storedSettings.permissionMode === "chat" ||
-              storedSettings.permissionMode === "enabled")
+              storedSettings.permissionMode === "enabled" ||
+              storedSettings.permissionMode === "read-only" ||
+              storedSettings.permissionMode === "custom")
           ) {
             await SettingsManager.persistSettings(toStoredSettings(normalizedConfig));
           }
@@ -85,22 +88,14 @@ export class SettingsManager {
     await SettingsManager.waitForPendingWrites();
     const config = SettingsManager.load();
     const permissionMode = workspaceTrusted ? config.permissionMode : "default";
-    const toolExecutionModes = Object.fromEntries(
-      Object.entries(config.toolExecutionModes).map(([toolName, mode]) => [
-        toolName,
-        !workspaceTrusted && mode === "auto_approve" ? "enabled" : mode,
-      ]),
-    );
     const revision = SettingsManager.revision;
     return Object.freeze({
       revision,
       permissionMode,
-      toolExecutionModes: Object.freeze(toolExecutionModes),
       workspaceTrusted,
       fingerprint: JSON.stringify({
         revision,
         permissionMode,
-        toolExecutionModes: Object.fromEntries(Object.entries(toolExecutionModes).sort(([left], [right]) => left.localeCompare(right))),
         workspaceTrusted,
       }),
     });
@@ -175,15 +170,11 @@ export class SettingsManager {
 }
 
 function cloneConfig(config: AppConfig): AppConfig {
-  return {
-    ...config,
-    toolExecutionModes: { ...config.toolExecutionModes },
-  };
+  return { ...config };
 }
 
 function isPermissionAffectingPatch(partial: Partial<AppConfig>): boolean {
-  return Object.prototype.hasOwnProperty.call(partial, "permissionMode") ||
-    Object.prototype.hasOwnProperty.call(partial, "toolExecutionModes");
+  return Object.prototype.hasOwnProperty.call(partial, "permissionMode");
 }
 
 function readStoredSettings(): unknown {

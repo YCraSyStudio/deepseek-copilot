@@ -1,11 +1,9 @@
 import * as vscode from "vscode";
-import { resolveToolExecutionMode } from "@/contracts";
 import type {
   ChatMessage,
   PermissionMode,
   StoredToolCall,
   ToolDefinition,
-  ToolExecutionModes,
   WorkspaceContextStatus,
 } from "@/contracts";
 import type { WorkspaceRunSnapshot } from "@/platform/vscode/workspace";
@@ -26,24 +24,10 @@ export function getErrorMessage(err: unknown): string {
   return err instanceof Error ? redactSensitiveText(err) : "Unexpected error while connecting to the API";
 }
 
-export function getEffectiveToolExecutionModes(
-  savedModes: ToolExecutionModes | undefined,
-  tools: ToolDefinition[],
-  permissionMode: PermissionMode,
-): ToolExecutionModes {
-  return Object.fromEntries(
-    tools.map((tool) => [
-      tool.function.name,
-      resolveToolExecutionMode(permissionMode, tool.function.name, savedModes ?? {}),
-    ]),
-  );
-}
-
 export function appendToolAvailabilityContext(
   messages: ChatMessage[],
   permissionMode: PermissionMode,
   tools: ToolDefinition[],
-  executionModes: ToolExecutionModes,
   workspaceSnapshot?: WorkspaceRunSnapshot,
 ): void {
   const systemMessage = messages.find((message) => message.role === "system");
@@ -53,15 +37,13 @@ export function appendToolAvailabilityContext(
 
   const availableToolNames = tools.map((tool) => tool.function.name);
   const delegatedTools = permissionMode === "auto-approve" || permissionMode === "full-access"
-    ? tools.filter((tool) => executionModes[tool.function.name] !== "disabled").map((tool) => tool.function.name)
+    ? tools.map((tool) => tool.function.name)
     : [];
   const capabilityNotice = permissionMode === "full-access"
-    ? "The user enabled unrestricted computer access. Use external paths only when the request requires them, and prefer the narrowest operation."
+    ? "The user enabled full computer access. Routine and elevated operations may run automatically anywhere; critical operations that could make the computer unusable or cause broad irreversible loss still require confirmation."
     : permissionMode === "auto-approve"
-      ? "Workspace operations are delegated. Access outside the workspace still requires explicit confirmation."
-      : permissionMode === "read-only"
-        ? "Read, list, and search tools are delegated. Mutating and terminal tools remain available but require confirmation."
-        : "Use only the tools listed below and do not imply that unavailable capabilities can be used.";
+      ? "Routine operations are delegated inside and outside the workspace. Elevated or critical operations still require explicit confirmation."
+      : "Every tool call requires confirmation. Use only the tools listed below and do not imply that unavailable capabilities can be used.";
   const delegationNotice = delegatedTools.length > 0
     ? `\n- Unattended tools: ${delegatedTools.join(", ")}. The user explicitly delegated these approvals. Each call executes immediately, so call them only when necessary, directly aligned with the request, and with the narrowest safe arguments.`
     : "";
@@ -81,14 +63,10 @@ export function parseSlashCommand(text: string): ParsedSlashCommand | null {
 }
 
 export function isPermissionMode(value: unknown): value is PermissionMode {
-  return value === "default" || value === "read-only" || value === "custom" ||
-    value === "auto-approve" || value === "full-access";
+  return value === "default" || value === "auto-approve" || value === "full-access";
 }
 
 export function normalizePermissionMode(value: string | undefined): string | undefined {
-  if (value === "read") {
-    return "read-only";
-  }
   if (value === "full") {
     return "full-access";
   }

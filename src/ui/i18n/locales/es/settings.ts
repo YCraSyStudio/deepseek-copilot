@@ -4,7 +4,6 @@ export const settings = {
   settings: {
     tab: {
       api: "API",
-      webSearch: "Búsqueda web",
       tools: "Herramientas",
       general: "General"
     },
@@ -25,7 +24,6 @@ export const settings = {
     },
     unavailable: "Los ajustes no están disponibles fuera de VS Code.",
     save: {
-      success: "Ajustes guardados.",
       error: "No se pudieron guardar los ajustes. Inténtalo de nuevo."
     },
     load: {
@@ -63,6 +61,7 @@ export const settings = {
     webSearch: {
       title: "Búsqueda web",
       description: "Elige cómo busca la extensión en la web pública mediante su navegador aislado.",
+      enabled: "Habilitar búsqueda web",
       engine: "Buscador",
     },
     sampling: {
@@ -113,7 +112,7 @@ export const settings = {
       maxTokens: "Tokens máximos de salida",
       maxTokensDescription: "Reserva de salida por petición. DeepSeek V4 tiene 1M tokens de contexto total y admite hasta 384K de salida; el valor conservador predeterminado de 8.192 ayuda a limitar consumo y coste de la API.",
       maxToolRounds: "Rondas antes de pedir continuación",
-      maxToolRoundsDescription: "Tras estas rondas, los modos predeterminado, solo lectura y personalizado se pausan y preguntan si debe ejecutarse otro bloque. Autoaprobar y acceso total no tienen límite.",
+      maxToolRoundsDescription: "Tras estas rondas, el modo predeterminado se pausa y pregunta si debe ejecutarse otro bloque. Autoaprobar y acceso total no tienen límite.",
       maxConcurrentGenerations: "Generaciones simultáneas"
     }
   }

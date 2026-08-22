@@ -6,10 +6,10 @@ The extension is organized in layers to isolate VS Code, DeepSeek, UI, and domai
 
 Main layers:
 
-- `src/adapters`: shared contracts between the extension backend and the webview.
-- `src/core`: pure logic, tools, and safety rules without `vscode` imports.
-- `src/deepseekApi`: DeepSeek HTTP client, streaming, FIM, and tool-call protocol.
-- `src/vscodeApi`: activation, commands, persistence, webviews, and concrete VS Code adapters.
+- `src/contracts`: shared serializable models between the host and webview.
+- `src/application`: pure conversation, context, generation, and tool rules.
+- `src/infrastructure`: DeepSeek HTTP/Files/SSE, browser, review, and concrete tools.
+- `src/platform/vscode`: activation, commands, persistence, webviews, and VS Code adapters.
 - `src/ui`: React app that runs inside the webview.
 
 Architecture goal: keep maintainable logic outside VS Code where possible, and make external API boundaries explicit.

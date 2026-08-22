@@ -10,7 +10,7 @@ const MAX_PENDING_DELTA_CHARACTERS = 32 * 1024;
 /** Maintains the single assistant message receiving the current event stream. */
 export function useStreamHandler() {
   const streamingMessageIdRef = useRef<string | null>(null);
-  const pendingDeltasRef = useRef<Array<{ eventId: string; eventType: TimelineTextEvent["type"]; content: string; setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>> }>>([]);
+  const pendingDeltasRef = useRef<Array<{ eventId: string; eventType: TimelineTextEvent["type"]; content: string; generationId?: string; setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>> }>>([]);
   const frameRef = useRef<number | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -21,14 +21,14 @@ export function useStreamHandler() {
   }, []);
 
   const ensureStreamingAssistantMessage = useCallback(
-    (setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>): string => {
+    (setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>, generationId?: string): string => {
       if (streamingMessageIdRef.current) {
         return streamingMessageIdRef.current;
       }
 
       const id = nextMessageId();
       streamingMessageIdRef.current = id;
-      setMessages((current) => [...current, { id, role: "assistant", content: "", timeline: [] }]);
+      setMessages((current) => [...current, { id, role: "assistant", content: "", timeline: [], generationId }]);
       return id;
     },
     [nextMessageId],
@@ -42,7 +42,8 @@ export function useStreamHandler() {
     const pending = pendingDeltasRef.current.splice(0);
     if (pending.length === 0) {return;}
     const setMessages = pending[0].setMessages;
-    const messageId = ensureStreamingAssistantMessage(setMessages);
+    const generationId = pending.find((delta) => delta.generationId)?.generationId;
+    const messageId = ensureStreamingAssistantMessage(setMessages, generationId);
     setMessages((current) => current.map((message) => {
       if (message.id !== messageId) {return message;}
       const timeline = [...(message.timeline ?? [])];
@@ -74,11 +75,12 @@ export function useStreamHandler() {
       eventType: TimelineTextEvent["type"],
       content: string,
       setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>,
+      generationId?: string,
     ) => {
       if (!content) {
         return;
       }
-      pendingDeltasRef.current.push({ eventId, eventType, content, setMessages });
+      pendingDeltasRef.current.push({ eventId, eventType, content, generationId, setMessages });
       const pendingCharacters = pendingDeltasRef.current.reduce((total, delta) => total + delta.content.length, 0);
       if (pendingCharacters >= MAX_PENDING_DELTA_CHARACTERS) {
         flushTimelineDeltas();
@@ -91,9 +93,9 @@ export function useStreamHandler() {
   );
 
   const appendTimelineToolGroup = useCallback(
-    (event: TimelineToolGroupEvent, setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>) => {
+    (event: TimelineToolGroupEvent, setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>, generationId?: string) => {
       flushTimelineDeltas();
-      const messageId = ensureStreamingAssistantMessage(setMessages);
+      const messageId = ensureStreamingAssistantMessage(setMessages, generationId);
       setMessages((current) =>
         current.map((message) =>
           message.id === messageId && !(message.timeline ?? []).some((item) => item.id === event.id)

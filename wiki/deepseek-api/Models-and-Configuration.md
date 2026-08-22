@@ -2,59 +2,57 @@
 
 # Models and Configuration
 
-Official reference:
+Sources of truth:
 
-- [Your First API Call](https://api-docs.deepseek.com/)
-- [Models & Pricing](https://api-docs.deepseek.com/quick_start/pricing)
-- [Create Chat Completion](https://api-docs.deepseek.com/api/create-chat-completion)
-- [JSON Output](https://api-docs.deepseek.com/guides/json_mode)
-- [FIM Completion Beta](https://api-docs.deepseek.com/guides/fim_completion)
+- `src/contracts/deepseek/Models.ts`
+- `src/contracts/Config.ts`
+- `src/application/settings/ConfigurationSchema.ts`
+- `src/platform/vscode/storage/SettingsManager.ts`
 
-## Configuration
+## Product models
 
-The webview settings UI persists the `AppConfig` fields supported by
-`src/vscodeApi/storage/SettingsManager.ts`. Settings are global to the extension
-and do not use VS Code configuration contributions.
+The extension exposes two model choices:
 
-`maxConcurrentGenerations` controls cross-conversation concurrency. It defaults to 8 and is normalized to an integer from 1 to 16; each conversation still permits only one active generation.
+- **DeepSeek V4 Vision (Flash)** — `deepseek-v4-flash-vision-exp`; default. It accepts text and DeepSeek Files API references directly.
+- **DeepSeek V4 Pro** — `deepseek-v4-pro`. It remains the primary coding model and can use `analyze_images`, which asks V4 Vision to describe the current prompt's images and returns that text to Pro.
 
-`maxTokens` is the output allowance sent as `max_tokens`; it is not the model's
-context-window size. DeepSeek documents a 1,000,000-token total context and a
-384,000-token maximum output for both V4 models. The extension defaults to
-65,536 output tokens and accepts values from 1 to 384,000. The request budget
-subtracts this output allowance and a safety margin from the total context
-before admitting input, tool schemas, and the canonical tool transcript.
+There is no separate non-visual Flash option. The Vision label makes the experimental visual capability explicit while retaining its Flash positioning.
 
-`maxToolRounds` is a safety-checkpoint interval, not an unconditional lifetime
-cap. It defaults to 6 and accepts values from 1 to 20. Default, read-only, and
-custom modes pause at each checkpoint for the user's continue/stop decision.
-Auto-approve and full-access do not apply round or per-block tool-call limits.
+## Experimental-model fallback
 
-## Streaming behavior
+`deepseek-v4-flash` is an internal transport fallback, not a third product choice. On the official DeepSeek origin, the provider retries exactly once with stable Flash only when Vision returns a model-unavailable signal or an HTTP 404/410 response.
 
-Chat responses always use SSE streaming and are rendered progressively in the webview. This is a fixed product behavior, not a public setting.
+- Text-only Vision requests and connection tests continue through stable Flash.
+- A streaming Vision chat with images removes the file blocks and adds a system instruction requiring an explicit limitation notice and forbidding invented visual details.
+- V4 Pro's non-streaming `analyze_images` delegation fails explicitly when Vision is unavailable. Stable Flash is never presented to Pro as if it had analyzed an image.
+- Authentication, authorization, rate-limit, ordinary server, cancellation, and custom-endpoint failures are not fallback conditions.
 
-## Secrets
+The policy lives in `VisionFallback.ts` and is consumed only by the DeepSeek provider. UI state, generation orchestration, and persisted conversations do not implement or store fallback state.
 
-`apiKey` is not part of public settings. It is stored with `SecretsManager` in VS Code `SecretStorage`.
+## Generation configuration
 
-## Defaults
+- `thinkingEnabled` controls DeepSeek thinking mode; tools remain available when thinking is off.
+- `reasoningEffort` is `off`, `high`, or `max` in the product UI.
+- `maxTokens` is the requested output allowance, defaults to 8,192, and is clamped from 1 to 384,000.
+- `maxToolRounds` defaults to 6 and is a confirmation checkpoint only in `default`; automatic modes do not have a round cap.
+- `maxConcurrentGenerations` defaults to 8 and is clamped from 1 to 16.
+- `permissionMode` is exactly `default`, `auto-approve`, or `full-access`.
+- `webSearchEnabled` removes or restores `search_web` and `read_web` in model requests.
 
-Technical defaults should be centralized in `src/adapters/Config.ts`. Avoid duplicating them in handlers or UI except for non-persisted initial state.
+The compact chat picker displays model and reasoning together, for example `V4 Vision (Flash) · High`. It stays open while either choice is changed and closes when the user clicks outside.
 
-## Provider
+## Context and output budget
 
-The product does not expose `provider`. DeepSeek is the only supported integration.
+Registered V4 capabilities use a 1M-token total context and a 384K maximum output. The 8,192-token default is an application allowance, not the model maximum. System prompts, tool schemas, history, references, image metadata, requested output, and a safety margin all participate in request budgeting.
 
-## API fidelity notes
+## Image transport
 
-- Current official models: `deepseek-v4-flash` and `deepseek-v4-pro`.
-- Both current V4 models have a documented 1M-token context and 384K maximum output.
-- `deepseek-chat` and `deepseek-reasoner` are compatibility names with a deprecation announced by DeepSeek.
-- `thinking.type` accepts `enabled` or `disabled`; DeepSeek treats it as enabled by default.
-- `reasoning_effort` accepts `high` or `max`.
-- In thinking mode, `temperature` and `top_p` do not affect output according to the official guide.
-- Tool-call assistant messages in thinking mode must retain their complete `reasoning_content` in subsequent API requests.
-- FIM beta requires base URL `https://api.deepseek.com/beta`; do not mix it with the normal endpoint without an explicit decision.
+- Supported image signatures are JPEG, PNG, GIF, and WebP.
+- Images are uploaded with `purpose=user_data` and a 30-day expiry.
+- Provider messages reference `{ type: "file", file_id }`; they do not embed Base64 or local paths.
+- V4 Pro sees only the bounded textual result of `analyze_images`.
+- The delegated Vision request runs with thinking disabled and an 8,192-token output cap.
+
+Official stable-model availability and experimental Vision availability can change independently. Recheck [DeepSeek Models & Pricing](https://api-docs.deepseek.com/quick_start/pricing/) and the [Vision guide](https://api-docs.deepseek.com/guides/vision) before changing identifiers or capabilities.
 
 [Back](INDEX.md)

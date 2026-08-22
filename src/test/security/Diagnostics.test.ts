@@ -35,7 +35,7 @@ suite("managed diagnostics", () => {
     for (let index = 0; index < 600; index += 1) {
       logWarning(`event-${index}`);
     }
-    const report = createSanitizedSupportReport({ model: "deepseek-v4-flash" });
+    const report = createSanitizedSupportReport({ model: "deepseek-v4-flash-vision-exp" });
     registration.dispose();
 
     assert.strictEqual(captured.some((line) => line.includes("not retained")), false);

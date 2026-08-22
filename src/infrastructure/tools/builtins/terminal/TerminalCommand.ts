@@ -1,6 +1,5 @@
 import type { ToolDefinition } from "@/contracts";
 import type { RegisteredTool, ToolHandlerContext, ToolMetadata } from "@/application/tools/Types";
-import { analyzeDangerLevel } from "./DangerAnalysis";
 import { executeWorkspaceCommand, resolveCommandEnvironment } from "./ShellExecution";
 import * as path from "node:path";
 
@@ -11,8 +10,6 @@ async function handleTerminalCommand(args: Record<string, unknown>, context?: To
   );
   const command = normalized.command;
   const cwd = normalized.cwd;
-  const timeoutMs = args.timeoutMs as number | undefined;
-  const maxOutputBytes = args.maxOutputBytes as number | undefined;
 
   if (!command) {
     return "Error: command parameter is required";
@@ -23,24 +20,16 @@ async function handleTerminalCommand(args: Record<string, unknown>, context?: To
   }
 
   const environment = await resolveCommandEnvironment(cwd);
-  const analysis = await analyzeDangerLevel(command, environment);
-
-  if (analysis.level !== "safe") {
-    return JSON.stringify({
-      requiresConfirmation: true,
-      dangerLevel: analysis.level,
-      warningMessage: analysis.message,
-      command,
-      cwd: environment.cwd,
-      workspaceRoot: environment.workspaceRoot,
-      shell: environment.shell,
-      reasonCode: analysis.reasonCode,
-      normalizedCommand: analysis.normalizedCommand,
-      workspaceContained: analysis.workspaceContained,
-    });
-  }
-
-  return JSON.stringify(await executeWorkspaceCommand(command, { cwd, signal: context?.signal, timeoutMs, maxOutputBytes }));
+  return JSON.stringify({
+    requiresConfirmation: true,
+    dangerLevel: "caution",
+    warningMessage: "This terminal command requires an independent DeepSeek safety review.",
+    command,
+    cwd: environment.cwd,
+    workspaceRoot: environment.workspaceRoot,
+    shell: environment.shell,
+    reasonCode: "remote-review-required",
+  });
 }
 
 async function handleTerminalCommandForced(args: Record<string, unknown>, context?: ToolHandlerContext): Promise<string> {

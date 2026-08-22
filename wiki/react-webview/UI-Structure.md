@@ -2,87 +2,30 @@
 
 # UI Structure
 
-## Entry
-
-- `src/ui/index.html`
-- `src/ui/Main.tsx`
-- `src/ui/App.tsx`
-
 ## Views
 
-`ChatView`
+`ChatView` renders messages, chronological streaming, Activity groups, image previews, path autocomplete, tool confirmations, queues, steering, and targeted Stop.
 
-- messages.
-- input.
-- path autocomplete through `FileSelector`.
-- streaming.
-- tool confirmations.
-- targeted stop, queue, and interrupt-and-guide controls while a generation is active.
-- recoverable draft prompts after an interrupted VS Code session.
+The composer is one rounded container modeled after a compact coding-agent input:
 
-`HistoryView`
+- text and image previews share the upper content area.
+- one `+` action attaches either context files or images.
+- `Ctrl+V`/`Cmd+V` pastes images into the same attachment list.
+- one compact menu combines model and reasoning, such as `V4 Vision (Flash) · High`; selection does not close it, and clicking outside does.
+- permission mode and one contextual generation action stay in the footer. During streaming it shows Stop for an empty draft, Interrupt and guide when the draft has content, and Queue message while `Ctrl` is held. `Enter` guides, `Ctrl+Enter` queues, and `Shift+Enter` inserts a newline.
 
-- conversation list.
-- load and delete actions.
+`HistoryView` lists, loads, paginates, deletes, and restores conversations. Undo remains available before permanent deletion cleans image files.
 
-`SettingsView`
+`SettingsView` has three public tabs: General, API, and Tools. Tools contains Permission mode followed by the Web search toggle and engine selector. There is no per-tool permission matrix or separate Web search tab, and saving does not show a redundant success toast.
 
-- API key.
-- base URL.
-- model.
-- reasoning.
-- generation parameters.
-- concurrent generation limit.
-- tool modes.
+## Rendering
 
-Settings code is intentionally shallow:
+Adjacent reasoning and tool events collapse into Activity panels without changing persisted order. Successful `read_file` bodies are not duplicated in Chat; file tools expose Open file, and mutations expose their recorded native change view when complete.
 
-- `views/settingsView/model`: UI-only settings types and defaults.
-- `views/settingsView/sections`: API, general, advanced, and tools sections.
-- `views/settingsView/tabs`: composition of the two public tabs.
+Image cards use host-generated preview URIs. Removing a draft card asks the host to delete its local and remote resources; the webview never reads the filesystem or calls DeepSeek directly.
 
-The API key draft is transient state owned by `SettingsView`; it is not part of
-the `WebviewConfig` received from the extension.
+## Responsive behavior
 
-## Shared components
-
-- `Header`
-- `Slider`
-- `Toggle`
-- `NumInput`
-- global VS Code-like tooltips in `src/ui/App.css` through `data-tooltip`.
-- base styles in `src/ui/styles`.
-
-Chat rendering is grouped by feature:
-
-- `components/chatView/messages`: message shell, Markdown rendering, activity,
-  and tool-call reconciliation.
-- `components/chatView/tools/confirmations`: attended confirmations.
-- `components/chatView/tools/timeline`: activity grouping and tool timeline.
-- `components/chatView/tools/results`: file, diff, search, terminal, and argument
-  result renderers.
-
-Adjacent reasoning and tool events are collapsed into an Activity panel by
-default. Its summary exposes the step count and aggregate status without
-occupying the full conversation height. Individual tool cards remain
-expandable inside the group.
-
-Successful `read_file` calls do not render file contents in Chat because the
-editor is the canonical viewing surface. File tools expose `Open file`; create,
-edit, and patch calls also expose `View change` when the stored, bounded diff is
-complete. That action reconstructs the before/after documents for that specific
-tool execution instead of comparing against the current working tree.
-
-## Narrow layouts
-
-Responsive rules follow the webview viewport rather than assuming a normal
-sidebar width. Below 360 px, chat footer controls and settings fields may wrap;
-below 340 px, each per-tool permission row stacks its name and selector; below
-300 px, Settings reduces padding and History moves search above sort/delete;
-below 260 px, the chat footer gives the model its own row and places reasoning
-beside the compact attachment action; below 220 px, history items reduce action
-spacing. Selects must be allowed to shrink with `min-width: 0`
-inside these layouts. No view should require horizontal scrolling at the
-narrowest VS Code sidebar width.
+All controls use the webview viewport, `min-width: 0`, minimal horizontal padding, wrapping, and content-sized menus. The combined model/reasoning popover follows its actual content width and stays within the viewport. No supported sidebar width should require horizontal scrolling.
 
 [Back](INDEX.md)

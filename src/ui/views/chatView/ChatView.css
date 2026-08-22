@@ -28,12 +28,10 @@
     }
   }
   .inputArea {
-    border-top: 1px solid var(--border-color);
-    background: color-mix(in srgb, var(--bg-primary) 94%, black 6%);
     flex-direction: column;
     flex: none;
     gap: 8px;
-    padding: 5px;
+    padding: 8px 6px 6px;
     display: flex;
   }
 }

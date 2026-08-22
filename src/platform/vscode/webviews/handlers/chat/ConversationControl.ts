@@ -70,6 +70,8 @@ export function steerGeneration(
     conversationId: message.conversationId,
     workspaceRevision: message.workspaceRevision,
     referencedFiles: message.referencedFiles,
+    imageAttachments: message.imageAttachments,
+    steering: { sourceGenerationId: message.generationId },
   }).then(() => cancelGeneration(message.generationId, message.conversationId, coordinator, runs, "steered"));
 }
 

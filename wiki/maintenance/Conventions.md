@@ -15,7 +15,7 @@
 ## Code
 
 - Keep aliases consistent with `tsconfig.json`.
-- Use `src/adapters` contracts for shared messages.
+- Use `src/contracts` for shared serializable messages.
 - Avoid duplicated strings for public ids.
 - Do not store secrets outside `SecretStorage`.
 - Do not reintroduce Ollama.
@@ -25,8 +25,7 @@
 - Keep barrels at layer or feature boundaries. Internal modules use explicit
   imports so dependencies remain visible.
 - Prefer domain folders over one-component folder chains.
-- Preserve public message names, tool IDs, persisted keys, and compatibility
-  re-exports during incremental moves.
+- Preserve public tool IDs and persisted keys deliberately. Protocol-breaking changes increment `WEBVIEW_PROTOCOL_VERSION`; protocol 5 intentionally does not accept the removed separate attachment requests.
 - A facade coordinates services; it does not retain context building, execution,
   persistence, and UI-event translation in one file.
 

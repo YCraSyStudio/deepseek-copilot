@@ -1,4 +1,4 @@
-import { createSystemMessage, ensureSingleSystemPrompt } from "@/contracts/deepseek/Chat";
+import { createSystemMessage, ensureSingleSystemPrompt, getTextContent } from "@/contracts/deepseek/Chat";
 import type { ChatMessage } from "@/contracts";
 import { createToolResultMessage, validateToolCall } from "./ToolCallMessages";
 import type {
@@ -19,6 +19,7 @@ export async function runToolCallCycle(options: RunToolCallCycleOptions): Promis
   let toolCallsExecuted = 0;
   let batchStartRound = 0;
   let batchToolCalls = 0;
+  let completionRecoveryUsed = false;
   const executedSignatures = new Set<string>();
   const seenProviderToolCallIds = new Set<string>();
 
@@ -50,6 +51,16 @@ export async function runToolCallCycle(options: RunToolCallCycleOptions): Promis
       );
     }
     if (!message.tool_calls || message.tool_calls.length === 0) {
+      if (
+        finishReason === "stop" &&
+        !completionRecoveryUsed &&
+        isIncompleteActionAnnouncement(getTextContent(message.content))
+      ) {
+        completionRecoveryUsed = true;
+        messages[0] = withCompletionRecoveryInstruction(messages[0]);
+        cycleOptions.onStreamChunk?.("\n\n");
+        continue;
+      }
       transcript.push(structuredClone(message));
       cycleOptions.onTranscriptUpdate?.(structuredClone(transcript), "complete");
       return {
@@ -165,6 +176,12 @@ export async function runToolCallCycle(options: RunToolCallCycleOptions): Promis
   }
 }
 
+export function isIncompleteActionAnnouncement(content: string | null | undefined): boolean {
+  const normalized = content?.replace(/\s+/g, " ").trim() ?? "";
+  if (!normalized || normalized.length > 800) {return false;}
+  return /\b(?:let me|i(?:'ll| will| need to| am going to)|d[eé]jame|voy a|necesito)\s+(?:check|search|look(?:\s+up)?|inspect|read|verify|find|investigate|review|comprobar|buscar|revisar|consultar|verificar|investigar)(?:\s+[^.!?]{0,180})?[.!?]?\s*$/i.test(normalized);
+}
+
 function assertValidToolArguments(message: ChatMessage): void {
   for (const toolCall of message.tool_calls ?? []) {
     try {
@@ -213,7 +230,7 @@ function withToolRoundCheckpointInstruction(
   completedRounds: number,
   completedToolCalls: number,
 ): ChatMessage {
-  const contentWithoutPreviousCheckpoint = (systemMessage.content ?? "").replace(
+  const contentWithoutPreviousCheckpoint = getTextContent(systemMessage.content).replace(
     /\n\n<tool_round_checkpoint>[\s\S]*?<\/tool_round_checkpoint>/g,
     "",
   );
@@ -226,6 +243,13 @@ function withToolRoundCheckpointInstruction(
   return {
     ...systemMessage,
     content: `${contentWithoutPreviousCheckpoint}${checkpointInstruction}`,
+  };
+}
+
+function withCompletionRecoveryInstruction(systemMessage: ChatMessage): ChatMessage {
+  return {
+    ...systemMessage,
+    content: `${systemMessage.content ?? ""}\n\n<completion_recovery>The previous response stopped after announcing an action without performing it. Continue the same turn now. Either issue the necessary tool call or provide the complete final answer in the language of the user's latest message. Do not announce another future action.</completion_recovery>`,
   };
 }
 

@@ -60,7 +60,17 @@ function isConversationMessage(value: unknown): value is ConversationMessage {
   if (value.generationId !== undefined && !isBoundedString(value.generationId, 512)) {
     return false;
   }
-  if (value.generationStatus !== undefined && !["completed", "interrupted", "error"].includes(value.generationStatus as string)) {
+  if (value.generationStatus !== undefined && !["completed", "cancelled", "interrupted", "error"].includes(value.generationStatus as string)) {
+    return false;
+  }
+  if (value.generationStopReason !== undefined && ![
+    "user_cancelled",
+    "steered",
+    "workspace_changed",
+    "shutdown",
+    "deleted",
+    "history_transition",
+  ].includes(value.generationStopReason as string)) {
     return false;
   }
   if (value.timeline !== undefined && (!Array.isArray(value.timeline) || value.timeline.length > 10_000 || !value.timeline.every(isTimelineEvent))) {
@@ -69,11 +79,30 @@ function isConversationMessage(value: unknown): value is ConversationMessage {
   if (value.toolCalls !== undefined && (!Array.isArray(value.toolCalls) || value.toolCalls.length > 1_000 || !value.toolCalls.every(isStoredToolCall))) {
     return false;
   }
+  if (value.imageAttachments !== undefined && (
+    !Array.isArray(value.imageAttachments) ||
+    value.imageAttachments.length > 600 ||
+    !value.imageAttachments.every(isImageAttachment)
+  )) {return false;}
   return (value.toolCallId === undefined || isBoundedString(value.toolCallId, 512)) &&
     (value.toolName === undefined || isBoundedString(value.toolName, 256)) &&
     (value.contextContent === undefined || isBoundedString(value.contextContent, 5 * 1024 * 1024)) &&
     (value.providerTranscript === undefined || isProviderTranscript(value.providerTranscript)) &&
     (value.usage === undefined || isUsageAggregate(value.usage));
+}
+
+function isImageAttachment(value: unknown): boolean {
+  if (!isRecord(value)) {return false;}
+  return isBoundedString(value.id, 512) &&
+    isBoundedString(value.fileId, 512) && /^file-api-[A-Za-z0-9_-]+$/.test(value.fileId as string) &&
+    isBoundedString(value.name, 512) &&
+    ["image/jpeg", "image/png", "image/gif", "image/webp"].includes(String(value.mediaType)) &&
+    Number.isSafeInteger(value.size) && (value.size as number) > 0 && (value.size as number) <= 64 * 1024 * 1024 &&
+    ["picker", "clipboard", "drop"].includes(String(value.source)) &&
+    isTimestamp(value.uploadedAt) && isTimestamp(value.expiresAt) &&
+    isBoundedString(value.apiBaseUrl, 32_768) &&
+    isBoundedString(value.cacheFileName, 256) && /^[A-Za-z0-9._-]+$/.test(value.cacheFileName as string) &&
+    (value.previewUri === undefined || isBoundedString(value.previewUri, 32_768));
 }
 
 function isTimelineEvent(value: unknown): value is AssistantTimelineEvent {
@@ -118,7 +147,7 @@ export function isDangerConfirmationData(value: unknown): value is DangerConfirm
   }
   return ["command", "filePath", "cwd", "shell", "beforeHash"].every((key) =>
     value[key] === undefined || isBoundedString(value[key], 5 * 1024 * 1024)
-  ) && (value.canTrustForSession === undefined || typeof value.canTrustForSession === "boolean");
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

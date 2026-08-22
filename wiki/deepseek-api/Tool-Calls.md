@@ -2,52 +2,40 @@
 
 # Tool Calls
 
-Official reference:
+Official references:
 
 - [Tool Calls](https://api-docs.deepseek.com/guides/tool_calls)
-- [Create Chat Completion](https://api-docs.deepseek.com/api/create-chat-completion)
 - [Thinking Mode](https://api-docs.deepseek.com/guides/thinking_mode)
+- [Vision](https://api-docs.deepseek.com/guides/vision)
 
-## Key files
+Key files:
 
-- `src/deepseekApi/providers/deepseek/features/toolCall/ToolCallRequest.ts`
-- `src/deepseekApi/providers/deepseek/features/toolCall/ToolCallStreaming.ts`
-- `src/deepseekApi/providers/deepseek/features/toolCall/ToolCallCycle.ts`
-- `src/vscodeApi/webviews/handlers/chat/toolCalls/ToolCallSession.ts`
+- `src/application/chat/toolCall/ToolCallCycle.ts`
+- `src/infrastructure/deepseek/providers/deepseek/features/toolCall/ToolCallRequest.ts`
+- `src/infrastructure/deepseek/providers/deepseek/features/toolCall/ToolCallStreaming.ts`
+- `src/platform/vscode/webviews/handlers/chat/toolCalls/ToolCallSession.ts`
+- `src/infrastructure/tools/builtins/vision/AnalyzeImages.ts`
 
 ## Cycle
 
-1. The conversation is sent with tool definitions.
-2. DeepSeek responds with tool calls.
-3. The backend validates the tool and arguments.
-4. Danger and execution mode are evaluated.
-5. If confirmation is required, the UI decides.
-6. The tool result goes back into the DeepSeek cycle.
-7. At each configured round checkpoint, default, read-only, and custom modes ask the user whether to continue. Auto-approve and full-access have no round or per-block tool-call limit.
-8. Every assistant and tool message is appended to a hidden canonical provider transcript.
-9. The final answer is shown and persisted separately from that transcript.
+1. DeepSeek receives currently enabled function definitions.
+2. The response may end with `finish_reason: "tool_calls"` and JSON-string arguments.
+3. The host parses and validates the call, applies the permission policy, and requests confirmation when required.
+4. Calls in one round execute sequentially; identical name-and-argument calls are skipped.
+5. Each result returns as `role: "tool"` with the original `tool_call_id`.
+6. Default mode asks whether to continue at each configured round checkpoint. `auto-approve` and `full-access` have no round or per-block call limit.
+7. Only complete `assistant(tool_calls) -> tool results -> assistant` sequences are replayed to the provider.
 
-## Rules
+## `analyze_images`
 
-- Tool definitions live in `core`.
-- Concrete execution uses `ToolWorkspace`.
-- Each generation owns its own `ToolCallSession`; approvals and round-limit decisions include `generationId`.
-- `maxToolRounds` is the size of a checkpoint batch for default, read-only, and custom modes. It does not apply to `auto-approve` or `full-access`.
-- Destructive or ambiguous operations must require confirmation.
-- The UI should show structured results when available.
+This tool is included only for V4 Pro when the current prompt contains image attachments. Its arguments contain the visual question; trusted image file IDs come from generation context, not from model-provided paths or arbitrary IDs. It sends the images to `deepseek-v4-flash-vision-exp` with thinking disabled, then returns a bounded text description to Pro. V4 Vision does not receive this tool because it reads the same file content blocks directly.
 
-## DeepSeek contract
+## Strict mode
 
-- DeepSeek receives tools through the `tools` parameter.
-- The API currently supports tools of type `function`.
-- `tool_choice` can control whether the model avoids, chooses, or forces a tool.
-- The response may end with `finish_reason: "tool_calls"`.
-- Each result must return as a message with `role: "tool"` and `tool_call_id`.
-- Arguments arrive as a JSON string; code must parse and validate them.
-- In thinking mode with tool calls, `reasoning_content` must be preserved for later turns.
-- Persistence replays only complete `assistant(tool_calls) -> tool results -> assistant` sequences. Interrupted sequences retain their visible partial answer but are not replayed as provider messages.
-- The webview receives the presentation timeline, never the canonical transcript or its hidden reasoning.
-- A request budget counts system text, tool schemas, exact transcripts, references, output allowance, and safety margin. Active cycles and JSON arguments are rejected rather than truncated.
-- `strict` mode is beta and requires the beta base URL and compatible schemas. The extension deliberately omits `strict` from stable-endpoint requests until it has a separately tested beta transport.
+DeepSeek strict tool validation is currently beta and requires `https://api.deepseek.com/beta`, `strict: true` for every function, and a compatible JSON Schema subset. The extension validates schemas and arguments locally, but stable-endpoint transport omits the beta-only `strict` field. Do not enable it on the stable base URL without a separately tested beta transport.
+
+## Persistence and cancellation
+
+The webview receives the presentation timeline, never the hidden canonical transcript. A cancelled turn keeps completed tool cards and results visible, but an incomplete provider tool protocol is excluded from future replay. Tool cancellation is terminal and cannot later change to completed or mutate another generation.
 
 [Back](INDEX.md)

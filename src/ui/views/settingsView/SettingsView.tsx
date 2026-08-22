@@ -2,14 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 import "@vscode/codicons/dist/codicon.css";
 import "./SettingsView.css";
-import { ApiTab, GeneralTab, ToolsTab, WebSearchTab } from "./tabs";
+import { ApiTab, GeneralTab, ToolsTab } from "./tabs";
 import { getVsCodeApi } from "../../VsCodeApi";
 import { DEFAULT_CONFIG, MODEL_OPTIONS, REASONING_EFFORT_OPTIONS, type ApiCredentialState, type SaveOnBlurFn, type SettingsConfig } from "./model";
-import type { AvailableToolInfo, HandlerToWebviewMessage, ToolExecutionModes } from "@/contracts";
+import type { HandlerToWebviewMessage } from "@/contracts";
 import { setInterfaceLanguage, t } from "@webview/i18n";
 import { shouldApplyConfigRevision } from "@webview/config/ConfigRevision";
 
-type SettingsTab = "general" | "api" | "tools" | "webSearch";
+type SettingsTab = "general" | "api" | "tools";
 type Notification = { type: "error" | "success"; message: string };
 
 function SettingsView() {
@@ -17,7 +17,6 @@ function SettingsView() {
   const [config, setConfig] = useState<SettingsConfig>(DEFAULT_CONFIG);
   const [apiKeyDraft, setApiKeyDraft] = useState("");
   const [apiCredential, setApiCredential] = useState<ApiCredentialState | null>(null);
-  const [tools, setTools] = useState<AvailableToolInfo[]>([]);
   const [activeTab, setActiveTab] = useState<SettingsTab>("general");
   const [hasLoadedConfig, setHasLoadedConfig] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -26,8 +25,7 @@ function SettingsView() {
   const loadedRef = useRef(false);
   const revisionRef = useRef(-1);
   const pendingSecurityRequestsRef = useRef(new Set<string>());
-  const tabRefs = useRef<Record<SettingsTab, HTMLButtonElement | null>>({ general: null, api: null, tools: null, webSearch: null });
-  const effectiveToolExecutionModes = useMemo(() => normalizeToolExecutionModes(config.toolExecutionModes, tools), [config.toolExecutionModes, tools]);
+  const tabRefs = useRef<Record<SettingsTab, HTMLButtonElement | null>>({ general: null, api: null, tools: null });
 
   const applyConfig = useCallback((nextConfig: Partial<SettingsConfig>) => {
     setConfig((current) => ({ ...current, ...nextConfig }));
@@ -44,10 +42,7 @@ function SettingsView() {
   ) => {
       const patch = typeof keyOrPatch === "string" ? { [keyOrPatch]: value } : keyOrPatch;
       const requestId = crypto.randomUUID();
-      if (
-        Object.prototype.hasOwnProperty.call(patch, "permissionMode") ||
-        Object.prototype.hasOwnProperty.call(patch, "toolExecutionModes")
-      ) {
+      if (Object.prototype.hasOwnProperty.call(patch, "permissionMode")) {
         pendingSecurityRequestsRef.current.add(requestId);
         setPermissionUpdatePending(true);
       }
@@ -69,7 +64,7 @@ function SettingsView() {
 
   const handleTabKeyDown = useCallback(
     (event: KeyboardEvent<HTMLButtonElement>) => {
-      const order: SettingsTab[] = ["general", "api", "tools", "webSearch"];
+      const order: SettingsTab[] = ["general", "api", "tools"];
       const currentIndex = order.indexOf(activeTab);
       let nextTab: SettingsTab | undefined;
       if (event.key === "ArrowRight" || event.key === "ArrowDown") {nextTab = order[(currentIndex + 1) % order.length];}
@@ -115,7 +110,9 @@ function SettingsView() {
             setApiCredential(null);
           }
           if (message.status === "success") {
-            setNotification({ type: "success", message: message.operation === "reset" ? t("settings.reset.success") : t("settings.save.success") });
+            setNotification(message.operation === "reset"
+              ? { type: "success", message: t("settings.reset.success") }
+              : null);
           } else if (message.status === "error") {
             setNotification({ type: "error", message: t("settings.save.error") });
             if (!loadedRef.current) {setLoadError(t("settings.load.error"));}
@@ -127,14 +124,12 @@ function SettingsView() {
           setApiCredential({ status: message.status, keyPreview: message.keyPreview });
           break;
         case "availableTools":
-          setTools(message.tools);
           break;
       }
     };
 
     window.addEventListener("message", handleMessage);
     requestConfig();
-    vscode.postMessage({ type: "getAvailableTools" });
     return () => window.removeEventListener("message", handleMessage);
   }, [vscode, applyConfig, requestConfig]);
 
@@ -183,20 +178,6 @@ function SettingsView() {
         >
           {t("settings.tab.tools")}
         </button>
-        <button
-          type="button"
-          className={`settingsTab ${activeTab === "webSearch" ? "active" : ""}`}
-          role="tab"
-          id="settings-tab-webSearch"
-          aria-controls="settings-panel-webSearch"
-          aria-selected={activeTab === "webSearch"}
-          tabIndex={activeTab === "webSearch" ? 0 : -1}
-          ref={(element) => { tabRefs.current.webSearch = element; }}
-          onClick={() => selectTab("webSearch")}
-          onKeyDown={handleTabKeyDown}
-        >
-          {t("settings.tab.webSearch")}
-        </button>
       </div>
 
       <div
@@ -238,15 +219,11 @@ function SettingsView() {
         ) : null}
         {hasLoadedConfig && activeTab === "tools" ? (
           <ToolsTab
-            config={{ ...config, toolExecutionModes: effectiveToolExecutionModes }}
-            tools={tools}
+            config={config}
             updateConfig={updateConfig}
             saveOnBlur={saveOnBlur}
             permissionUpdatePending={permissionUpdatePending}
           />
-        ) : null}
-        {hasLoadedConfig && activeTab === "webSearch" ? (
-          <WebSearchTab config={config} updateConfig={updateConfig} saveOnBlur={saveOnBlur} />
         ) : null}
       </div>
 
@@ -278,7 +255,3 @@ function SettingsView() {
 }
 
 export default SettingsView;
-
-function normalizeToolExecutionModes(currentModes: ToolExecutionModes, tools: AvailableToolInfo[]): ToolExecutionModes {
-  return Object.fromEntries(tools.map((tool) => [tool.name, currentModes[tool.name] ?? "enabled"]));
-}

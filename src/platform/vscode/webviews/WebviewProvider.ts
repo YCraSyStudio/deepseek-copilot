@@ -18,6 +18,7 @@ import type { ToolRegistry } from "@/application/tools";
 import type { HeadlessWebRuntime } from "@/infrastructure/browser/HeadlessWebRuntime";
 import { WebviewCommandDispatcher } from "./WebviewCommandDispatcher";
 import type { ModelProviderFactory, SecretStore, SettingsRepository } from "@/application/ports";
+import { ImageAttachmentController } from "./ImageAttachmentController";
 
 type ChatCommandMessage = { type: "addReferencedFiles"; files: ReferencedFilePayload[] } | { type: "setDraft"; text: string };
 const MAX_PENDING_WEBVIEW_MESSAGES = 128;
@@ -41,6 +42,7 @@ export class WebviewProvider implements vscode.WebviewViewProvider, vscode.Dispo
   private readonly historyManager: HistoryManager;
   private readonly settings: SettingsRepository;
   private readonly changeDiffViewer: ChangeDiffViewer;
+  private readonly imageAttachments: ImageAttachmentController;
   private readonly commandDispatcher = new WebviewCommandDispatcher();
   private readonly disposables: vscode.Disposable[] = [];
   private readonly pendingMessages: ChatCommandMessage[] = [];
@@ -55,6 +57,7 @@ export class WebviewProvider implements vscode.WebviewViewProvider, vscode.Dispo
     this.historyManager = dependencies.historyManager;
     this.settings = dependencies.settings;
     this.changeDiffViewer = new ChangeDiffViewer();
+    this.imageAttachments = new ImageAttachmentController(this._context, dependencies.settings, dependencies.secrets);
     this.disposables.push(this.changeDiffViewer);
     this.chatHandler = new ChatHandler(
       this._context,
@@ -70,6 +73,7 @@ export class WebviewProvider implements vscode.WebviewViewProvider, vscode.Dispo
       this.chatHandler,
       dependencies.settings,
       dependencies.secrets,
+      dependencies.modelProviderFactory,
     );
     this.historyHandler = new HistoryHandler(
       this.historyManager,
@@ -80,6 +84,10 @@ export class WebviewProvider implements vscode.WebviewViewProvider, vscode.Dispo
         }
       },
       (id) => this.chatHandler.prepareConversationDeletion(id),
+      async (conversation) => {
+        const attachments = conversation.messages.flatMap((message) => message.imageAttachments ?? []);
+        await Promise.allSettled(attachments.map((attachment) => this.imageAttachments.delete(attachment)));
+      },
     );
     this.registerMessageHandlers();
     this.disposables.push(vscode.workspace.onDidChangeWorkspaceFolders(() => {
@@ -101,7 +109,9 @@ export class WebviewProvider implements vscode.WebviewViewProvider, vscode.Dispo
 
     webviewView.webview.options = {
       enableScripts: true,
-      localResourceRoots: devServerUrl ? [webviewDistUri, codiconsDistUri] : [webviewDistUri],
+      localResourceRoots: devServerUrl
+        ? [webviewDistUri, codiconsDistUri, this.imageAttachments.cacheRoot]
+        : [webviewDistUri, this.imageAttachments.cacheRoot],
       portMapping: [
         {
           webviewPort: 5175,
@@ -281,8 +291,20 @@ export class WebviewProvider implements vscode.WebviewViewProvider, vscode.Dispo
       "getHistory", "deleteConversation", "deleteConversations", "loadConversation", "loadConversationPage",
     ] as const, (message, view) => this.historyHandler.handle(message, view));
 
-    this.commandDispatcher.register("selectContextFiles", (message, view) => {
-      void this.handleSelectContextFiles(message.conversationId, view);
+    this.commandDispatcher.register("selectAttachments", (message, view) => {
+      void this.handleSelectAttachments(message.requestId, message.conversationId, view);
+    });
+    this.commandDispatcher.register("uploadClipboardImage", (message, view) => {
+      void this.imageAttachments.uploadClipboard(view.webview, message).then(
+        (attachment) => view.webview.postMessage({ type: "imageAttachmentsSelected", requestId: message.requestId, attachments: [attachment] }),
+        (error: unknown) => view.webview.postMessage({ type: "imageAttachmentsSelected", requestId: message.requestId, attachments: [], error: getErrorMessage(error) }),
+      );
+    });
+    this.commandDispatcher.register("deleteImageAttachment", (message, view) => {
+      void this.imageAttachments.delete(message.attachment).then(
+        () => view.webview.postMessage({ type: "imageAttachmentDeleted", requestId: message.requestId, fileId: message.attachment.fileId, success: true }),
+        (error: unknown) => view.webview.postMessage({ type: "imageAttachmentDeleted", requestId: message.requestId, fileId: message.attachment.fileId, success: false, error: getErrorMessage(error) }),
+      );
     });
     this.commandDispatcher.register("getPathCompletions", (message, view) => {
       void this.handlePathCompletions(message, view);
@@ -337,17 +359,39 @@ export class WebviewProvider implements vscode.WebviewViewProvider, vscode.Dispo
     await operation(context.binding);
   }
 
-  private async handleSelectContextFiles(conversationId: string | undefined, webviewView: vscode.WebviewView): Promise<void> {
+  private async handleSelectAttachments(
+    requestId: string,
+    conversationId: string | undefined,
+    webviewView: vscode.WebviewView,
+  ): Promise<void> {
     const selected = await vscode.window.showOpenDialog({
       canSelectFiles: true,
       canSelectFolders: false,
       canSelectMany: true,
-      title: "Add context files",
-      openLabel: "Add to chat",
+      title: "Attach files",
+      openLabel: "Attach to chat",
     });
-    if (!selected?.length) {
-      return;
+    if (!selected?.length) {return;}
+    try {
+      const { attachments, contextUris } = await this.imageAttachments.classifyAndUpload(webviewView.webview, selected);
+      await webviewView.webview.postMessage({ type: "imageAttachmentsSelected", requestId, attachments });
+      await this.handleSelectedContextFiles(contextUris, conversationId, webviewView);
+    } catch (error: unknown) {
+      await webviewView.webview.postMessage({
+        type: "imageAttachmentsSelected",
+        requestId,
+        attachments: [],
+        error: getErrorMessage(error),
+      });
     }
+  }
+
+  private async handleSelectedContextFiles(
+    selected: readonly vscode.Uri[],
+    conversationId: string | undefined,
+    webviewView: vscode.WebviewView,
+  ): Promise<void> {
+    if (!selected.length) {return;}
     const context = await this.chatHandler.getWorkspaceContext(conversationId);
     const files: ReferencedFilePayload[] = [];
     for (const uri of selected.slice(0, 10)) {
@@ -440,4 +484,8 @@ function relativeUriPath(root: vscode.Uri, candidate: vscode.Uri): string | unde
     return undefined;
   }
   return relative.replace(/\\/g, "/");
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

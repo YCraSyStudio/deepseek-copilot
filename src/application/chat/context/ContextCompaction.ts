@@ -6,6 +6,7 @@ import type { ConversationContextSummary } from "@/application/chat/ProviderTran
 import type { ProviderUsage, UsagePhase } from "@/shared/usage/Usage";
 import { takeUtf8Head, takeUtf8Tail } from "@/shared/utils/BoundedText";
 import { assessRequestBudget } from "./ContextBudget";
+import { getTextContent } from "@/contracts/deepseek/Chat";
 
 const AUXILIARY_MAX_TOKENS = 4096;
 const MAX_RANGE_COUNT = 12;
@@ -141,7 +142,7 @@ export class ContextCompactor {
       if (this.signal.aborted) {
         throw createAbortError();
       }
-      return response.choices[0]?.message.content ?? "";
+      return getTextContent(response.choices[0]?.message.content);
     } finally {
       this.onPromptUsage?.(messages, usage);
       this.onUsage?.(phase, usage);

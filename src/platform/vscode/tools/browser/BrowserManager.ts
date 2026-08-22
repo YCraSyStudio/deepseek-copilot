@@ -4,7 +4,7 @@ import * as fs from "node:fs/promises";
 import { createReadStream } from "node:fs";
 import { createHash } from "node:crypto";
 import puppeteer from "puppeteer-core";
-import { getSystemBrowserCandidates, type BrowserExecutable } from "@/infrastructure/browser/BrowserDiscovery";
+import type { BrowserExecutable } from "@/infrastructure/browser/BrowserDiscovery";
 import { DENIED_SANDBOX_BYPASS_ARGUMENT } from "@/infrastructure/browser/BrowserLaunchPolicy";
 import {
   Browser as ManagedBrowser,
@@ -108,17 +108,11 @@ export class BrowserManager {
   }
 
   private async resolveInternal(allowInstall: boolean): Promise<BrowserExecutable> {
-    for (const candidate of getSystemBrowserCandidates()) {
-      if (await isFile(candidate.path) && await validatesWithCdp(candidate.path)) {
-        this.resolved = candidate;
-        return candidate;
-      }
-    }
     const managed = await this.findManaged();
     if (managed) {this.resolved = managed; return managed;}
-    if (!allowInstall) {throw new Error("No compatible Edge, Chrome, or managed Chromium Headless installation found");}
+    if (!allowInstall) {throw new Error("No compatible managed Chromium Headless installation found");}
     const choice = await vscode.window.showWarningMessage(
-      `No compatible Edge or Chrome installation was found. Download Chromium Headless ${HEADLESS_SHELL_BUILD} (approximately 100 MB) to ${this.context.globalStorageUri.fsPath}?`,
+      `Web search requires the managed Chromium Headless ${HEADLESS_SHELL_BUILD}. Download it (approximately 100 MB) to ${this.context.globalStorageUri.fsPath}?`,
       { modal: true },
       "Download Chromium Headless",
     );

@@ -2,85 +2,53 @@
 
 # Settings, Secrets, and History
 
-## `SettingsManager`
+## Settings
 
-Initializes, normalizes, and atomically writes `~/.yrs-dpsk-copilot/settings.json`. The normalized in-memory copy is authoritative after activation; runtime reads never reload a potentially stale disk value.
+`src/platform/vscode/storage/SettingsManager.ts` atomically stores normalized settings in `~/.yrs-dpsk-copilot/settings.json`. Runtime reads use the confirmed in-memory revision.
 
-It must handle:
+Current defaults and limits:
 
-- DeepSeek-only defaults.
-- normalization of `toolExecutionModes`.
-- `maxTokens`, clamped to 1–384,000 with a default of 8,192. This is the requested output allowance, not the 1M-token V4 context window; runtime model capabilities may lower it.
-- `maxToolRounds`, clamped to 1–20 with a default checkpoint interval of 6.
-- `maxConcurrentGenerations`, clamped to 1–16 with a default of 8.
-- ignoring old configuration that no longer applies.
-- never persisting `apiKey`.
-- serializing writes and publishing a new monotonic revision only after durable persistence succeeds.
-- retaining the last confirmed value and revision when persistence fails.
-- returning immutable permission snapshots after pending writes settle. Untrusted workspaces receive an effective `default` snapshot with no per-tool auto-approval while the saved global choice remains unchanged.
+- models: `deepseek-v4-flash-vision-exp` (default) and `deepseek-v4-pro`.
+- permission modes: `default`, `auto-approve`, and `full-access` only.
+- Web search: enabled by default and represented by one capability toggle.
+- output allowance: 8,192 tokens, clamped to 1–384,000.
+- default-mode tool checkpoint: 6 rounds, clamped to 1–20.
+- concurrent generations: 8, clamped to 1–16.
+- history retention: 30 days by default.
 
-## `SecretsManager`
+API keys are never part of settings.
 
-Stores the API key with `context.secrets`.
+## Secrets
 
-Current credential bundle:
+`SecretsManager` stores credentials per normalized API origin in VS Code Secret Storage. The webview receives only configured/missing state and a masked placeholder. Keys must never enter settings, history, checkpoints, diagnostics, URLs, logs, or visible errors. Redirects must preserve the selected credential origin.
 
-- `yrs-dpsk-copilot.apiCredentials.v2`
+## Conversation history
 
-Credentials are keyed by normalized API origin. The legacy
-`yrs-dpsk-copilot.apiKey` value is migrated atomically to the current origin and
-then removed. Changing origins requires native confirmation and does not copy a
-credential to the new destination. Resetting settings preserves every stored
-origin credential; deleting a credential removes only the active origin.
+`HistoryManager` stores one validated schema-v2 conversation per JSON manifest under `~/.yrs-dpsk-copilot/history/`; large message sets use bounded internal segments. Conversations include immutable workspace binding, generation ownership, terminal status, timeline, tool presentation, and image attachment metadata.
 
-The webview receives only `configured` or `missing` state plus a masked preview
-for the input placeholder. The secret is not part of `WebviewConfig`.
+Terminal generation statuses are `completed`, `cancelled`, `interrupted`, and `error`. Explicit Stop persists a `cancelled` turn with its user message, partial assistant timeline, and completed tool results. Only complete provider protocol sequences are eligible for future replay.
 
-Rule: never write an API key to logs, history, settings, checkpoints, webview
-configuration, or visible messages. API requests and redirects must remain on
-the normalized origin selected for that credential.
+History is limited by retention and quota, excludes the active conversation from silent cleanup, and isolates malformed files. Disabling history enters Incognito mode: active data stays in memory and reaches history only through an explicit save transition.
 
-## `HistoryManager`
+## Image attachments
 
-Stores a validated schema-v2 manifest per conversation under `~/.yrs-dpsk-copilot/history/`. Small conversations remain compatible monolithic JSON; large message collections are migrated lazily and atomically into internal segments of at most 4 MiB.
+- Image metadata stores the DeepSeek `fileId`, media type, byte size, origin, upload and expiry times, API origin, and local cache filename.
+- Raw Base64 is never persisted. Clipboard Base64 is only a bounded transient protocol payload.
+- Preview bytes live under the extension's `globalStorage/image-attachments` area, not in the conversation JSON.
+- Picker uploads allow up to eight JPEG, PNG, GIF, or WebP images per message and 64 MiB per image. Clipboard IPC is limited to 16 MiB per image.
+- Uploads use DeepSeek Files API `purpose=user_data` with a 30-day expiry.
+- Removing a draft attachment attempts remote deletion and clears its preview cache.
+- Conversation deletion defers attachment cleanup until the Undo window closes. Undo therefore restores both the conversation and its image previews.
 
-It should support:
+## Generation checkpoints
 
-- listing history.
-- loading a conversation.
-- deleting a conversation.
-- serializing mutations per conversation.
-- persisting completed, interrupted, and error generation outcomes with their `generationId`.
-- atomically migrating structurally valid unversioned conversations during the issue #61 compatibility window, while isolating malformed files.
-- assigning deterministic `generationId` values to historical turns and terminal `generationStatus` values to historical assistant and error messages.
-- storing complete canonical DeepSeek transcripts host-side for new tool-enabled generations while exposing only presentation messages to the webview.
-- storing an internal context summary with the atomic generation IDs it replaces; legacy conversations remain replayable as visible user/assistant text without inventing tool protocol.
-- persisting schema-2 compaction boundaries and never reintroducing covered generations into provider context.
-- enforcing a 256 MiB total quota and applying retention only to inactive conversations; the active conversation is never silently deleted.
+`GenerationCheckpointStore` keeps one atomic schema-3 checkpoint per conversation under `~/.yrs-dpsk-copilot/generation-checkpoints/`.
 
-Legacy compatibility has no date-based runtime cutoff. It remains active until the cleanup tracked by issue draft 019 is released.
-
-History should avoid storing temporary data that can be rebuilt from the UI.
-
-When `historyEnabled` is false the product enters **Incognito mode**. Existing
-history files remain untouched, but reads and writes are unavailable. New turns
-stay in an explicitly incognito `ConversationState` and can reach history only
-through the confirmed "Save and leave" transition. Enabling history by itself
-must never promote an incognito session.
-
-## `GenerationCheckpointStore`
-
-Stores one atomic checkpoint per conversation under `~/.yrs-dpsk-copilot/generation-checkpoints/`.
-
-- Streaming checkpoints are coalesced to at most one write every 500 ms; queue and tool-state transitions are saved immediately.
-- Checkpoints contain partial content, timeline, tool states, the canonical transcript accumulated so far, queued prompts, recoverable cancelled drafts, non-secret configuration, the immutable `workspaceBinding`, the active permission-round snapshot, and a monotonic revision. External context snapshots are never checkpointed.
-- API keys are never checkpointed.
-- Schema-3 checkpoints distinguish queued prompts from cancelled drafts. Compaction boundaries remain in conversation history instead of being duplicated in checkpoints; schema-1 and schema-2 checkpoints remain readable.
-- A serialized checkpoint is limited to 16 MiB. Oversized state is rebuilt as a compact snapshot; if even the minimum recoverable state does not fit, persistence fails visibly instead of reporting a false save.
-- Activation preserves a checkpoint already marked complete with its valid transcript. Partial work becomes an interrupted history turn, unfinished tools become `cancelled`, and queued prompts return as user-selectable drafts.
-- Invalid checkpoints are isolated under `generation-checkpoints/corrupt/`.
-- Completing or deleting a conversation removes its checkpoint.
-- Incognito mode invalidates pending checkpoint writes, clears live checkpoint
-  files, and disables generation, queue, recovery, and shutdown checkpointing.
+- Streaming writes are coalesced; queue and tool transitions persist immediately.
+- Checkpoints contain partial presentation state, canonical transcript, queued prompts, image metadata, non-secret configuration, workspace binding, permission snapshot, and a monotonic revision.
+- A checkpoint is limited to 16 MiB and is compacted before failing visibly.
+- Host shutdown restores partial work as `interrupted`, unfinished tools as `cancelled`, and queued prompts as recoverable drafts.
+- Explicit user cancellation is a persisted conversation outcome, not a recoverable cancelled draft.
+- Completing or deleting a conversation removes its checkpoint; malformed records are isolated.
 
 [Back](INDEX.md)

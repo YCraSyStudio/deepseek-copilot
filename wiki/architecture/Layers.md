@@ -2,69 +2,52 @@
 
 # Layers
 
-## `src/adapters`
+## `src/contracts`
 
-Contains shared types and stable contracts:
+Stable serializable contracts shared by the extension host and React webview:
 
-- `deepseek/Chat.ts`: chat messages, request/response types, streaming chunks, and system prompt helpers.
-- `Config.ts`: `AppConfig`, defaults, and DeepSeek-only configuration types.
-- `messages/WebviewModels.ts`: shared wire models.
-- `messages/WebviewRequests.ts`: messages accepted from the webview.
-- `messages/WebviewEvents.ts`: events emitted to the webview.
-- `messages/Webview.ts`: compatibility barrel for historical imports.
-- `deepseek/Models.ts`: DeepSeek models and reasoning options.
+- DeepSeek chat messages, models, tools, and configuration.
+- protocol-v5 webview models, incoming requests, and outgoing events.
+- no React, VS Code, filesystem, or HTTP dependencies.
 
-This layer must not depend on React, VS Code, or HTTP.
+## `src/application`
 
-## `src/core`
+Framework-independent use cases and domain rules:
 
-Contains framework-independent chat and tool logic:
+- conversation state, queues, generation ownership, context budgeting, and compaction.
+- tool registry, validation, execution pipeline, and tool-call cycle.
+- ports implemented by concrete model, persistence, runtime, and tool adapters.
 
-- `GenerationCoordinator` for per-conversation queues and bounded cross-conversation concurrency.
-- tool registry.
-- execution and validation.
-- file tools in `tools/builtins/fileSystem`.
-- terminal tools and danger analysis in `tools/builtins/terminal`.
-- `ToolWorkspace` interface and async-scoped host selection for workspace access without importing `vscode`.
-- provider-neutral context compaction through a core-owned minimal interface.
+Main rule: `application` must not import `vscode` or concrete DeepSeek clients.
 
-Main rule: `core` must not import `vscode`.
+## `src/infrastructure`
 
-## `src/deepseekApi`
+Concrete external integrations:
 
-Contains DeepSeek integration:
+- DeepSeek chat/FIM requests, SSE validation, retries, Files API, and provider models.
+- independent DeepSeek mutation review.
+- built-in filesystem, terminal, and vision tools.
+- isolated browser search and page extraction.
 
-- DeepSeek provider.
-- chat/FIM requests.
-- SSE streaming.
-- tool-call requests and parsing.
-- API types and errors.
+The `analyze_images` built-in delegates image file IDs to V4 Vision and returns text to V4 Pro. It does not expose VS Code UI concerns.
 
-It should not contain UI logic or direct VS Code manipulation.
+## `src/platform/vscode`
 
-## `src/vscodeApi`
+VS Code-specific adapters:
 
-Contains concrete VS Code adapters:
+- activation, commands, workspace access, Secret Storage, settings, history, and generation checkpoints.
+- webview routing and validation, native file picker, clipboard-image upload, and local image-preview cache.
+- terminal process control, path resolution, confirmations, and native change diffs.
 
-- activation and commands.
-- `WebviewProvider`.
-- message handlers.
-- settings, JSON-file conversation history, and generation checkpoints.
-- API key access through `SecretStorage`.
-- filesystem/workspace/terminal implementation for tools.
-- chat orchestration in `webviews/handlers/chat`, split into slash commands,
-  workspace references, generation context, execution, recovery, and checkpoints.
-- workspace path resolution and inline diff preview as separate tool adapters.
+Host-side validation and permission decisions are authoritative; the webview never grants itself filesystem or tool access.
 
 ## `src/ui`
 
-Contains the React webview:
+The React webview:
 
 - Chat, History, and Settings views.
-- messaging hooks.
-- rendering for streaming, tool results, and confirmations.
-- chat tool UI grouped under `components/chatView/tools`.
-- settings grouped into `model`, `sections`, and `tabs`.
-- Vite build to `dist/webview`.
+- one compact composer with unified attachments, model/reasoning picker, permission mode, and send/stop controls.
+- chronological streaming, image previews, Activity groups, tool results, and confirmations.
+- Vite output in `dist/webview`.
 
 [Back](INDEX.md)

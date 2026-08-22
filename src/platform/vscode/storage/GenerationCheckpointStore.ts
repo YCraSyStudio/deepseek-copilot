@@ -171,31 +171,37 @@ function isPermissionSnapshot(value: unknown): value is PermissionSnapshot {
   return Number.isSafeInteger(snapshot.revision) &&
     typeof snapshot.workspaceTrusted === "boolean" &&
     typeof snapshot.fingerprint === "string" &&
-    (snapshot.permissionMode === "default" || snapshot.permissionMode === "read-only" || snapshot.permissionMode === "custom" ||
-      snapshot.permissionMode === "full-access" || snapshot.permissionMode === "auto-approve") &&
-    !!snapshot.toolExecutionModes &&
-    typeof snapshot.toolExecutionModes === "object";
+    (snapshot.permissionMode === "default" || snapshot.permissionMode === "full-access" || snapshot.permissionMode === "auto-approve");
 }
 
 function migrateLegacyPermissionMode(value: unknown): unknown {
   if (!value || typeof value !== "object") {return value;}
   const checkpoint = value as {
-    config?: { permissionMode?: unknown };
-    permissionSnapshot?: { permissionMode?: unknown };
+    config?: { permissionMode?: unknown; toolExecutionModes?: unknown };
+    permissionSnapshot?: { permissionMode?: unknown; toolExecutionModes?: unknown };
   };
   if (checkpoint.config?.permissionMode === "workspace") {
     checkpoint.config.permissionMode = "full-access";
-  } else if (checkpoint.config?.permissionMode === "chat" || checkpoint.config?.permissionMode === "enabled") {
+  } else if (
+    checkpoint.config?.permissionMode === "chat" ||
+    checkpoint.config?.permissionMode === "enabled" ||
+    checkpoint.config?.permissionMode === "read-only" ||
+    checkpoint.config?.permissionMode === "custom"
+  ) {
     checkpoint.config.permissionMode = "default";
   }
   if (checkpoint.permissionSnapshot?.permissionMode === "workspace") {
     checkpoint.permissionSnapshot.permissionMode = "full-access";
   } else if (
     checkpoint.permissionSnapshot?.permissionMode === "chat" ||
-    checkpoint.permissionSnapshot?.permissionMode === "enabled"
+    checkpoint.permissionSnapshot?.permissionMode === "enabled" ||
+    checkpoint.permissionSnapshot?.permissionMode === "read-only" ||
+    checkpoint.permissionSnapshot?.permissionMode === "custom"
   ) {
     checkpoint.permissionSnapshot.permissionMode = "default";
   }
+  if (checkpoint.config) {delete checkpoint.config.toolExecutionModes;}
+  if (checkpoint.permissionSnapshot) {delete checkpoint.permissionSnapshot.toolExecutionModes;}
   return value;
 }
 

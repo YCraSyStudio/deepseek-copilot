@@ -4,8 +4,19 @@ export const changelog: PageContent = {
   navTitle: "更新日志",
   title: "更新日志",
   description: "重要变更和预览状态。",
-  lead: "0.1.9 隔离并发对话，实现原子取消、校准上下文压缩和输出溢出恢复；Marketplace 通过正常渠道提供 Preview 版本，GitHub Release 仍标记为预发布。",
+  lead: "预览版 0.1.10 新增 DeepSeek 视觉能力、统一附件、三种权限模式、协议 v5，以及稳定的终止取消语义。",
   sections: [
+    {
+      title: "0.1.10 视觉、权限、输入框与取消",
+      items: [
+        "用 DeepSeek V4 Vision (Flash) 替代非视觉 Flash。Vision 直接读取 Files API 引用；只有提示包含图像时，V4 Pro 才获得 analyze_images。",
+        "当实验性 Vision 不可用时，由提供商执行一次稳定 V4 Flash 重试。图像聊天会明确说明视觉输入已省略；V4 Pro 的委托图像分析则显式失败，不会接受虚假的图像描述。",
+        "文件和图像统一使用 + 选择器，支持 Ctrl+V/Cmd+V 粘贴、按签名检测 JPEG/PNG/GIF/WebP、30 天 Files API 到期、本地预览和兼容撤销的清理。",
+        "权限简化为 default、auto-approve 和 full-access；移除逐工具矩阵与本地危险分析器，将 Web search 放到 Permission mode 下并提供统一开关。",
+        "聊天输入区重构为紧凑单一 composer，并使用一个上下文生成按钮：草稿为空时为 Stop，有内容时按 Enter 为 Guide，按住 Ctrl 或使用 Ctrl+Enter 时为 Queue。",
+        "Stop 会将提示、部分 timeline 和已完成工具结果保留为 cancelled。Steering 现在会验证源生成任务，按最新指导明确继续原始任务，并隐藏内部 interrupted 传输边界。",
+      ],
+    },
     {
       title: "0.1.9 并发对话隔离、取消与校准上下文",
       items: [

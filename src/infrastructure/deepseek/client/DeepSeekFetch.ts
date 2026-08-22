@@ -1,28 +1,31 @@
 import { DeepSeekApiError } from "@/infrastructure/deepseek/errors/DeepSeekApiError";
 import { buildDeepSeekAuthHeaders } from "@/infrastructure/deepseek/auth/AuthHeaders";
 import { ApiOriginError, assertSameApiOrigin, normalizeApiBaseUrl } from "@/shared/security/ApiOrigin";
+import { readBoundedJson } from "./BoundedResponseJson";
 
 const DEEPSEEK_BASE_URL = "https://api.deepseek.com";
 const CONNECTION_TIMEOUT_MS = 30_000;
 const MAX_ATTEMPTS = 3;
 const MAX_REDIRECTS = 5;
+const MAX_ERROR_RESPONSE_BYTES = 64 * 1024;
 
 interface DeepSeekFetchOptions {
   pathOrUrl: string;
   apiKey: string;
   baseUrl?: string;
   requestInit?: RequestInit;
+  timeoutMs?: number;
 }
 
 export async function deepseekFetch(options: DeepSeekFetchOptions): Promise<Response> {
-  const { pathOrUrl, apiKey, baseUrl = DEEPSEEK_BASE_URL, requestInit = {} } = options;
+  const { pathOrUrl, apiKey, baseUrl = DEEPSEEK_BASE_URL, requestInit = {}, timeoutMs = CONNECTION_TIMEOUT_MS } = options;
   const normalizedBaseUrl = normalizeApiBaseUrl(baseUrl);
   const url = buildApiUrl(normalizedBaseUrl, pathOrUrl);
 
   const attempts = canRetryRequest(requestInit) ? MAX_ATTEMPTS : 1;
   for (let attempt = 1; attempt <= attempts; attempt++) {
     const timeoutController = new AbortController();
-    const timeout = setTimeout(() => timeoutController.abort(new DOMException("API connection timed out", "TimeoutError")), CONNECTION_TIMEOUT_MS);
+    const timeout = setTimeout(() => timeoutController.abort(new DOMException("API connection timed out", "TimeoutError")), timeoutMs);
     const signal = requestInit.signal ? AbortSignal.any([requestInit.signal, timeoutController.signal]) : timeoutController.signal;
     try {
       const response = await fetchWithSameOriginRedirects(url, normalizedBaseUrl, apiKey, { ...requestInit, signal });
@@ -35,11 +38,12 @@ export async function deepseekFetch(options: DeepSeekFetchOptions): Promise<Resp
         await wait(delay, requestInit.signal);
         continue;
       }
-      await response.body?.cancel();
+      const errorDescriptor = await readSafeErrorDescriptor(response);
       throw new DeepSeekApiError(
         response.status,
         getSafeHttpErrorMessage(response.status),
-        String(response.status),
+        errorDescriptor.code ?? String(response.status),
+        errorDescriptor.reason,
       );
     } catch (error) {
       clearTimeout(timeout);
@@ -76,10 +80,14 @@ async function fetchWithSameOriginRedirects(
   let currentInit = { ...requestInit };
 
   for (let redirectCount = 0; redirectCount <= MAX_REDIRECTS; redirectCount++) {
+    const headers = buildDeepSeekAuthHeaders(apiKey, currentInit.headers || {});
+    if (currentInit.body instanceof FormData) {
+      headers.delete("Content-Type");
+    }
     const response = await fetch(currentUrl, {
       ...currentInit,
       redirect: "manual",
-      headers: buildDeepSeekAuthHeaders(apiKey, currentInit.headers || {}),
+      headers,
     });
     if (!isRedirectStatus(response.status)) {
       return response;
@@ -124,6 +132,44 @@ function getSafeHttpErrorMessage(status: number): string {
     default:
       return `API request failed with HTTP ${status}.`;
   }
+}
+
+interface SafeErrorDescriptor {
+  code?: string;
+  reason?: "model_unavailable";
+}
+
+async function readSafeErrorDescriptor(response: Response): Promise<SafeErrorDescriptor> {
+  if (!response.headers.get("content-type")?.toLowerCase().includes("json")) {
+    await response.body?.cancel().catch(() => undefined);
+    return {};
+  }
+  try {
+    const value = await readBoundedJson(response, MAX_ERROR_RESPONSE_BYTES);
+    if (!isRecord(value) || !isRecord(value.error)) {return {};}
+    const code = safeIdentifier(value.error.code);
+    const type = safeIdentifier(value.error.type);
+    const message = typeof value.error.message === "string" && value.error.message.length <= 512
+      ? value.error.message.toLowerCase()
+      : "";
+    const normalized = `${code ?? ""} ${type ?? ""}`.toLowerCase();
+    const modelCode = /(?:model_not_found|model_not_available|model_unavailable|unsupported_model|invalid_model)/.test(normalized);
+    const modelMessage = /\bmodel\b.{0,80}\b(?:not found|not available|unavailable|unsupported|does not exist|not exist|retired|deprecated)\b/.test(message);
+    return {
+      ...(code ? { code } : {}),
+      ...((modelCode || modelMessage) ? { reason: "model_unavailable" as const } : {}),
+    };
+  } catch {
+    return {};
+  }
+}
+
+function safeIdentifier(value: unknown): string | undefined {
+  return typeof value === "string" && /^[a-zA-Z0-9_.-]{1,128}$/.test(value) ? value : undefined;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
 function isRetryableStatus(status: number): boolean {

@@ -7,11 +7,9 @@ import { loadProjectInstructions } from "@/platform/vscode/configuration/Project
 import type { SecretStore, SettingsRepository } from "@/application/ports";
 import { toWebviewConfig } from "../../WebviewConfig";
 import { buildGitReviewContext } from "./FileContext";
-import type { DangerTrustStore } from "./toolCalls/DangerTrustStore";
 import type { SendMessagePayload } from "./Types";
 import type { ToolRegistry } from "@/application/tools";
 import {
-  getEffectiveToolExecutionModes,
   isPermissionMode,
   normalizePermissionMode,
   parseSlashCommand,
@@ -21,7 +19,6 @@ export interface SlashCommandServiceOptions {
   context: vscode.ExtensionContext;
   conversationState: ConversationState;
   toolRegistry: ToolRegistry;
-  dangerTrustStore: DangerTrustStore;
   getWorkspaceBinding: (conversationId?: string) => Promise<WorkspaceBinding>;
   getSelectedConversationId: () => string | undefined;
   settings: SettingsRepository;
@@ -71,7 +68,7 @@ export class SlashCommandService {
         this.postTurn(
           webviewView,
           payload.text,
-          `Unknown command: /${command.name}\n\nAvailable commands: /status, /context, /review, /goal [text], /tools, /mode default|read-only|auto-approve|full-access|custom, /auto-context on|off, /clear-context, /summarize.`,
+          `Unknown command: /${command.name}\n\nAvailable commands: /status, /context, /review, /goal [text], /tools, /mode default|auto-approve|full-access, /auto-context on|off, /clear-context, /summarize.`,
         );
         return true;
     }
@@ -87,19 +84,16 @@ export class SlashCommandService {
       `- Thinking mode: ${config.thinkingMode ? "on" : "off"}`,
       `- Permission mode: ${config.permissionMode}`,
       `- Auto context: ${config.autoContext ? "on" : "off"}`,
-      `- Tools available: ${config.thinkingMode ? tools.length : "0 (thinking mode required)"}`,
+      `- Tools available: ${tools.length}`,
     ].join("\n");
   }
 
   private buildTools(config: AppConfig): string {
     const allTools = this.options.toolRegistry.getDefinitionsForAPI();
-    const enabledTools = new Set((config.thinkingMode ? this.getEnabledTools(config) : []).map((tool) => tool.function.name));
-    const modes = getEffectiveToolExecutionModes(config.toolExecutionModes, allTools, config.permissionMode);
+    const enabledTools = new Set(this.getEnabledTools(config).map((tool) => tool.function.name));
     const lines = allTools.map((tool) => {
       const name = tool.function.name;
-      const availability = config.thinkingMode
-        ? (enabledTools.has(name) ? modes[name] : "unavailable")
-        : "unavailable (thinking mode required)";
+      const availability = enabledTools.has(name) ? "available" : "unavailable";
       return `- ${name}: ${availability}`;
     });
     return [`Tools for mode '${config.permissionMode}'`, ...lines].join("\n");
@@ -108,7 +102,7 @@ export class SlashCommandService {
   private async handleMode(args: string[], rawText: string, webviewView: vscode.WebviewView): Promise<void> {
     const mode = normalizePermissionMode(args[0]);
     if (!isPermissionMode(mode)) {
-      this.postTurn(webviewView, rawText, "Usage: /mode default|read|read-only|auto-approve|full|full-access|custom");
+      this.postTurn(webviewView, rawText, "Usage: /mode default|auto-approve|full|full-access");
       return;
     }
     if (mode === "full-access") {
@@ -116,7 +110,7 @@ export class SlashCommandService {
         "Enable global full access?",
         {
           modal: true,
-          detail: "Tools may read, modify, or delete files anywhere on this computer without confirmation. Terminal commands are not OS-sandboxed.",
+          detail: "Routine and elevated operations may run anywhere. Critical actions that could make the computer unusable or cause broad irreversible loss still require confirmation.",
         },
         "Enable full access",
       );
@@ -138,7 +132,6 @@ export class SlashCommandService {
     }
     const enabled = value === "on";
     await this.options.settings.save({ autoContext: enabled });
-    this.options.dangerTrustStore.clear();
     await this.postConfig(webviewView);
     this.postTurn(webviewView, rawText, `Auto context ${enabled ? "enabled" : "disabled"}.`);
   }
@@ -192,8 +185,9 @@ export class SlashCommandService {
 
   private getEnabledTools(config: AppConfig): ToolDefinition[] {
     const allTools = this.options.toolRegistry.getDefinitionsForAPI();
-    const modes = getEffectiveToolExecutionModes(config.toolExecutionModes, allTools, config.permissionMode);
-    return allTools.filter((tool) => modes[tool.function.name] !== "disabled");
+    return allTools.filter((tool) =>
+      config.webSearchEnabled || (tool.function.name !== "search_web" && tool.function.name !== "read_web")
+    );
   }
 
   private async postConfig(webviewView: vscode.WebviewView): Promise<void> {

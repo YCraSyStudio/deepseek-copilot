@@ -37,4 +37,22 @@ suite("StreamEventEmitter", () => {
       ],
     );
   });
+
+  test("preserves the typed steering reason on the terminal event", () => {
+    const posted: unknown[] = [];
+    const emitter = new StreamEventEmitter({
+      publish: (message: unknown) => {
+        posted.push(message);
+        return Promise.resolve();
+      },
+    });
+
+    emitter.done({ status: "interrupted", generationStopReason: "steered" });
+
+    assert.deepStrictEqual(posted, [{
+      type: "streamDone",
+      status: "interrupted",
+      generationStopReason: "steered",
+    }]);
+  });
 });

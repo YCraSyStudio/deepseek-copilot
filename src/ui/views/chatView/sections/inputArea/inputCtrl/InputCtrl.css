@@ -1,24 +1,43 @@
+.inputComposer {
+  border: 1px solid var(--input-border);
+  background: var(--input-bg);
+  border-radius: 16px;
+  padding: 5px;
+  transition: border-color .16s, box-shadow .16s;
+
+  &:focus-within {
+    border-color: var(--input-focus-border);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--input-focus-border) 18%, transparent);
+  }
+}
+
 .inputCtrl {
   flex: none;
-  justify-content: center;
-  align-items: end;
-  gap: 5px;
   display: flex;
   position: relative;
+
   .Input {
-    background: var(--input-bg);
+    background: transparent;
+    border: 0;
+    box-shadow: none;
     flex: 1 1 0;
     width: auto;
     min-width: 0;
-    min-height: 3rem;
-    max-height: 10rem;
+    min-height: 3.25rem;
+    max-height: 12rem;
     field-sizing: content;
     color: var(--text-primary);
     overflow-y: auto;
     resize: none;
     scrollbar-color: color-mix(in srgb, var(--text-secondary) 60%, transparent) transparent;
     scrollbar-width: thin;
-    padding-right: 14px;
+    padding: 7px 9px 4px;
+
+    &:focus {
+      border: 0;
+      box-shadow: none;
+      outline: none;
+    }
 
     &::-webkit-scrollbar {
       width: 10px;
@@ -47,44 +66,121 @@
       cursor: default;
     }
   }
+}
+
+.composerImageAttachments {
+  flex-wrap: wrap;
+  gap: 7px;
+  padding: 6px 7px 2px;
+  display: flex;
+}
+
+.composerImageAttachment {
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  border-radius: 9px;
+  width: 68px;
+  height: 68px;
+  position: relative;
+  overflow: visible;
+
+  img {
+    object-fit: cover;
+    border-radius: 8px;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  > .codicon-file-media {
+    color: var(--text-secondary);
+    place-items: center;
+    width: 100%;
+    height: 100%;
+    font-size: 24px;
+    display: grid;
+  }
+}
+
+.composerImageRemove {
+  border: 1px solid color-mix(in srgb, var(--border-color) 65%, white 35%);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border-radius: 50%;
+  place-items: center;
+  width: 21px;
+  height: 21px;
+  padding: 0;
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  display: grid;
+  box-shadow: 0 2px 7px #0008;
+}
+
+.inputComposerFooter {
+  min-width: 0;
+  align-items: flex-end;
+  gap: 6px;
+  display: flex;
+}
+
+.inputComposerActions {
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  padding: 0 1px 1px 0;
+  display: flex;
+
   .sendBtn {
     background: var(--button-bg);
+    border: 1px solid color-mix(in srgb, var(--button-bg) 70%, black 30%);
+    border-radius: 50%;
     width: 30px;
     height: 30px;
     color: var(--button-fg);
-    border-color: color-mix(in srgb, var(--button-bg) 70%, black 30%);
+    padding: 5px;
+
     &:hover:not(:disabled) {
       background: var(--button-hover);
+      opacity: 1;
     }
     &:disabled {
       cursor: not-allowed;
       opacity: .55;
     }
-    &.inside {
-      border-radius: 5px;
-      padding: 5px;
-    }
   }
+
   .stopBtn {
     color: #fff;
     cursor: pointer;
     background: #c83a3a;
     border: 1px solid #a82a2a;
+    border-radius: 50%;
     width: 30px;
     height: 30px;
     font-weight: 600;
+    padding: 5px;
     transition: background .15s;
+
     &:hover {
       background: #e04848;
+      opacity: 1;
     }
     &:active {
       background: #a82a2a;
     }
-    &.inside {
-      border-radius: 5px;
-      padding: 5px;
-      animation: 2s ease-in-out infinite pulse-stop;
-    }
+    animation: 2s ease-in-out infinite pulse-stop;
+  }
+}
+
+@media (max-width: 260px) {
+  .inputComposerFooter {
+    align-items: flex-end;
+  }
+
+  .inputComposerActions {
+    padding-bottom: 2px;
   }
 }
 @keyframes pulse-stop {

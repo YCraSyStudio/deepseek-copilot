@@ -157,7 +157,7 @@ suite("Extension integration", () => {
       id,
       title: "Concurrent test",
       createdAt: now,
-      model: "deepseek-v4-flash",
+      model: "deepseek-v4-flash-vision-exp",
       workspaceUri: binding.uri,
       workspaceBinding: binding,
       messages: [],
@@ -259,7 +259,6 @@ suite("Extension integration", () => {
       tools: [],
       permissionMode: "default",
       enabledTools: [],
-      toolExecutionModes: {},
       signal: new AbortController().signal,
       checkpoint: async (run) => {checkpointStatuses.push(run.status);},
     });

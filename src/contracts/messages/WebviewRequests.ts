@@ -1,8 +1,8 @@
 import type { AppConfig } from "../Config";
-import type { ReferencedFile } from "./WebviewModels";
+import type { ImageAttachment, ReferencedFile } from "./WebviewModels";
 
 export type WebviewToHandlerMessage =
-  | { type: "initializeProtocol"; protocolVersion: 3 }
+  | { type: "initializeProtocol"; protocolVersion: 5 }
   | { type: "getConfig" }
   | { type: "saveConfig"; requestId: string; config: Partial<AppConfig> }
   | { type: "resetConfig"; requestId: string }
@@ -18,6 +18,7 @@ export type WebviewToHandlerMessage =
       conversationId?: string;
       workspaceRevision?: string;
       referencedFiles?: ReferencedFile[];
+      imageAttachments?: ImageAttachment[];
     }
   | {
       type: "steerGeneration";
@@ -29,6 +30,7 @@ export type WebviewToHandlerMessage =
       conversationId: string;
       workspaceRevision?: string;
       referencedFiles?: ReferencedFile[];
+      imageAttachments?: ImageAttachment[];
     }
   | { type: "cancelGeneration"; requestId: string; generationId: string; conversationId: string }
   | { type: "getGenerationSnapshot" }
@@ -42,13 +44,15 @@ export type WebviewToHandlerMessage =
   | { type: "loadConversationPage"; requestId: string; id: string; cursor: string }
   | { type: "deleteConversation"; id: string }
   | { type: "deleteConversations"; ids: string[] }
-  | { type: "executeToolCall"; generationId: string; toolCallId: string; action: "execute" | "reject"; trustForSession?: boolean }
+  | { type: "executeToolCall"; generationId: string; toolCallId: string; action: "execute" | "reject" }
   | { type: "toolCallLimitDecision"; generationId: string; action: "continue" | "stop" }
   | { type: "getWorkspaceContext"; requestId: string; conversationId?: string }
   | { type: "rebindConversationWorkspace"; conversationId: string; workspaceRevision?: string }
   | { type: "openConversationWorkspace"; conversationId: string }
-  | { type: "selectContextFiles"; conversationId?: string }
+  | { type: "selectAttachments"; requestId: string; conversationId?: string }
   | { type: "getPathCompletions"; requestId: number; query: string; conversationId?: string; workspaceRevision?: string }
   | { type: "getAvailableTools" }
+  | { type: "uploadClipboardImage"; requestId: string; name: string; mediaType: string; size: number; dataBase64: string }
+  | { type: "deleteImageAttachment"; requestId: string; attachment: ImageAttachment }
   | { type: "openFile"; path: string; line?: number; conversationId?: string; workspaceRevision?: string }
   | { type: "openFileDiff"; path: string; diff: string; conversationId?: string; workspaceRevision?: string };

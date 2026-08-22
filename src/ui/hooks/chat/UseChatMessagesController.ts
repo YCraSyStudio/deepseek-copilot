@@ -13,7 +13,6 @@ interface ChatMessagesControllerOptions {
   onConfigUpdateResult?: (message: Extract<HandlerToWebviewMessage, { type: "configUpdateResult" }>) => void;
   onModelChanged?: (modelId: string) => void;
   onProcessingChange?: (isProcessing: boolean) => void;
-  onGenerationCancelled?: (draft?: import("@/contracts").QueuedGenerationMessage) => void;
   focusInput: () => void;
 }
 
@@ -27,7 +26,6 @@ export function useChatMessagesController({
   onConfigUpdateResult,
   onModelChanged,
   onProcessingChange,
-  onGenerationCancelled,
   focusInput,
 }: ChatMessagesControllerOptions) {
   const [internalMessages, setInternalMessages] = useState<ChatMessage[]>([]);
@@ -87,6 +85,7 @@ export function useChatMessagesController({
               toolCalls: rest.toolCalls as StoredToolCall[] | undefined,
               timeline: rest.timeline,
               usage: rest.usage,
+              imageAttachments: rest.imageAttachments,
               generationId: rest.generationId,
             },
           ];
@@ -106,7 +105,7 @@ export function useChatMessagesController({
         if (activeGenerationIdRef.current && generationId && generationId !== activeGenerationIdRef.current) {
           return;
         }
-        appendTimelineDelta(eventId, eventType, content, setMessages);
+        appendTimelineDelta(eventId, eventType, content, setMessages, generationId);
       },
       [appendTimelineDelta, setMessages],
     ),
@@ -116,7 +115,7 @@ export function useChatMessagesController({
         if (activeGenerationIdRef.current && generationId && generationId !== activeGenerationIdRef.current) {
           return;
         }
-        appendTimelineToolGroup(event, setMessages);
+        appendTimelineToolGroup(event, setMessages, generationId);
       },
       [appendTimelineToolGroup, setMessages],
     ),
@@ -130,15 +129,16 @@ export function useChatMessagesController({
         flushTimelineDeltas();
         setProcessing(false);
 
-        if (info.cancelled) {
-          if (info.generationId) {
-            setMessages((current) => current.filter((message) => message.generationId !== info.generationId));
-          }
-          resetStreaming();
-          onGenerationCancelled?.(info.restoredDraft);
-          focusInput();
-          return;
+        if (info.generationId) {
+          setMessages((current) => markGenerationTerminal(
+            current,
+            info.generationId!,
+            info.status,
+            info.generationStopReason,
+            nextMessageId,
+          ));
         }
+        resetStreaming();
 
         const incompleteMessage = getIncompleteFinishMessage(info.finish_reason);
         if (incompleteMessage) {
@@ -147,7 +147,7 @@ export function useChatMessagesController({
 
         focusInput();
       },
-      [focusInput, setMessages, setProcessing, resetStreaming, onGenerationCancelled, flushTimelineDeltas, nextMessageId],
+      [focusInput, setMessages, setProcessing, resetStreaming, flushTimelineDeltas, nextMessageId],
     ),
 
     onStreamError: useCallback(
@@ -202,6 +202,30 @@ export function useChatMessagesController({
   };
 
   return { messages, isProcessing, listRef, dispatcher };
+}
+
+function markGenerationTerminal(
+  messages: ChatMessage[],
+  generationId: string,
+  status: "completed" | "cancelled" | "interrupted",
+  generationStopReason: ChatMessage["generationStopReason"],
+  nextMessageId: () => string,
+): ChatMessage[] {
+  let assistantIndex = -1;
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index].role === "assistant" && messages[index].generationId === generationId) {
+      assistantIndex = index;
+      break;
+    }
+  }
+  if (assistantIndex < 0) {
+    return status === "completed"
+      ? messages
+      : [...messages, { id: nextMessageId(), role: "assistant", content: "", generationId, generationStatus: status, generationStopReason }];
+  }
+  return messages.map((message, index) => index === assistantIndex
+    ? { ...message, generationStatus: status, generationStopReason }
+    : message);
 }
 
 function findAssistantIndex(messages: ChatMessage[], generationId: string | undefined): number {

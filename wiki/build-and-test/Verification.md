@@ -33,24 +33,28 @@ In Extension Development Host:
 - send a message with streaming.
 - send messages in different conversations and verify they can run concurrently up to the configured limit.
 - send a second message in the same conversation and verify it remains queued.
-- use Interrupt and guide and verify the guidance runs before older queued prompts.
+- during a generation, verify the single contextual button shows Stop for an empty draft, Guide for content, and Queue while `Ctrl` is held. Verify `Enter` guides before older queued prompts, `Ctrl+Enter` appends to the queue, and `Shift+Enter` inserts a newline.
 - cancel conversation A, immediately create conversation B, then deliver late stream, tool, error, and terminal events for A; verify B keeps a new identity and never renders or receives A's work.
-- cancel a generation and verify its complete turn disappears from visible and provider context, its draft is restored, and repeated or stale Stop requests are harmless.
+- cancel a generation and verify its prompt, partial response, reasoning, and completed tool results remain as one terminal `cancelled` turn; verify completed side effects are not rolled back and repeated or stale Stop requests are harmless.
 - switch repeatedly between two concurrent conversations; verify both complete, history shows queued/running/cancelling activity, and snapshots rebuild only the selected chat.
-- verify steering retains continuity without restoring the interrupted prompt as though Stop had been pressed.
+- verify steering records `interrupted` with stop reason `steered`, queues guidance first, injects continuation semantics only for the matching source generation, and does not display the internal interruption warning. Verify stale metadata becomes an ordinary follow-up and explicit Stop remains visibly `cancelled`.
 - cancel before run creation and during context, compaction, partial streaming, confirmation, browser work, terminal work, and mutation-lock wait; verify exactly one terminal event and no deferred mutation after cancellation.
 - reload or recreate the webview during a run and verify the generation snapshot restores visible state.
 - close VS Code with active and queued work, then verify partial output and queued prompts recover on activation.
 - use history.
 - type `./` in the chat input and select a suggested path; verify `../` never opens autocomplete and is rejected if sent manually.
+- attach an ordinary file and an image through the same `+` picker; verify signature-based routing, preview, removal, and a maximum of eight images.
+- paste JPEG, PNG, GIF, and WebP images with `Ctrl+V`/`Cmd+V`; verify the bounded Base64 IPC value is discarded after upload and never appears in history or provider messages.
+- with V4 Vision, verify file IDs are sent directly; with V4 Pro, verify `analyze_images` is available only when the prompt has images and returns a Vision-generated text description.
+- simulate Vision model-unavailable, 404, and 410 responses on the official origin; verify one retry uses stable Flash, strips image blocks, and discloses the limitation. Verify V4 Pro image analysis fails explicitly and that 401, 403, 429, generic 5xx, cancellation, and custom-origin failures do not retry.
+- delete a conversation containing images, use Undo, then permanently delete it and verify preview/remote cleanup happens only after the Undo window.
 - execute a safe tool.
 - confirm or cancel a dangerous tool.
 - open a file from preview.
 - delete a conversation with active or queued work and verify its run, queue, and checkpoint are removed first.
 - run mutating tools from concurrent conversations and verify mutations remain serialized within the same workspace.
 - verify the API-key preview appears as the input placeholder on first open.
-- verify auto-approve performs local analysis, remote review, rejection guidance,
-  and manual fallback without losing a generation round.
+- verify auto-approve and full-access use the independent DeepSeek reviewer without a local danger analyzer, apply routine/elevated/critical policy correctly, and preserve rejection guidance without losing a generation round.
 - verify grouped activity remains compact until expanded.
 - verify “Open file” opens the affected file and a file mutation opens the
   specific change diff.
@@ -74,6 +78,7 @@ Review [Official DeepSeek references](../deepseek-api/Official-References.md) wh
 - thinking mode.
 - JSON output.
 - tool calls.
+- vision and Files API references.
 - FIM.
 - HTTP errors.
 

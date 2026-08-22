@@ -1,9 +1,8 @@
 import { useEffect, useRef } from "react";
 import type { VsCodeApi } from "@webview/VsCodeApi";
-import { WEBVIEW_PROTOCOL_VERSION, type AssistantTimelineEvent, type HandlerToWebviewMessage, type AppConfig, type StoredToolCall, type ToolCall } from "@/contracts";
+import { WEBVIEW_PROTOCOL_VERSION, type AssistantTimelineEvent, type ConversationMessage, type HandlerToWebviewMessage, type AppConfig, type ImageAttachment, type StoredToolCall, type ToolCall } from "@/contracts";
 import type { UsageAggregate } from "@/shared/usage/Usage";
 import type { ApiKeyStatus, DangerConfirmationData, ToolCallStatus } from "../ChatViewTypes";
-import type { QueuedGenerationMessage } from "@/contracts";
 import { setInterfaceLanguage } from "@webview/i18n";
 import { acceptMessageForScope } from "./GenerationEventScope";
 
@@ -11,9 +10,9 @@ import { acceptMessageForScope } from "./GenerationEventScope";
  * Additional streamDone event data.
  */
 export type StreamDoneInfo = {
-  cancelled?: boolean;
+  status: "completed" | "cancelled" | "interrupted";
   finish_reason?: string;
-  restoredDraft?: QueuedGenerationMessage;
+  generationStopReason?: ConversationMessage["generationStopReason"];
 };
 
 /**
@@ -29,6 +28,7 @@ export type MessageDispatcher = {
     toolCallId?: string;
     toolName?: string;
     usage?: UsageAggregate;
+    imageAttachments?: ImageAttachment[];
     generationId: string;
   }) => void;
   onShowTyping?: (generationId?: string) => void;
@@ -103,10 +103,10 @@ export function useMessageHandler(
 
         case "streamDone":
           dispatcherRef.current.onStreamDone?.({
-            cancelled: message.cancelled,
+            status: message.status,
             finish_reason: message.finish_reason,
+            generationStopReason: message.generationStopReason,
             generationId: message.generationId,
-            restoredDraft: message.restoredDraft,
           });
           break;
 

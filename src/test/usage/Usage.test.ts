@@ -65,7 +65,7 @@ suite("usage observability", () => {
 
   suite("aggregation and availability", () => {
     test("counts each request once and keeps absent usage unavailable", () => {
-      const aggregate = createUsageAggregate(true, "deepseek-v4-flash");
+      const aggregate = createUsageAggregate(true, "deepseek-v4-flash-vision-exp");
       recordUsage(aggregate, "tool_round", {
         prompt_tokens: 100,
         completion_tokens: 20,
@@ -102,8 +102,8 @@ suite("usage observability", () => {
     });
 
     test("combines generation aggregates into a conversation total", () => {
-      const first = createUsageAggregate(true, "deepseek-v4-flash");
-      const second = createUsageAggregate(true, "deepseek-v4-flash");
+      const first = createUsageAggregate(true, "deepseek-v4-flash-vision-exp");
+      const second = createUsageAggregate(true, "deepseek-v4-flash-vision-exp");
       recordUsage(first, "primary", completeUsage(100, 20, 75, 25));
       recordUsage(second, "security_review", completeUsage(50, 10, 40, 10));
       const conversation = aggregateUsageAggregates([first, second]);
@@ -120,7 +120,7 @@ suite("usage observability", () => {
     test("uses the current V4 Flash and V4 Pro prices", () => {
       const usage = completeUsage(1_000, 100, 700, 300);
       assert.strictEqual(
-        estimateUsageCost(usage, "deepseek-v4-flash"),
+        estimateUsageCost(usage, "deepseek-v4-flash-vision-exp"),
         rounded((300 * 0.14 + 700 * 0.0028 + 100 * 0.28) / 1_000_000),
       );
       assert.strictEqual(
@@ -131,12 +131,12 @@ suite("usage observability", () => {
 
     test("does not estimate unknown models or usage without cache attribution", () => {
       const incomplete = { prompt_tokens: 10, completion_tokens: 2, total_tokens: 12 };
-      assert.strictEqual(estimateUsageCost(incomplete, "deepseek-v4-flash"), undefined);
+      assert.strictEqual(estimateUsageCost(incomplete, "deepseek-v4-flash-vision-exp"), undefined);
       assert.strictEqual(estimateUsageCost(completeUsage(10, 2, 5, 5), "llama-3"), undefined);
     });
 
     test("never guesses a price for custom endpoints", () => {
-      const aggregate = createUsageAggregate(false, "deepseek-v4-flash");
+      const aggregate = createUsageAggregate(false, "deepseek-v4-flash-vision-exp");
       recordUsage(aggregate, "primary", completeUsage(10, 5, 5, 5));
       assert.strictEqual(aggregate.costUsd, undefined);
       assert.strictEqual(aggregate.currency, undefined);
@@ -163,7 +163,7 @@ suite("usage observability", () => {
     });
 
     test("rejects required totals when no request has reported usage", () => {
-      const aggregate = createUsageAggregate(true, "deepseek-v4-flash");
+      const aggregate = createUsageAggregate(true, "deepseek-v4-flash-vision-exp");
       recordUsage(aggregate, "primary");
       const inconsistent = structuredClone(aggregate);
       inconsistent.inputTokens = 12;
@@ -172,7 +172,7 @@ suite("usage observability", () => {
   });
 
   test("saturates unsafe counters and stops calculating cost", () => {
-    const aggregate = createUsageAggregate(true, "deepseek-v4-flash");
+    const aggregate = createUsageAggregate(true, "deepseek-v4-flash-vision-exp");
     const maximumUsage = {
       prompt_tokens: Number.MAX_SAFE_INTEGER,
       completion_tokens: Number.MAX_SAFE_INTEGER,

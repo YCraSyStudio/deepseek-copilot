@@ -4,39 +4,39 @@
 
 Primary source: [DeepSeek API Docs](https://api-docs.deepseek.com/).
 
-## Quick start
+## Quick start and models
 
-- [Your First API Call](https://api-docs.deepseek.com/): base URL, API key, initial models, and chat example.
-- [Models & Pricing](https://api-docs.deepseek.com/quick_start/pricing): available models, context, maximum output, features, and deprecations.
-- [Token & Token Usage](https://api-docs.deepseek.com/quick_start/token_usage): token definition and API-reported usage.
-- [Rate Limit & Isolation](https://api-docs.deepseek.com/quick_start/rate_limit): limits, isolation, and `user_id` usage.
-- [Error Codes](https://api-docs.deepseek.com/quick_start/error_codes): expected HTTP errors and recommended handling.
+- [Your First API Call](https://api-docs.deepseek.com/): base URL, authentication, and chat example.
+- [Models & Pricing](https://api-docs.deepseek.com/quick_start/pricing/): current stable models, context, output limits, features, and prices.
+- [Token Usage](https://api-docs.deepseek.com/quick_start/token_usage): token accounting.
+- [Rate Limit](https://api-docs.deepseek.com/quick_start/rate_limit): limits and isolation.
+- [Error Codes](https://api-docs.deepseek.com/quick_start/error_codes): HTTP failures and handling.
 
-## API guides
+## Guides
 
-- [Thinking Mode](https://api-docs.deepseek.com/guides/thinking_mode): `thinking`, `reasoning_effort`, `reasoning_content`, and tool-call rules.
-- [Multi-round Conversation](https://api-docs.deepseek.com/guides/multi_round_chat): message concatenation across turns.
-- [FIM Completion Beta](https://api-docs.deepseek.com/guides/fim_completion): completion with `prompt` and `suffix` using the beta base URL.
-- [JSON Output](https://api-docs.deepseek.com/guides/json_mode): `response_format: { type: "json_object" }` and prompt requirements.
-- [Tool Calls](https://api-docs.deepseek.com/guides/tool_calls): tool format, `tool` messages, strict mode, and supported schemas.
-- [Context Caching](https://api-docs.deepseek.com/guides/kv_cache): context cache and cache hit/miss tokens.
+- [Vision](https://api-docs.deepseek.com/guides/vision): `deepseek-v4-flash-vision-exp`, supported images, Files API references, and file content blocks.
+- [Thinking Mode](https://api-docs.deepseek.com/guides/thinking_mode): `thinking`, reasoning effort, `reasoning_content`, and tool interaction.
+- [Tool Calls](https://api-docs.deepseek.com/guides/tool_calls): function calls and beta strict mode.
+- [Multi-round Conversation](https://api-docs.deepseek.com/guides/multi_round_chat): message concatenation.
+- [JSON Output](https://api-docs.deepseek.com/guides/json_mode): JSON response mode.
+- [Context Caching](https://api-docs.deepseek.com/guides/kv_cache): cache hit/miss behavior.
+- [FIM Completion Beta](https://api-docs.deepseek.com/guides/fim_completion): beta completion endpoint.
 
 ## API reference
 
-- [API Reference](https://api-docs.deepseek.com/api/deepseek-api): Bearer authentication and endpoint map.
-- [Create Chat Completion](https://api-docs.deepseek.com/api/create-chat-completion): full `/chat/completions` contract.
-- [Create FIM Completion Beta](https://api-docs.deepseek.com/api/create-completion): full completion/FIM contract.
-- [List Models](https://api-docs.deepseek.com/api/list-models): available models endpoint.
+- [API Reference](https://api-docs.deepseek.com/api/deepseek-api): Bearer authentication and endpoints.
+- [Create Chat Completion](https://api-docs.deepseek.com/api/create-chat-completion): `/chat/completions`.
+- [Create FIM Completion](https://api-docs.deepseek.com/api/create-completion): completion/FIM.
+- [List Models](https://api-docs.deepseek.com/api/list-models): available-model discovery.
 
-## Rules that affect the code
+## Rules reflected in this project
 
-- The main chat endpoint is `POST /chat/completions`.
-- `stream: true` returns SSE events and ends with `data: [DONE]`.
-- `reasoning_content` appears separately from `content` in thinking mode.
-- In thinking mode, `temperature` and `top_p` have no effect according to the official guide.
-- Tool calls use `tools`, `tool_choice`, `tool` messages, and `tool_call_id`.
-- Tool arguments arrive as a JSON string and must be validated before execution.
-- JSON output requires `response_format` and prompt instructions asking for JSON.
-- FIM beta uses `https://api.deepseek.com/beta` and a 4K token maximum.
+- Images are uploaded to the Files API and referenced in chat by `file_id`; Base64 is not part of stored or provider messages.
+- Vision accepts JPEG, PNG, GIF, and WebP. The extension verifies signatures before upload.
+- Thinking can be disabled without removing tools.
+- Tool arguments are JSON strings and are host-validated before execution.
+- Thinking tool turns retain `reasoning_content` in their canonical protocol sequence.
+- Strict tool mode is beta-only and must not be sent to the stable endpoint.
+- Provider capabilities are time-sensitive; verify these links when changing identifiers, schemas, limits, or prices.
 
 [Back](INDEX.md)

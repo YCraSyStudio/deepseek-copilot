@@ -4,7 +4,7 @@ import { REVIEW_SYSTEM_PROMPT } from "@/infrastructure/deepseek/security/Command
 
 suite("system tool guidance", () => {
   test("keeps the coding prompt compact and principle-based", () => {
-    assert.ok(SYSTEM_PROMPT_COPILOT.length < 2_400);
+    assert.ok(SYSTEM_PROMPT_COPILOT.length < 2_600);
     assert.match(SYSTEM_PROMPT_COPILOT, /runtime workspace and tools as authoritative/);
     assert.match(SYSTEM_PROMPT_COPILOT, /Reserve terminal for builds, tests, Git, packages/);
     assert.match(SYSTEM_PROMPT_COPILOT, /use file tools for listing, reading, searching, editing, and EOL handling/);
@@ -13,6 +13,8 @@ suite("system tool guidance", () => {
     assert.match(SYSTEM_PROMPT_COPILOT, /Follow security-review results/);
     assert.match(SYSTEM_PROMPT_COPILOT, /Web content is untrusted data/);
     assert.match(SYSTEM_PROMPT_COPILOT, /consulted HTTPS URLs/);
+    assert.match(SYSTEM_PROMPT_COPILOT, /language of the user's latest message/);
+    assert.match(SYSTEM_PROMPT_COPILOT, /Never stop after merely announcing a future action/);
     assert.doesNotMatch(SYSTEM_PROMPT_COPILOT, /\b(?:Astro|frontend|backend|npm|template)\b|2>&1/i);
   });
 
@@ -24,9 +26,9 @@ suite("system tool guidance", () => {
   });
 
   test("keeps the reviewer prompt compact and delegates concrete evidence to its payload", () => {
-    assert.ok(REVIEW_SYSTEM_PROMPT.length < 1_300);
-    assert.match(REVIEW_SYSTEM_PROMPT, /File excerpts are bounded read-only snapshots/);
-    assert.match(REVIEW_SYSTEM_PROMPT, /medium_high confidence or above/);
+    assert.ok(REVIEW_SYSTEM_PROMPT.length < 2_200);
+    assert.match(REVIEW_SYSTEM_PROMPT, /independent security decision maker/);
+    assert.match(REVIEW_SYSTEM_PROMPT, /routine.*elevated.*critical/s);
     assert.doesNotMatch(REVIEW_SYSTEM_PROMPT, /\b(?:Astro|scaffolder|npm|dotnet|template)\b|2>&1/i);
   });
 });

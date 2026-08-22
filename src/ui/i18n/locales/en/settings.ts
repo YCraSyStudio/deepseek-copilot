@@ -4,7 +4,6 @@ export const settings = {
   settings: {
     tab: {
       api: "API",
-      webSearch: "Web search",
       tools: "Tools",
       general: "General"
     },
@@ -25,7 +24,6 @@ export const settings = {
     },
     unavailable: "Settings are unavailable outside VS Code.",
     save: {
-      success: "Settings saved.",
       error: "Settings could not be saved. Try again."
     },
     load: {
@@ -63,6 +61,7 @@ export const settings = {
     webSearch: {
       title: "Web search",
       description: "Choose how the extension searches the public web through its isolated browser.",
+      enabled: "Enable web search",
       engine: "Search engine",
     },
     sampling: {
@@ -113,7 +112,7 @@ export const settings = {
       maxTokens: "Max output tokens",
       maxTokensDescription: "Output allowance per request. DeepSeek V4 has a 1M-token total context and supports up to 384K output; the conservative 8,192 default helps limit API usage and cost.",
       maxToolRounds: "Rounds before asking to continue",
-      maxToolRoundsDescription: "After this many rounds, default, read-only, and custom modes pause and ask whether another block should run. Auto-approve and full-access are unlimited.",
+      maxToolRoundsDescription: "After this many rounds, default mode pauses and asks whether another block should run. Auto-approve and full-access are unlimited.",
       maxConcurrentGenerations: "Concurrent generations"
     }
   }

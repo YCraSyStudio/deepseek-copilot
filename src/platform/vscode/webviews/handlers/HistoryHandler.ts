@@ -14,6 +14,7 @@ export class HistoryHandler {
     private readonly onConversationLoaded?: (conversation: StoredConversation) => void,
     private readonly onConversationDeleted?: (id: string) => void,
     private readonly onBeforeConversationDelete?: (id: string) => Promise<void>,
+    private readonly onConversationPermanentlyDeleted?: (conversation: StoredConversation) => Promise<void>,
   ) {}
 
   handle(message: WebviewToHandlerMessage, webviewView: vscode.WebviewView): void {
@@ -67,10 +68,14 @@ export class HistoryHandler {
     await webviewView.webview.postMessage({ type: "conversationDeleted", id });
     await this.getHistory(webviewView);
     if ((await vscode.window.showInformationMessage("Conversation deleted.", "Undo")) === "Undo") {
-      if (!await this.historyManager.saveIfAbsent(deleted)) {
+      const restored = await this.historyManager.saveIfAbsent(deleted);
+      if (!restored) {
         await webviewView.webview.postMessage({ type: "historyError", error: "Undo was skipped because a newer conversation with the same ID exists." });
+        await this.onConversationPermanentlyDeleted?.(deleted);
       }
       await this.getHistory(webviewView);
+    } else {
+      await this.onConversationPermanentlyDeleted?.(deleted);
     }
   }
 
@@ -108,8 +113,17 @@ export class HistoryHandler {
     }));
     await this.getHistory(webviewView);
     if (deleted.length > 0 && (await vscode.window.showInformationMessage(`${deleted.length} conversation(s) deleted.`, "Undo")) === "Undo") {
-      await Promise.all(deleted.filter((conversation) => deletedIds.includes(conversation.id)).map((conversation) => this.historyManager.saveIfAbsent(conversation)));
+      const restored = await Promise.all(deleted
+        .filter((conversation) => deletedIds.includes(conversation.id))
+        .map(async (conversation) => ({ conversation, restored: await this.historyManager.saveIfAbsent(conversation) })));
+      await Promise.all(restored
+        .filter((result) => !result.restored)
+        .map((result) => this.onConversationPermanentlyDeleted?.(result.conversation)));
       await this.getHistory(webviewView);
+    } else {
+      await Promise.all(deleted
+        .filter((conversation) => deletedIds.includes(conversation.id))
+        .map((conversation) => this.onConversationPermanentlyDeleted?.(conversation)));
     }
   }
 

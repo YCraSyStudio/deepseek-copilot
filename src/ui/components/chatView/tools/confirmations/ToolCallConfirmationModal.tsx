@@ -1,6 +1,6 @@
 import { useId } from "react";
 import { getVsCodeApi } from "@webview/VsCodeApi";
-import type { ToolCallActionOptions, ToolCallState } from "@webview/views/chatView/ChatViewTypes";
+import type { ToolCallState } from "@webview/views/chatView/ChatViewTypes";
 import DangerConfirmation from "./ToolCallDangerConfirmation";
 import { renderToolCallArgumentsPreview } from "../results/ToolCallResultRenderers";
 import "../results/ToolCallResultPreview.css";
@@ -10,7 +10,7 @@ import { t } from "@webview/i18n";
 
 interface ToolCallConfirmationModalProps {
   pendingToolCalls: ToolCallState[];
-  onExecute: (toolCallId: string, options?: ToolCallActionOptions) => void;
+  onExecute: (toolCallId: string) => void;
   onReject: (toolCallId: string) => void;
   onExecuteAll: () => void;
   onRejectAll: () => void;

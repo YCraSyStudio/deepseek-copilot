@@ -1,27 +1,8 @@
-export type ToolExecutionMode = "disabled" | "enabled" | "auto_approve";
-export type ToolExecutionModes = Record<string, ToolExecutionMode>;
-export type PermissionMode = "default" | "read-only" | "custom" | "auto-approve" | "full-access";
+import { DEEPSEEK_VISION_MODEL_ID } from "./deepseek/Models";
+
+export type PermissionMode = "default" | "auto-approve" | "full-access";
 export type InterfaceLanguage = "auto" | "en" | "es" | "zh";
 export type WebSearchEngine = "bing" | "google" | "baidu";
-
-export function resolveToolExecutionMode(
-  permissionMode: PermissionMode,
-  toolName: string,
-  customModes: ToolExecutionModes,
-): ToolExecutionMode {
-  if (permissionMode === "custom") {
-    return customModes[toolName] ?? "enabled";
-  }
-  if (permissionMode === "default") {
-    return "enabled";
-  }
-  if (permissionMode === "read-only") {
-    return ["read_file", "list_directory", "search_content", "search_web", "read_web"].includes(toolName)
-      ? "auto_approve"
-      : "enabled";
-  }
-  return "auto_approve";
-}
 
 export interface AppConfig {
   interfaceLanguage: InterfaceLanguage;
@@ -40,13 +21,13 @@ export interface AppConfig {
   maxToolRounds: number;
   maxConcurrentGenerations: number;
   permissionMode: PermissionMode;
-  toolExecutionModes: ToolExecutionModes;
 
   autoContext: boolean;
   historyEnabled: boolean;
   historyRetentionDays: number;
   includeHomeAgents: boolean;
   usageBreakdown: boolean;
+  webSearchEnabled: boolean;
   webSearchEngine: WebSearchEngine;
 
   userId?: string;
@@ -55,7 +36,6 @@ export interface AppConfig {
 export interface PermissionSnapshot {
   revision: number;
   permissionMode: PermissionMode;
-  toolExecutionModes: ToolExecutionModes;
   workspaceTrusted: boolean;
   fingerprint: string;
 }
@@ -64,7 +44,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   interfaceLanguage: "auto",
   apiKey: "",
   baseUrl: "https://api.deepseek.com",
-  model: "deepseek-v4-flash",
+  model: DEEPSEEK_VISION_MODEL_ID,
   thinkingMode: true,
   reasoningEffort: "high",
   temperature: 1.0,
@@ -73,11 +53,11 @@ export const DEFAULT_CONFIG: AppConfig = {
   maxToolRounds: 6,
   maxConcurrentGenerations: 8,
   permissionMode: "default",
-  toolExecutionModes: {},
   autoContext: false,
   historyEnabled: true,
   historyRetentionDays: 30,
   includeHomeAgents: false,
   usageBreakdown: false,
+  webSearchEnabled: true,
   webSearchEngine: "bing",
 };

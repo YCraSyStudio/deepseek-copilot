@@ -86,13 +86,25 @@ function MessageBody({
           renderToolCallGroups={renderToolCallGroups}
           isActive={isActive}
           generationStatus={message.generationStatus}
+          generationStopReason={message.generationStopReason}
         />
         {showUsageBreakdown && message.usage ? <UsageBreakdown usage={message.usage} /> : null}
       </>
     );
   }
   if (message.role === "user") {
-    return <div className="messageContent"><PlainText content={message.content} /></div>;
+    return (
+      <div className="messageContent">
+        {message.imageAttachments?.length ? (
+          <div className="messageImages">
+            {message.imageAttachments.map((attachment) => attachment.previewUri
+              ? <img key={attachment.id} src={attachment.previewUri} alt={attachment.name} title={attachment.name} />
+              : <span key={attachment.id} className="messageImageFallback"><span className="codicon codicon-file-media" /> {attachment.name}</span>)}
+          </div>
+        ) : null}
+        {message.content ? <PlainText content={message.content} /> : null}
+      </div>
+    );
   }
   return <PlainText content={message.content} />;
 }

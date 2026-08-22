@@ -10,6 +10,10 @@ export const references: PageContent = {
       title: "主要链接",
       items: [
         "DeepSeek API 文档: https://api-docs.deepseek.com/",
+        "Vision 与 Files API 指南: https://api-docs.deepseek.com/guides/vision",
+        "Thinking mode: https://api-docs.deepseek.com/guides/thinking_mode/",
+        "工具调用与 beta strict mode: https://api-docs.deepseek.com/guides/tool_calls",
+        "模型与价格: https://api-docs.deepseek.com/quick_start/pricing/",
         "DeepSeek API keys: https://platform.deepseek.com/api_keys",
         "仓库: https://github.com/YarCrasy/deepseek-copilot",
         "技术 Wiki: https://github.com/YarCrasy/deepseek-copilot/wiki",

@@ -1,109 +1,38 @@
 .toolsSection {
-  .permissionModeRow {
-    border-bottom: 1px solid color-mix(in srgb, var(--border-color) 70%, transparent);
+  .permissionModeRow,
+  .webSearchSettings {
     flex-direction: column;
     gap: 6px;
     width: 100%;
-    padding-bottom: 10px;
-    display: flex;
-    .permissionModeLabel {
-      color: var(--text-primary);
-      font-size: 13px;
-      font-weight: 700;
-    }
-    .permissionModeSelect {
-      width: 100%;
-    }
-    .permissionModeDescription,
-    .permissionModeScope {
-      color: var(--text-secondary);
-      line-height: 1.4;
-    }
-  }
-  .toolsList {
-    flex-direction: column;
-    gap: 8px;
     display: flex;
   }
-  .toolSettingRow {
+
+  .permissionModeRow {
     border-bottom: 1px solid color-mix(in srgb, var(--border-color) 70%, transparent);
-    flex-flow: row nowrap;
-    align-items: center;
-    gap: 12px;
+    padding-bottom: 14px;
+  }
+
+  .permissionModeLabel,
+  .subsectionTitle {
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  .subsectionTitle {
+    margin: 0;
+  }
+
+  .permissionModeSelect {
     width: 100%;
-    padding-bottom: 6px;
-    display: flex;
   }
-  .toolSettingInfo {
-    flex-direction: column;
-    flex: 1 1 auto;
-    gap: 2px;
-    min-width: 0;
-    display: flex;
-    .toolSettingTooltip {
-      min-width: 0;
-      max-width: 100%;
-      align-items: center;
-      align-self: flex-start;
-      gap: 5px;
-      display: inline-flex;
-      &:focus-visible {
-        outline: 1px solid var(--vscode-focusBorder);
-        outline-offset: 2px;
-        border-radius: 3px;
-      }
-      .codicon {
-        color: var(--text-secondary);
-        flex: none;
-        font-size: 12px;
-      }
-    }
-    .toolSettingName {
-      min-width: 0;
-      color: var(--text-primary);
-      font-family: var(--font-mono);
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      font-size: 12px;
-      font-weight: 700;
-      overflow: hidden;
-    }
-  }
-  .toolModeSelect {
-    flex: 0 0 auto;
-    width: auto;
-    min-width: 132px;
-    max-width: 46%;
-  }
-  .toolsEmptyState {
+
+  .permissionModeDescription {
     color: var(--text-secondary);
-    padding: 12px 0;
-    text-align: center;
+    line-height: 1.4;
   }
-}
 
-@media (max-width: 340px) {
-  .toolsSection {
-    .permissionModeSelect,
-    .toolModeSelect {
-      width: 100%;
-      min-width: 0;
-      max-width: none;
-    }
-
-    .toolSettingRow {
-      flex-direction: column;
-      align-items: stretch;
-      gap: 5px;
-    }
-
-    .toolSettingTooltip {
-      align-self: stretch;
-    }
-
-    .toolSettingName {
-      white-space: normal;
-      overflow-wrap: anywhere;
-    }
+  .settingsHint {
+    margin: 0 0 4px;
   }
 }

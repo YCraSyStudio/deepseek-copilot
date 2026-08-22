@@ -70,7 +70,7 @@ suite("canonical provider transcript", () => {
       title: "Hidden",
       createdAt: 1,
       updatedAt: 1,
-      model: "deepseek-v4-flash",
+      model: "deepseek-v4-flash-vision-exp",
       workspaceUri: "file:///workspace",
       workspaceBinding: {
         schemaVersion: 1,

@@ -4,8 +4,19 @@ export const changelog: PageContent = {
   navTitle: "Changelog",
   title: "Changelog",
   description: "Relevant changes and preview status.",
-  lead: "Version 0.1.9 isolates concurrent chats, makes cancellation atomic, calibrates context compaction, recovers from output overflow, and publishes Marketplace Preview builds through the normal release channel while GitHub releases remain prereleases.",
+  lead: "Preview 0.1.10 adds DeepSeek vision, a unified attachment flow, three simplified permission modes, protocol v5, and stable terminal cancellation semantics.",
   sections: [
+    {
+      title: "0.1.10 vision, permissions, composer, and cancellation",
+      items: [
+        "Replaced the non-visual Flash option with DeepSeek V4 Vision (Flash). Vision reads Files API references directly; V4 Pro receives analyze_images only for prompts that contain images.",
+        "Added one provider-owned retry with stable V4 Flash when experimental Vision is unavailable. Image chats disclose that visual inputs were omitted, while V4 Pro image analysis fails explicitly instead of accepting a false description.",
+        "Unified context files and images behind one + picker, added Ctrl+V/Cmd+V paste, signature-based JPEG/PNG/GIF/WebP detection, 30-day Files API expiry, local previews, and cleanup that respects history Undo.",
+        "Reduced permissions to default, auto-approve, and full-access; removed the per-tool matrix and local danger analyzer, moved Web search below Permission mode, and added one capability toggle.",
+        "Rebuilt the chat input as one compact composer with a combined model/reasoning menu and one contextual generation button: Stop for an empty draft, Guide for Enter, and Queue while Ctrl is held or with Ctrl+Enter.",
+        "Stop preserves the prompt, partial timeline, and completed tool results as cancelled. Steering now verifies its source generation, explicitly continues the original task under the latest guidance, and hides the internal interrupted transport boundary.",
+      ],
+    },
     {
       title: "0.1.9 concurrent chat isolation, cancellation, and calibrated context",
       items: [

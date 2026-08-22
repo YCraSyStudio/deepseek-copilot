@@ -2,7 +2,7 @@
 
 # VS Code Extension
 
-The VS Code layer lives in `src/vscodeApi`, and the entry point is `src/Extension.ts`.
+The VS Code layer lives in `src/platform/vscode`, lifecycle composition lives in `src/extension`, and the entry point is `src/Extension.ts`.
 
 Responsibilities:
 
@@ -10,7 +10,8 @@ Responsibilities:
 - render webviews.
 - receive messages from React.
 - connect handlers with settings, history, DeepSeek, and tools.
-- adapt VS Code APIs so `core` does not depend on them.
+- adapt VS Code APIs so `application` does not depend on them.
+- upload and cache image attachments while exposing only protocol-safe metadata to React.
 
 The final bundle is generated at `dist/extension.js`.
 

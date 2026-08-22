@@ -32,7 +32,7 @@ suite("usage streaming", () => {
     try {
       const chunks: StreamChunk[] = [];
       await chatCompletionStream({
-        request: { model: "deepseek-v4-flash", messages: [{ role: "user", content: "hello" }], stream: true },
+        request: { model: "deepseek-v4-flash-vision-exp", messages: [{ role: "user", content: "hello" }], stream: true },
         apiKey: "test-key",
         baseUrl: "https://api.deepseek.com",
         onChunk: (chunk) => chunks.push(chunk),
@@ -157,7 +157,7 @@ function fakeEventSink() {
 }
 
 function payload() {
-  return { clientRequestId: "request-1", text: "hello", modelId: "deepseek-v4-flash", reasoning: "high" };
+  return { clientRequestId: "request-1", text: "hello", modelId: "deepseek-v4-flash-vision-exp", reasoning: "high" };
 }
 
 function usage(prompt: number, completion: number): ProviderUsage {

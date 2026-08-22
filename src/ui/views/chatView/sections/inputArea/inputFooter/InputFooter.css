@@ -1,4 +1,6 @@
 .inputFooter {
+  flex: 1 1 auto;
+  min-width: 0;
   flex-direction: column;
   gap: 4px;
   transition: border-color .2s, background .2s;
@@ -75,22 +77,112 @@
   flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
+  gap: 6px;
   display: flex;
 }
 .inputFooterPrimaryControls {
   min-width: 0;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 3px;
   display: flex;
 }
-.workspaceAttachButton {
-  border: 0;
-  color: var(--vscode-foreground);
-  background: transparent;
-  cursor: pointer;
-  padding: 3px 5px;
+.modelReasoningPicker {
+  min-width: 0;
+  position: relative;
+}
+.modelReasoningTrigger {
+  border: 1px solid var(--input-border);
+  background: var(--input-bg);
+  color: var(--text-primary);
+  border-radius: 8px;
+  max-width: 220px;
+  min-height: 30px;
+  justify-content: space-between;
+  gap: 7px;
+  padding: 5px 8px;
+
+  &:hover {
+    background: color-mix(in srgb, var(--input-bg) 88%, var(--text-primary) 12%);
+    opacity: 1;
+  }
+}
+.modelReasoningValue {
+  min-width: 0;
+  align-items: baseline;
+  gap: 5px;
+  display: flex;
+  overflow: hidden;
+}
+.modelReasoningModel,
+.modelReasoningEffort {
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.modelReasoningModel {
+  flex: 1 1 auto;
+}
+.modelReasoningEffort {
+  color: var(--text-secondary);
+
+  &::before {
+    content: "·";
+    margin-right: 5px;
+  }
+}
+.modelReasoningMenu {
+  z-index: 30;
+  border: 1px solid var(--vscode-menu-border, var(--border-color));
+  background: var(--vscode-menu-background, var(--bg-secondary));
+  color: var(--vscode-menu-foreground, var(--text-primary));
+  border-radius: 12px;
+  width: max-content;
+  min-width: 100%;
+  max-width: calc(100vw - 20px);
+  max-height: min(360px, calc(100vh - 32px));
+  padding: 4px;
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  overflow-y: auto;
+  box-shadow: 0 12px 32px #0008;
+}
+.modelReasoningSection {
+  padding: 3px 0;
+
+  & + & {
+    border-top: 1px solid var(--border-color);
+    margin-top: 3px;
+    padding-top: 6px;
+  }
+}
+.modelReasoningSectionLabel {
+  color: var(--text-secondary);
+  padding: 3px 7px 5px;
+  font-size: 11px;
+}
+.modelReasoningOption {
+  color: inherit;
+  border-radius: 7px;
+  width: 100%;
+  min-height: 28px;
+  justify-content: space-between;
+  gap: 9px;
+  padding: 5px 6px 5px 7px;
+  white-space: nowrap;
+
+  &:hover,
+  &:focus-visible {
+    background: var(--vscode-menu-selectionBackground, var(--vscode-list-hoverBackground));
+    color: var(--vscode-menu-selectionForeground, inherit);
+    opacity: 1;
+    outline: none;
+  }
+
+  &.selected {
+    font-weight: 500;
+  }
 }
 .selectTooltipWrapper {
   min-width: 0;
@@ -99,7 +191,23 @@
     min-width: 0;
   }
 }
+.attachmentPickerTrigger {
+  flex: none;
+  border: 0;
+  color: var(--vscode-foreground);
+  background: transparent;
+  cursor: pointer;
+  border-radius: 50%;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: grid;
 
+  &:hover {
+    background: color-mix(in srgb, var(--input-bg) 78%, var(--text-primary) 22%);
+  }
+}
 @media (max-width: 360px) {
   .inputFooterControls {
     align-items: stretch;
@@ -111,8 +219,13 @@
     width: 100%;
     gap: 5px;
 
-    .selectTooltipWrapper {
+    .modelReasoningPicker {
       flex: 1 1 110px;
+    }
+
+    .modelReasoningTrigger {
+      width: 100%;
+      max-width: none;
     }
   }
 
@@ -127,16 +240,12 @@
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
 
-    .selectTooltipWrapper:first-child {
-      grid-column: 1 / -1;
-    }
-
-    .selectTooltipWrapper:nth-child(2) {
+    .modelReasoningPicker {
       grid-column: 1;
       width: 100%;
     }
 
-    .workspaceAttachButton {
+    .attachmentPickerTrigger {
       grid-column: 2;
       justify-self: end;
     }

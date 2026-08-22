@@ -22,7 +22,8 @@ export type UsagePhase =
   | "tool_round"
   | "security_review"
   | "context_summary"
-  | "file_compaction";
+  | "file_compaction"
+  | "vision_analysis";
 
 export const USAGE_PHASES: readonly UsagePhase[] = [
   "primary",
@@ -30,6 +31,7 @@ export const USAGE_PHASES: readonly UsagePhase[] = [
   "security_review",
   "context_summary",
   "file_compaction",
+  "vision_analysis",
 ];
 
 export interface PhaseUsage {
@@ -74,6 +76,7 @@ interface PriceTier {
 
 /** Official USD prices retrieved 2026-08-04. Bump the version when revising this table. */
 const PRICE_TIERS: Readonly<Record<string, PriceTier>> = Object.freeze({
+  "deepseek-v4-flash-vision-exp": { inputMissPerMillion: 0.14, inputHitPerMillion: 0.0028, outputPerMillion: 0.28 },
   "deepseek-v4-flash": { inputMissPerMillion: 0.14, inputHitPerMillion: 0.0028, outputPerMillion: 0.28 },
   "deepseek-v4-pro": { inputMissPerMillion: 0.435, inputHitPerMillion: 0.003625, outputPerMillion: 0.87 },
 });

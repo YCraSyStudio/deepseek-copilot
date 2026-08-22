@@ -22,10 +22,8 @@ import type {
   ToolCallRunOptions,
   ToolCallRunResult,
 } from "./Types";
-import { DangerTrustStore, type DangerTrustScope } from "./DangerTrustStore";
 import {
   getRunnableToolsForPermissionSnapshot,
-  getToolModeForPermissionSnapshot,
   shouldEnforceToolCallLimits,
 } from "./PermissionPolicy";
 import { createProviderTranscript } from "@/application/chat/ProviderTranscript";
@@ -33,24 +31,20 @@ import { getToolWorkspaceHost } from "@/infrastructure/tools/ToolWorkspace";
 import { reviewCommandSafety } from "@/infrastructure/deepseek/security/commandReview";
 import { compactToolCycleContext } from "@/application/chat/context/ToolCycleCompaction";
 import { isCancellationError } from "@/shared/utils/Cancellation";
+import { getTextContent } from "@/contracts/deepseek/Chat";
 
 export class ToolCallSession {
   private pendingToolCallCycle: PendingToolCallCycle | null = null;
   private pendingDangerConfirmation: PendingDangerConfirmation | null = null;
-  private activeTrustScope?: DangerTrustScope;
   private activePermissionSnapshot?: PermissionSnapshot;
   private currentRound = 0;
   private activeEventSink?: GenerationEventSink<Record<string, unknown>>;
   private pendingLimitDecision: ((decision: ToolCallLimitDecision) => void) | null = null;
   private webTainted = false;
-  constructor(
-    private readonly toolExecutor: ToolExecutor,
-    private readonly dangerTrustStore: DangerTrustStore = new DangerTrustStore(),
-  ) {}
+  constructor(private readonly toolExecutor: ToolExecutor) {}
 
   async run(options: ToolCallRunOptions): Promise<ToolCallRunResult | undefined> {
     this.activeEventSink = options.eventSink;
-    this.activeTrustScope = options.trustScope;
     this.activePermissionSnapshot = options.permissionSnapshot;
     this.webTainted = false;
     let streamedContent = "";
@@ -83,7 +77,6 @@ export class ToolCallSession {
           getToolsForRound: async () => {
             const snapshot = await options.capturePermissionSnapshot();
             this.activePermissionSnapshot = snapshot;
-            this.activeTrustScope = { ...options.trustScope, configFingerprint: snapshot.fingerprint };
             options.onPermissionSnapshot?.(snapshot);
             return getRunnableToolsForPermissionSnapshot(options.tools, snapshot);
           },
@@ -173,7 +166,6 @@ export class ToolCallSession {
       this.pendingDangerConfirmation = null;
       this.pendingLimitDecision = null;
       this.activeEventSink = undefined;
-      this.activeTrustScope = undefined;
       this.activePermissionSnapshot = undefined;
       this.webTainted = false;
     }
@@ -206,20 +198,16 @@ export class ToolCallSession {
         isError: false,
         status: "cancelled",
       });
-      this.pendingDangerConfirmation.resolve({ confirmed: false, trustForSession: false });
+      this.pendingDangerConfirmation.resolve({ confirmed: false });
     }
     this.pendingToolCallCycle = null;
     this.pendingDangerConfirmation = null;
-    if (this.activeTrustScope) {
-      this.dangerTrustStore.clearScope(this.activeTrustScope);
-    }
   }
 
   handleUserAction(payload: ToolCallActionPayload): void {
     if (this.pendingDangerConfirmation?.toolCall.id === payload.toolCallId) {
       this.pendingDangerConfirmation.resolve({
         confirmed: payload.action === "execute",
-        trustForSession: payload.action === "execute" ? payload.trustForSession : false,
       });
       void this.activeEventSink?.publish({
         type: "toolCallActionAccepted",
@@ -290,16 +278,10 @@ export class ToolCallSession {
       authorizedUserUrls: options.authorizedUserUrls,
       isWebTainted: () => this.webTainted,
       markWebTainted: () => {this.webTainted = true;},
+      analyzeImages: options.analyzeImages,
       isWorkspaceTrusted: options.isWorkspaceTrusted,
-      getToolMode: (toolName: string) => getToolModeForPermissionSnapshot(this.activePermissionSnapshot ?? options.permissionSnapshot, toolName),
       getCurrentRound: () => this.currentRound,
       getPendingCycle: () => this.pendingToolCallCycle,
-      isDangerTrusted: (toolCall: ToolCall, confirmationResult: ConfirmationRequiredResult) => this.isDangerTrusted(toolCall, confirmationResult),
-      trustDangerForSession: (toolCall: ToolCall, confirmationResult: ConfirmationRequiredResult) => {
-        if (this.activeTrustScope) {
-          this.dangerTrustStore.trust(this.activeTrustScope, toolCall, confirmationResult);
-        }
-      },
       requestDangerConfirmation: (
         toolCall: ToolCall,
         confirmationResult: ConfirmationRequiredResult,
@@ -317,7 +299,7 @@ export class ToolCallSession {
       reviewDangerousCommand: (toolCall: ToolCall, confirmationResult: ConfirmationRequiredResult) =>
         reviewCommandSafety({
           toolCall,
-          localAnalysis: confirmationResult,
+          actionContext: confirmationResult,
           providerConfig: options.providerConfig,
           originalUserRequest: options.trustedUserRequest,
           onUsage: (usage) => options.onUsage?.("security_review", usage),
@@ -327,10 +309,6 @@ export class ToolCallSession {
     };
   }
 
-  private isDangerTrusted(toolCall: ToolCall, confirmationResult: ConfirmationRequiredResult): boolean {
-    return this.activeTrustScope !== undefined && this.dangerTrustStore.isTrusted(this.activeTrustScope, toolCall, confirmationResult);
-  }
-
   private async handleRoundStart(round: number, toolCalls: ToolCall[], options: ToolCallRunOptions): Promise<void> {
     this.currentRound = round;
     options.eventSink.publish({ type: "toolCallStarted", toolCalls, round });
@@ -338,10 +316,7 @@ export class ToolCallSession {
     const snapshot = this.activePermissionSnapshot ?? options.permissionSnapshot;
     const manualToolCalls = snapshot.permissionMode === "auto-approve" || snapshot.permissionMode === "full-access"
       ? []
-      : toolCalls.filter((toolCall) =>
-          getToolModeForPermissionSnapshot(snapshot, toolCall.function.name) === "enabled" &&
-          this.toolExecutor.getMetadata(toolCall.function.name)?.approvalOwner !== "vscode"
-        );
+      : toolCalls;
     if (manualToolCalls.length === 0) {
       return;
     }
@@ -362,12 +337,12 @@ export class ToolCallSession {
     const timeline = stream.getTimeline();
     const hasStreamedContent = timeline.length > 0;
 
-    if (result.finalMessage.content || toolCallResults.length > 0) {
+    if (getTextContent(result.finalMessage.content) || toolCallResults.length > 0) {
       options.eventSink.publish({
         type: "addMessage",
         message: {
           role: "assistant",
-          content: hasStreamedContent ? "" : (result.finalMessage.content ?? ""),
+          content: hasStreamedContent ? "" : getTextContent(result.finalMessage.content),
           wasStreamed: hasStreamedContent,
           toolCalls: toolCallResults.length > 0 ? toolCallResults : undefined,
           timeline,
@@ -380,7 +355,7 @@ export class ToolCallSession {
     stream.done({ finish_reason: finishReason ?? undefined });
 
     return {
-      content: hasStreamedContent ? streamedContent : (result.finalMessage.content ?? ""),
+      content: hasStreamedContent ? streamedContent : getTextContent(result.finalMessage.content),
       timeline,
       toolCalls: toolCallResults.length > 0 ? toolCallResults : undefined,
       partial: !complete,
@@ -423,7 +398,7 @@ export class ToolCallSession {
             },
           });
         }
-        stream.done({ cancelled: true });
+        stream.done({ status: "interrupted" });
       }
 
       return hasPartial
@@ -483,7 +458,7 @@ function getErrorMessage(err: unknown): string {
 }
 
 function hasAutoApprovedTools(options: ToolCallRunOptions, tools: ToolDefinition[]): boolean {
+  void tools;
   return options.permissionSnapshot.permissionMode === "auto-approve" ||
-    options.permissionSnapshot.permissionMode === "full-access" ||
-    tools.some((tool) => getToolModeForPermissionSnapshot(options.permissionSnapshot, tool.function.name) === "auto_approve");
+    options.permissionSnapshot.permissionMode === "full-access";
 }

@@ -123,7 +123,7 @@ export class ConversationState {
   createMessage(
     role: ConversationMessage["role"],
     content: string,
-    extra: Pick<StoredConversationMessage, "timeline" | "toolCalls" | "generationId" | "generationStatus" | "providerTranscript" | "contextContent" | "usage"> = {},
+    extra: Pick<StoredConversationMessage, "timeline" | "toolCalls" | "generationId" | "generationStatus" | "generationStopReason" | "providerTranscript" | "contextContent" | "usage" | "imageAttachments"> = {},
   ): StoredConversationMessage {
     return {
       id: randomUUID(),
@@ -168,32 +168,6 @@ export class ConversationState {
     if (this.persistenceMode === "persistent") {
       await this.conversationStore.save(conversation);
     }
-  }
-
-  async removeGeneration(generationId: string): Promise<StoredConversation | undefined> {
-    const existing = this.activeConversation;
-    if (!existing) {
-      return undefined;
-    }
-    const messages = existing.messages.filter((message) => message.generationId !== generationId);
-    if (messages.length === existing.messages.length) {
-      return existing;
-    }
-    if (messages.length === 0) {
-      this.activeConversation = null;
-      return undefined;
-    }
-    const conversation: StoredConversation = {
-      ...existing,
-      messages,
-      title: createConversationTitle(messages, existing.title),
-      updatedAt: nextUpdatedAt(existing.updatedAt),
-    };
-    this.activeConversation = conversation;
-    if (this.persistenceMode === "persistent") {
-      await this.conversationStore.save(conversation);
-    }
-    return structuredClone(conversation);
   }
 
   async saveContextSummary(summary: ConversationContextSummary): Promise<void> {
@@ -248,10 +222,19 @@ function toApiMessages(messages: StoredConversationMessage[]): ChatMessage[] {
     }
 
     if (message.role === "user") {
-      return [{ role: "user" as const, content: message.content }];
+      const validAttachments = message.imageAttachments?.filter((attachment) => attachment.expiresAt > Date.now()) ?? [];
+      return [{
+        role: "user" as const,
+        content: validAttachments.length > 0
+          ? [
+              { type: "text" as const, text: message.content || "Describe the attached image." },
+              ...validAttachments.map((attachment) => ({ type: "file" as const, file_id: attachment.fileId })),
+            ]
+          : message.content,
+      }];
     }
 
-    if (message.generationStatus === "interrupted") {
+    if (message.generationStatus === "interrupted" || message.generationStatus === "cancelled") {
       const interruptedContent = message.contextContent ?? message.content;
       return interruptedContent.trim() ? [{ role: "assistant" as const, content: interruptedContent }] : [];
     }

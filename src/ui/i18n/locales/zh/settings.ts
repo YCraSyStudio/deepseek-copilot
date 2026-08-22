@@ -4,7 +4,6 @@ export const settings = {
   settings: {
     tab: {
       api: "API",
-      webSearch: "Web 搜索",
       tools: "工具",
       general: "常规"
     },
@@ -25,7 +24,6 @@ export const settings = {
     },
     unavailable: "设置在 VS Code 外不可用。",
     save: {
-      success: "设置已保存。",
       error: "无法保存设置，请重试。"
     },
     load: {
@@ -63,6 +61,7 @@ export const settings = {
     webSearch: {
       title: "Web 搜索",
       description: "选择扩展通过隔离浏览器搜索公共网页的方式。",
+      enabled: "启用 Web 搜索",
       engine: "搜索引擎",
     },
     sampling: {
@@ -113,7 +112,7 @@ export const settings = {
       maxTokens: "最大输出 Token 数",
       maxTokensDescription: "每次请求的输出预留。DeepSeek V4 的总上下文为 1M Token，最大输出为 384K；保守的默认值 8,192 有助于限制 API 用量和成本。",
       maxToolRounds: "询问是否继续前的轮数",
-      maxToolRoundsDescription: "达到此轮数后，默认、只读和自定义模式会暂停并询问是否执行下一批。自动批准和完全访问模式不受此限制。",
+      maxToolRoundsDescription: "达到此轮数后，默认模式会暂停并询问是否执行下一批。自动批准和完全访问模式不受此限制。",
       maxConcurrentGenerations: "并发生成数"
     }
   }

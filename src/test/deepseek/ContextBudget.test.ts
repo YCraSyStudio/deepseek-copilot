@@ -14,7 +14,7 @@ import type { ModelProvider } from "@/application/ports";
 
 suite("Context budget and compaction", () => {
   test("reserves model output and a safety margin while counting tool schemas", () => {
-    const budget = getContextBudget("deepseek-v4-flash", 8_192);
+    const budget = getContextBudget("deepseek-v4-flash-vision-exp", 8_192);
     assert.strictEqual(budget.contextTokens, 1_000_000);
     assert.strictEqual(budget.safetyMarginTokens, 50_000);
     assert.strictEqual(budget.inputTokens, 941_808);
@@ -26,7 +26,7 @@ suite("Context budget and compaction", () => {
       function: { name: "read_file", parameters: { type: "object", properties: { path: { type: "string" } } } },
     }]);
     assert.ok(withTools > withoutTools);
-    assert.doesNotThrow(() => assertRequestFitsContext(messages, [], "deepseek-v4-flash", 8_192));
+    assert.doesNotThrow(() => assertRequestFitsContext(messages, [], "deepseek-v4-flash-vision-exp", 8_192));
   });
 
   test("uses the documented V4 limits with a conservative default output allowance", () => {
@@ -47,7 +47,7 @@ suite("Context budget and compaction", () => {
   });
 
   test("stops reasoning-dominated output preventively and allows one concise recovery", () => {
-    const manager = new GenerationBudgetManager("deepseek-v4-flash", 1_000);
+    const manager = new GenerationBudgetManager("deepseek-v4-flash-vision-exp", 1_000);
     const assessment = manager.observeOutput("r".repeat(2_500), "");
     assert.strictEqual(assessment.status, "output_reasoning_limit");
     assert.strictEqual(manager.canRecoverConcise(), true);
@@ -75,7 +75,7 @@ suite("Context budget and compaction", () => {
   });
 
   test("allows exactly three automatic compactions per generation", () => {
-    const manager = new GenerationBudgetManager("deepseek-v4-flash", 8_192);
+    const manager = new GenerationBudgetManager("deepseek-v4-flash-vision-exp", 8_192);
     for (let index = 0; index < 3; index += 1) {
       assert.strictEqual(manager.canCompactAutomatically(), true);
       manager.recordAutomaticCompaction();
@@ -99,7 +99,7 @@ suite("Context budget and compaction", () => {
 
     assert.ok(compacted);
     assert.ok(compacted.estimatedTokensAfter < compacted.estimatedTokensBefore);
-    assert.match(compacted.messages[1].content ?? "", /tool_cycle_continuation/);
+    assert.match(String(compacted.messages[1].content ?? ""), /tool_cycle_continuation/);
   });
 
   test("does not report a tool-cycle compaction when continuity would not reduce the request", () => {
@@ -120,7 +120,7 @@ suite("Context budget and compaction", () => {
     const provider = new StubProvider();
     const lines = Array.from({ length: 500 }, (_, index) => `literal line ${index + 1}`);
     const signal = new AbortController().signal;
-    const compactor = new ContextCompactor(provider, "deepseek-v4-flash", signal);
+    const compactor = new ContextCompactor(provider, "deepseek-v4-flash-vision-exp", signal);
     const [file] = await compactor.compactFiles([{
       path: "src/large.ts",
       type: "file",
@@ -141,7 +141,7 @@ suite("Context budget and compaction", () => {
     const provider = new StubProvider();
     const [file] = await new ContextCompactor(
       provider,
-      "deepseek-v4-flash",
+      "deepseek-v4-flash-vision-exp",
       new AbortController().signal,
     ).compactFiles([{
       path: "dist/minified.js",
@@ -159,7 +159,7 @@ suite("Context budget and compaction", () => {
     const lines = Array.from({ length: 500 }, (_, index) => `unique line ${index + 1}`);
     const [file] = await new ContextCompactor(
       provider,
-      "deepseek-v4-flash",
+      "deepseek-v4-flash-vision-exp",
       new AbortController().signal,
     ).compactFiles([{ path: "src/large.ts", type: "file", content: lines.join("\n") }], "inspect");
 
@@ -170,7 +170,7 @@ suite("Context budget and compaction", () => {
 
   test("keeps cumulative summary coverage but stores only the new boundary delta", async () => {
     const provider = new StubProvider("summary");
-    const compactor = new ContextCompactor(provider, "deepseek-v4-flash", new AbortController().signal);
+    const compactor = new ContextCompactor(provider, "deepseek-v4-flash-vision-exp", new AbortController().signal);
     const first = await compactor.summarize([{
       generationId: "generation-1",
       visibleText: "first",
@@ -192,7 +192,7 @@ suite("Context budget and compaction", () => {
     controller.abort();
 
     await assert.rejects(
-      new ContextCompactor(provider, "deepseek-v4-flash", controller.signal).summarize([{
+      new ContextCompactor(provider, "deepseek-v4-flash-vision-exp", controller.signal).summarize([{
         generationId: "cancelled-generation",
         visibleText: "cancelled",
         messages: [{ role: "user", content: "cancelled" }],

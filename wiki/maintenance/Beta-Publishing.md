@@ -49,11 +49,11 @@ Do not use the deprecated `vsce` package. Older versions still require explicit 
 Push a `vX.Y.Z` tag after `main` points at the release commit:
 
 ```bash
-git tag v0.1.9
-git push origin v0.1.9
+git tag v0.1.10
+git push origin v0.1.10
 ```
 
-The production workflow validates the tag against `package.json`, extracts the matching section from `CHANGELOG.md`, waits for the quality, extension-host, and packaged-VSIX smoke gates, verifies `sha256.txt`, and creates a normal GitHub release with the verified VSIX and checksum attached.
+The production workflow validates the tag against `package.json`, extracts the matching section from `CHANGELOG.md`, waits for the quality, extension-host, and packaged-VSIX smoke gates, verifies `sha256.txt`, and creates a GitHub prerelease with the verified VSIX and checksum attached.
 
 Publish only after installing the packaged VSIX in a clean profile and testing
 an upgrade from `0.1.3`:
@@ -79,7 +79,9 @@ product without placing it in the pre-release channel. SemVer suffixes such as
 - Queue a second prompt in the same conversation.
 - Start another conversation and verify both generations can progress concurrently.
 - Use Interrupt and guide and verify the guidance runs before older queued prompts.
-- Cancel generation and verify the interrupted turn retains the prompt and any partial response.
+- Cancel generation and verify the terminal `cancelled` turn retains the prompt, partial response, reasoning, and completed tool results without rolling back side effects.
+- Attach an image and a context file through the same picker, paste an image with `Ctrl+V`/`Cmd+V`, and verify removal and preview rendering.
+- Verify V4 Vision reads attached file IDs directly and V4 Pro invokes `analyze_images` only when images are present.
 - Close and reopen VS Code during active and queued work; verify partial output is saved and queued prompts appear as recoverable drafts.
 - Open a file from a tool result.
 - Verify Settings tooltips and select controls render correctly.
@@ -95,6 +97,6 @@ product without placing it in the pre-release channel. SemVer suffixes such as
 - At most one generation runs per conversation; the global concurrent-generation limit is configurable from 1 to 16.
 - Tool execution is workspace-sensitive and should be reviewed before auto approval.
 - The webview tooltip system mimics VS Code theme variables but cannot invoke native VS Code hover widgets directly.
-- Explorer clipboard URI access is not used; workspace references are entered through path autocomplete.
+- Explorer clipboard URI access is not used; workspace references use path autocomplete or the unified picker. Clipboard image data is supported separately through bounded webview IPC.
 
 [Back](INDEX.md)

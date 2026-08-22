@@ -1,10 +1,11 @@
 import { deepseekFetch } from "@/infrastructure/deepseek/client/DeepSeekFetch";
+import { DEEPSEEK_PRO_MODEL_ID } from "@/contracts/deepseek/Models";
 import { buildFimUrl } from "@/infrastructure/deepseek/endpoints/DeepSeekEndpoints";
 import { readSSEStream } from "@/infrastructure/deepseek/streaming/ReadSSEStream";
 import { MAX_CHAT_RESPONSE_BYTES, readBoundedJson } from "@/infrastructure/deepseek/client/BoundedResponseJson";
 
 export interface FimRequest {
-  model: "deepseek-v4-pro";
+  model: typeof DEEPSEEK_PRO_MODEL_ID;
   prompt: string;
   suffix?: string;
   max_tokens?: number;

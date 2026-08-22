@@ -5,7 +5,7 @@ import { InputCtrls, InputFooter, MessagesSection } from "./sections";
 import { useChatConfig } from "./hooks";
 import type { ApiKeyStatus, ChatMessage } from "./ChatViewTypes";
 import { getVsCodeApi } from "@webview/VsCodeApi";
-import type { Conversation, PermissionMode, QueuedGenerationMessage, ReferencedFile, WorkspaceContextStatus } from "@/contracts";
+import type { Conversation, ImageAttachment, PermissionMode, QueuedGenerationMessage, ReferencedFile, WorkspaceContextStatus } from "@/contracts";
 import type { GenerationSnapshot } from "@/contracts";
 import { t } from "@webview/i18n";
 import { beginNavigationRequest } from "@webview/NavigationRequests";
@@ -18,17 +18,20 @@ type ChatCommandMessage =
   | { type: "messageQueued"; conversationId: string; clientRequestId: string; position: number }
   | { type: "requestRejected"; requestId?: string; action?: string; error: string }
   | { type: "protocolError"; supportedVersion: number; error: string }
-  | { type: "streamDone"; generationId?: string; conversationId?: string; restoredDraft?: QueuedGenerationMessage }
+  | { type: "streamDone"; generationId?: string; conversationId?: string; status: "completed" | "cancelled" | "interrupted" }
   | { type: "streamError"; generationId?: string; conversationId?: string }
   | { type: "workspaceContextChanged"; requestId?: string; conversationId?: string; context: WorkspaceContextStatus }
   | { type: "contextFilesSelected"; files: ReferencedFile[] }
+  | { type: "imageAttachmentsSelected"; requestId: string; attachments: ImageAttachment[]; error?: string }
+  | { type: "imageAttachmentDeleted"; requestId: string; fileId: string; success: boolean; error?: string }
   | { type: "generationSnapshot"; generations: GenerationSnapshot[]; recoveredDrafts: Array<{ conversationId: string; messages: QueuedGenerationMessage[] }> };
 
 interface PersistentChatViewState {
-  schemaVersion: 4;
+  schemaVersion: 5;
   mode: "persistent";
   draft: string;
   referencedFiles: ReferencedFile[];
+  imageAttachments: ImageAttachment[];
   conversationId?: string;
 }
 
@@ -49,18 +52,19 @@ function ChatView({ loadedConversation, navigationPending = false }: ChatViewPro
   const [isProcessing, setIsProcessing] = useState(false);
   const [draft, setDraft] = useState("");
   const [referencedFiles, setReferencedFiles] = useState<ReferencedFile[]>([]);
+  const [imageAttachments, setImageAttachments] = useState<ImageAttachment[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>(loadedConversation?.messages ?? []);
   const [conversationId, setConversationId] = useState<string | undefined>(loadedConversation?.id);
   const [stateHydrated, setStateHydrated] = useState(false);
   const [activeGenerationId, setActiveGenerationId] = useState<string | undefined>();
   const [recoveredDrafts, setRecoveredDrafts] = useState<QueuedGenerationMessage[]>([]);
   const [workspaceContext, setWorkspaceContext] = useState<WorkspaceContextStatus>();
-  const lastSubmittedPromptRef = useRef("");
   const conversationIdRef = useRef(conversationId);
   const activeGenerationIdRef = useRef(activeGenerationId);
-  const pendingRequestsRef = useRef(new Map<string, { text: string; referenceIds: string[] }>());
+  const pendingRequestsRef = useRef(new Map<string, { text: string; referenceIds: string[]; imageIds: string[] }>());
   const draftRef = useRef(draft);
   const referencedFilesRef = useRef(referencedFiles);
+  const imageAttachmentsRef = useRef(imageAttachments);
   const [requestError, setRequestError] = useState<string>();
   const initialConfigHandledRef = useRef(false);
   const workspaceRequestIdRef = useRef<string | undefined>(undefined);
@@ -83,6 +87,10 @@ function ChatView({ loadedConversation, navigationPending = false }: ChatViewPro
   useEffect(() => {
     referencedFilesRef.current = referencedFiles;
   }, [referencedFiles]);
+
+  useEffect(() => {
+    imageAttachmentsRef.current = imageAttachments;
+  }, [imageAttachments]);
 
   const {
     selectedModel,
@@ -120,10 +128,10 @@ function ChatView({ loadedConversation, navigationPending = false }: ChatViewPro
   };
 
   const handleSend = (text: string, clientRequestId: string) => {
-    lastSubmittedPromptRef.current = text;
     pendingRequestsRef.current.set(clientRequestId, {
       text,
       referenceIds: referencedFilesRef.current.map(referenceIdentity),
+      imageIds: imageAttachmentsRef.current.map((attachment) => attachment.id),
     });
     setRequestError(undefined);
   };
@@ -132,35 +140,28 @@ function ChatView({ loadedConversation, navigationPending = false }: ChatViewPro
     setReferencedFiles((files) => files.filter((_, i) => i !== index));
   }, []);
 
+  const removeImageAttachment = useCallback((attachment: ImageAttachment) => {
+    setImageAttachments((items) => items.filter((item) => item.id !== attachment.id));
+    getVsCodeApi()?.postMessage({
+      type: "deleteImageAttachment",
+      requestId: crypto.randomUUID(),
+      attachment,
+    });
+  }, []);
+
   const appendReferencedFiles = useCallback((files: ReferencedFile[]) => {
     setReferencedFiles((currentFiles) => mergeReferencedFiles(currentFiles, files));
     requestAnimationFrame(focusInput);
   }, []);
 
-  const handleGenerationCancelled = (restored?: QueuedGenerationMessage) => {
-    const restoredText = restored?.text ?? lastSubmittedPromptRef.current;
-    setDraft((currentDraft) => currentDraft.trim() ? currentDraft : restoredText);
-    if (restored?.referencedFiles?.length) {
-      setReferencedFiles((current) => mergeReferencedFiles(current, restored.referencedFiles!));
-    }
-    if (restored && conversationIdRef.current) {
-      getVsCodeApi()?.postMessage({
-        type: "consumeRecoveredDraft",
-        conversationId: conversationIdRef.current,
-        clientRequestId: restored.clientRequestId,
-      });
-    }
-    requestAnimationFrame(focusInput);
-  };
-
   const canSend = useMemo(() => {
     const trimmedDraft = draft.trim();
     const workspaceReady = workspaceContext?.state === "connected" || workspaceContext?.state === "empty";
     return !navigationPending && !isPermissionUpdatePending &&
-      trimmedDraft.length > 0 &&
+      (trimmedDraft.length > 0 || imageAttachments.length > 0) &&
       (apiKeyStatus === "configured" || trimmedDraft.startsWith("/")) &&
       (workspaceReady || trimmedDraft.startsWith("/"));
-  }, [draft, apiKeyStatus, isPermissionUpdatePending, navigationPending, workspaceContext]);
+  }, [draft, imageAttachments, apiKeyStatus, isPermissionUpdatePending, navigationPending, workspaceContext]);
 
   useEffect(() => {
     focusInput();
@@ -198,6 +199,7 @@ function ChatView({ loadedConversation, navigationPending = false }: ChatViewPro
         if (savedState) {
           setDraft(savedState.draft);
           setReferencedFiles(savedState.referencedFiles);
+          setImageAttachments(savedState.imageAttachments);
           setConversationId(savedState.conversationId);
         }
       }
@@ -218,13 +220,14 @@ function ChatView({ loadedConversation, navigationPending = false }: ChatViewPro
       return;
     }
     vscode?.setState<PersistentChatViewState>({
-      schemaVersion: 4,
+      schemaVersion: 5,
       mode: "persistent",
       draft,
       referencedFiles: referencedFiles.filter((file) => file.scope !== "external-snapshot"),
+      imageAttachments,
       conversationId,
     });
-  }, [draft, referencedFiles, conversationId, historyEnabled, stateHydrated]);
+  }, [draft, referencedFiles, imageAttachments, conversationId, historyEnabled, stateHydrated]);
 
   useEffect(() => {
     const vscode = getVsCodeApi();
@@ -235,6 +238,16 @@ function ChatView({ loadedConversation, navigationPending = false }: ChatViewPro
       if (message.type === "addReferencedFiles" || message.type === "contextFilesSelected") {
         appendReferencedFiles(message.files);
       }
+      if (message.type === "imageAttachmentsSelected") {
+        if (message.error) {setRequestError(message.error);}
+        if (message.attachments.length > 0) {
+          setImageAttachments((current) => [...current, ...message.attachments].slice(0, 8));
+          requestAnimationFrame(focusInput);
+        }
+      }
+      if (message.type === "imageAttachmentDeleted" && !message.success && message.error) {
+        setRequestError(message.error);
+      }
       if (message.type === "setDraft") {
         setDraft(message.text);
         requestAnimationFrame(focusInput);
@@ -243,12 +256,12 @@ function ChatView({ loadedConversation, navigationPending = false }: ChatViewPro
         conversationIdRef.current = undefined;
         activeGenerationIdRef.current = undefined;
         pendingRequestsRef.current.clear();
-        lastSubmittedPromptRef.current = "";
         setConversationId(undefined);
         setActiveGenerationId(undefined);
         setMessages([]);
         setIsProcessing(false);
         setReferencedFiles([]);
+        setImageAttachments([]);
         setDraft("");
         setRecoveredDrafts([]);
       }
@@ -276,6 +289,10 @@ function ChatView({ loadedConversation, navigationPending = false }: ChatViewPro
         if (submitted && sameReferenceSet(referencedFilesRef.current, submitted.referenceIds)) {
           referencedFilesRef.current = [];
           setReferencedFiles([]);
+        }
+        if (submitted && sameImageSet(imageAttachmentsRef.current, submitted.imageIds)) {
+          imageAttachmentsRef.current = [];
+          setImageAttachments([]);
         }
         if (submitted || message.conversationId === conversationIdRef.current) {
           conversationIdRef.current = message.conversationId;
@@ -376,7 +393,6 @@ function ChatView({ loadedConversation, navigationPending = false }: ChatViewPro
         onModelChanged={handleModelChanged}
         onProcessingChange={setIsProcessing}
         onFocusInput={focusInput}
-        onGenerationCancelled={handleGenerationCancelled}
         usageBreakdown={usageBreakdown}
       />
       {apiKeyStatus === "missing" ? <div className="statusMessage warning">{t("chat.apiKeyMissing")}</div> : null}
@@ -424,22 +440,27 @@ function ChatView({ loadedConversation, navigationPending = false }: ChatViewPro
           placeholder={apiKeyStatus === "configured" ? t("chat.askAnythingAboutYourCode") : t("chat.configureApiKey")}
           rows={1}
           referencedFiles={referencedFiles}
+          imageAttachments={imageAttachments}
+          onRemoveImageAttachment={removeImageAttachment}
+          onImagePasteError={setRequestError}
           conversationId={conversationId}
           workspaceRevision={workspaceContext?.binding.revision}
           activeGenerationId={activeGenerationId}
           onSend={handleSend}
-        />
-        <InputFooter
-          reasoning={reasoning}
-          selectedModel={selectedModel}
-          permissionMode={permissionMode}
-          permissionUpdatePending={isPermissionUpdatePending}
-          onModelChange={handleModelChange}
-          onReasoningChange={handleReasoningChange}
-          onPermissionModeChange={handlePermissionModeChange}
-          referencedFiles={referencedFiles}
-          onRemoveReferencedFile={removeFile}
-          conversationId={conversationId}
+          footer={(
+            <InputFooter
+              reasoning={reasoning}
+              selectedModel={selectedModel}
+              permissionMode={permissionMode}
+              permissionUpdatePending={isPermissionUpdatePending}
+              onModelChange={handleModelChange}
+              onReasoningChange={handleReasoningChange}
+              onPermissionModeChange={handlePermissionModeChange}
+              referencedFiles={referencedFiles}
+              onRemoveReferencedFile={removeFile}
+              conversationId={conversationId}
+            />
+          )}
         />
       </div>
     </div>
@@ -452,17 +473,17 @@ function getSavedChatState(): PersistentChatViewState | undefined {
     return undefined;
   }
 
-  const isV4 = state.schemaVersion === 4 && state.mode === "persistent";
-  const isV3 = state.schemaVersion === 3 && state.mode === "persistent";
-  const isV2 = state.schemaVersion === 2;
-  if (!isV4 && !isV3 && !isV2) {return undefined;}
+  if (state.schemaVersion !== 5 || state.mode !== "persistent") {return undefined;}
 
   return {
-    schemaVersion: 4,
+    schemaVersion: 5,
     mode: "persistent",
     draft: typeof state.draft === "string" ? state.draft : "",
     referencedFiles: Array.isArray(state.referencedFiles)
       ? state.referencedFiles.filter(isReferencedFile).filter((file) => file.scope !== "external-snapshot")
+      : [],
+    imageAttachments: Array.isArray(state.imageAttachments)
+      ? state.imageAttachments.filter(isImageAttachment)
       : [],
     conversationId: typeof state.conversationId === "string" && state.conversationId.trim() ? state.conversationId : undefined,
   };
@@ -474,6 +495,18 @@ function referenceIdentity(file: ReferencedFile): string {
 
 function sameReferenceSet(files: ReferencedFile[], expected: string[]): boolean {
   return files.length === expected.length && files.every((file, index) => referenceIdentity(file) === expected[index]);
+}
+
+function sameImageSet(images: ImageAttachment[], expected: string[]): boolean {
+  return images.length === expected.length && images.every((image, index) => image.id === expected[index]);
+}
+
+function isImageAttachment(value: unknown): value is ImageAttachment {
+  if (!value || typeof value !== "object") {return false;}
+  const image = value as Partial<ImageAttachment>;
+  return typeof image.id === "string" && typeof image.fileId === "string" &&
+    typeof image.name === "string" && typeof image.previewUri === "string" &&
+    typeof image.expiresAt === "number" && image.expiresAt > Date.now();
 }
 
 function isReferencedFile(value: unknown): value is ReferencedFile {

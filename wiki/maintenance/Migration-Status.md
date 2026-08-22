@@ -23,7 +23,8 @@
 - Duplicated defaults between UI and backend.
 - Ensure `core` remains free of `vscode` imports.
 - Ensure new tools use `ToolWorkspace` and not direct VS Code APIs.
-- Keep `web-doc/src/i18n.ts` as the source of translated documentation strings.
+- Keep `web-doc/src/i18n/` as the source of translated documentation content.
+- Do not reintroduce protocol compatibility for the removed `selectContextFiles` or `selectImageAttachments` requests; protocol 5 uses `selectAttachments`.
 
 ## Criteria for removing legacy compatibility
 

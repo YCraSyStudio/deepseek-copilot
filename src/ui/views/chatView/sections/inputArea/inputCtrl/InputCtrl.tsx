@@ -1,5 +1,5 @@
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
-import { WEBVIEW_INPUT_LIMITS, type HandlerToWebviewMessage, type PathCompletionItem, type ReferencedFile } from "@/contracts";
+import { WEBVIEW_INPUT_LIMITS, type HandlerToWebviewMessage, type ImageAttachment, type PathCompletionItem, type ReferencedFile } from "@/contracts";
 import "./InputCtrl.css";
 import { FileSelector, getPathToken, type PathToken } from "@webview/components/chatView";
 import { useVsCode } from "@webview/views/chatView/contexts";
@@ -15,10 +15,14 @@ type Props = {
   placeholder?: string;
   rows?: number;
   referencedFiles?: ReferencedFile[];
+  imageAttachments?: ImageAttachment[];
+  onRemoveImageAttachment?: (attachment: ImageAttachment) => void;
+  onImagePasteError?: (error: string) => void;
   conversationId?: string;
   workspaceRevision?: string;
   activeGenerationId?: string;
   onSend?: (text: string, clientRequestId: string) => void;
+  footer?: React.ReactNode;
 };
 
 const InputCtrl = forwardRef<HTMLTextAreaElement, Props>(
@@ -33,10 +37,14 @@ const InputCtrl = forwardRef<HTMLTextAreaElement, Props>(
       placeholder = "Type your message here...",
       rows = 1,
       referencedFiles,
+      imageAttachments = [],
+      onRemoveImageAttachment,
+      onImagePasteError,
       conversationId,
       workspaceRevision,
       activeGenerationId,
       onSend,
+      footer,
     },
     ref,
   ) => {
@@ -50,6 +58,8 @@ const InputCtrl = forwardRef<HTMLTextAreaElement, Props>(
     const [completions, setCompletions] = useState<PathCompletionItem[]>([]);
     const [activeIndex, setActiveIndex] = useState(0);
     const [hasCompletionResponse, setHasCompletionResponse] = useState(false);
+    const [isControlPressed, setIsControlPressed] = useState(false);
+    const hasTextContent = input.trim().length > 0;
 
     useImperativeHandle(ref, () => taRef.current!, [taRef]);
 
@@ -80,6 +90,19 @@ const InputCtrl = forwardRef<HTMLTextAreaElement, Props>(
       if (completionTimerRef.current) {
         clearTimeout(completionTimerRef.current);
       }
+    }, []);
+
+    useEffect(() => {
+      const handleModifierChange = (event: KeyboardEvent) => setIsControlPressed(event.ctrlKey);
+      const handleWindowBlur = () => setIsControlPressed(false);
+      window.addEventListener("keydown", handleModifierChange);
+      window.addEventListener("keyup", handleModifierChange);
+      window.addEventListener("blur", handleWindowBlur);
+      return () => {
+        window.removeEventListener("keydown", handleModifierChange);
+        window.removeEventListener("keyup", handleModifierChange);
+        window.removeEventListener("blur", handleWindowBlur);
+      };
     }, []);
 
     const requestPathCompletions = useCallback(
@@ -126,7 +149,7 @@ const InputCtrl = forwardRef<HTMLTextAreaElement, Props>(
 
     const handleSend = useCallback(() => {
       const text = input.trim();
-      if (!text || !vscode || !canSend) {
+      if ((!text && imageAttachments.length === 0) || !vscode || !canSend) {
         return;
       }
 
@@ -143,8 +166,9 @@ const InputCtrl = forwardRef<HTMLTextAreaElement, Props>(
         conversationId,
         workspaceRevision,
         referencedFiles: referencedFiles?.map(toRequestReference),
+        imageAttachments,
       });
-    }, [input, vscode, canSend, selectedModelRef, reasoningRef, referencedFiles, conversationId, workspaceRevision, onSend]);
+    }, [input, imageAttachments, vscode, canSend, selectedModelRef, reasoningRef, referencedFiles, conversationId, workspaceRevision, onSend]);
 
     const handleCancel = useCallback(() => {
       if (activeGenerationId && conversationId) {
@@ -159,7 +183,7 @@ const InputCtrl = forwardRef<HTMLTextAreaElement, Props>(
 
     const handleSteer = useCallback(() => {
       const text = input.trim();
-      if (!text || !vscode || !conversationId || !activeGenerationId) {
+      if ((!text && imageAttachments.length === 0) || !vscode || !conversationId || !activeGenerationId) {
         return;
       }
       const clientRequestId = crypto.randomUUID();
@@ -174,8 +198,9 @@ const InputCtrl = forwardRef<HTMLTextAreaElement, Props>(
         conversationId,
         workspaceRevision,
         referencedFiles: referencedFiles?.map(toRequestReference),
+        imageAttachments,
       });
-    }, [activeGenerationId, conversationId, input, onSend, reasoningRef, referencedFiles, selectedModelRef, vscode, workspaceRevision]);
+    }, [activeGenerationId, conversationId, imageAttachments, input, onSend, reasoningRef, referencedFiles, selectedModelRef, vscode, workspaceRevision]);
 
     const insertCompletion = useCallback(
       (completion: PathCompletionItem) => {
@@ -235,10 +260,16 @@ const InputCtrl = forwardRef<HTMLTextAreaElement, Props>(
 
         if (e.key === "Enter" && !e.shiftKey && canSend) {
           e.preventDefault();
-          handleSend();
+          if (!isProcessing) {
+            handleSend();
+          } else if (e.ctrlKey) {
+            handleSend();
+          } else {
+            handleSteer();
+          }
         }
       },
-      [activeIndex, canSend, completions, handleSend, insertCompletion],
+      [activeIndex, canSend, completions, handleSend, handleSteer, insertCompletion, isProcessing],
     );
 
     const handleChange = useCallback(
@@ -256,58 +287,121 @@ const InputCtrl = forwardRef<HTMLTextAreaElement, Props>(
       }
     }, [input, requestPathCompletions]);
 
+    const handlePaste = useCallback((event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+      const images = Array.from(event.clipboardData.items)
+        .filter((item) => item.kind === "file" && item.type.startsWith("image/"))
+        .flatMap((item) => item.getAsFile() ? [item.getAsFile()!] : []);
+      if (images.length === 0) {return;}
+      event.preventDefault();
+      if (imageAttachments.length + images.length > WEBVIEW_INPUT_LIMITS.images) {
+        onImagePasteError?.(`You can attach at most ${WEBVIEW_INPUT_LIMITS.images} images.`);
+        return;
+      }
+      for (const [index, file] of images.entries()) {
+        if (file.size < 1 || file.size > WEBVIEW_INPUT_LIMITS.clipboardImageBytes) {
+          onImagePasteError?.("A pasted image may be at most 16 MiB. Use the attachment picker for larger images.");
+          continue;
+        }
+        void file.arrayBuffer().then((buffer) => {
+          vscode?.postMessage({
+            type: "uploadClipboardImage",
+            requestId: crypto.randomUUID(),
+            name: file.name || `pasted-image-${Date.now()}-${index + 1}.${extensionForMime(file.type)}`,
+            mediaType: file.type,
+            size: file.size,
+            dataBase64: bytesToBase64(new Uint8Array(buffer)),
+          });
+        }, () => onImagePasteError?.("The pasted image could not be read."));
+      }
+    }, [imageAttachments.length, onImagePasteError, vscode]);
+
     return (
-      <div className="inputCtrl">
-        <FileSelector
-          activeIndex={activeIndex}
-          completions={completions}
-          isOpen={Boolean(pathToken) && hasCompletionResponse}
-          onSelect={insertCompletion}
-          listboxId="path-completion-listbox"
-        />
+      <div className="inputComposer">
+        {imageAttachments.length > 0 ? (
+          <div className="composerImageAttachments">
+            {imageAttachments.map((attachment) => (
+              <div className="composerImageAttachment" key={attachment.id} title={attachment.name}>
+                {attachment.previewUri ? <img src={attachment.previewUri} alt={attachment.name} /> : <span className="codicon codicon-file-media" aria-hidden="true" />}
+                <button
+                  type="button"
+                  className="composerImageRemove"
+                  onClick={() => onRemoveImageAttachment?.(attachment)}
+                  aria-label={t("chat.removeImage")}
+                >
+                  <span className="codicon codicon-close" aria-hidden="true" />
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : null}
+        <div className="inputCtrl">
+          <FileSelector
+            activeIndex={activeIndex}
+            completions={completions}
+            isOpen={Boolean(pathToken) && hasCompletionResponse}
+            onSelect={insertCompletion}
+            listboxId="path-completion-listbox"
+          />
 
-        <span className="srOnly" role="status" aria-live="polite">
-          {pathToken && hasCompletionResponse
-            ? completions.length > 0
-              ? t("chat.pathSuggestionCount", { count: completions.length })
-              : t("chat.noFilesOrFoldersFound")
-            : ""}
-        </span>
+          <span className="srOnly" role="status" aria-live="polite">
+            {pathToken && hasCompletionResponse
+              ? completions.length > 0
+                ? t("chat.pathSuggestionCount", { count: completions.length })
+                : t("chat.noFilesOrFoldersFound")
+              : ""}
+          </span>
 
-        <textarea
-          ref={taRef}
-          className="Input"
-          placeholder={placeholder}
-          value={input}
-          onChange={handleChange}
-          onClick={handleCursorChange}
-          onKeyDown={handleKeyDown}
-          rows={rows}
-          aria-label={t("chat.chatMessage")}
-          aria-autocomplete="list"
-          aria-expanded={completions.length > 0 && Boolean(pathToken)}
-          aria-controls={completions.length > 0 ? "path-completion-listbox" : undefined}
-          aria-activedescendant={completions.length > 0 ? `path-completion-option-${activeIndex}` : undefined}
-          aria-busy={isProcessing}
-          maxLength={WEBVIEW_INPUT_LIMITS.chatText}
-        />
-        {isProcessing ? (
-          <>
-            <button className="stopBtn inside" type="button" onClick={handleCancel} aria-label={t("chat.stopGeneration")} data-tooltip={t("chat.stopGeneration")}>
-              <span className="codicon codicon-debug-stop" aria-hidden="true" />
-            </button>
-            <button className="sendBtn inside" type="button" onClick={handleSteer} disabled={!canSend} aria-label={t("chat.interruptAndGuide")} data-tooltip={t("chat.interruptAndGuide")}>
-              <span className="codicon codicon-debug-restart" aria-hidden="true" />
-            </button>
-            <button className="sendBtn inside" type="button" onClick={handleSend} disabled={!canSend} aria-label={t("chat.queueMessage")} data-tooltip={t("chat.queueMessage")}>
-              <span className="codicon codicon-list-ordered" aria-hidden="true" />
-            </button>
-          </>
-        ) : (
-          <button className="sendBtn inside" type="button" onClick={handleSend} disabled={!canSend} aria-label={t("chat.sendMessage")}>
-            <span className="codicon codicon-send" aria-hidden="true" />
-          </button>
-        )}
+          <textarea
+            ref={taRef}
+            className="Input"
+            placeholder={placeholder}
+            value={input}
+            onChange={handleChange}
+            onClick={handleCursorChange}
+            onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
+            rows={rows}
+            aria-label={t("chat.chatMessage")}
+            aria-autocomplete="list"
+            aria-expanded={completions.length > 0 && Boolean(pathToken)}
+            aria-controls={completions.length > 0 ? "path-completion-listbox" : undefined}
+            aria-activedescendant={completions.length > 0 ? `path-completion-option-${activeIndex}` : undefined}
+            aria-busy={isProcessing}
+            maxLength={WEBVIEW_INPUT_LIMITS.chatText}
+          />
+        </div>
+        <div className="inputComposerFooter">
+          {footer}
+          <div className="inputComposerActions">
+            {isProcessing ? (
+              <button
+                className={`${hasTextContent ? "sendBtn" : "stopBtn"} inside`}
+                type="button"
+                onClick={(event) => {
+                  if (!hasTextContent) {
+                    handleCancel();
+                  } else if (event.ctrlKey || isControlPressed) {
+                    handleSend();
+                  } else {
+                    handleSteer();
+                  }
+                }}
+                disabled={hasTextContent && !canSend}
+                aria-label={t(!hasTextContent ? "chat.stopGeneration" : isControlPressed ? "chat.queueMessage" : "chat.interruptAndGuide")}
+                data-tooltip={t(!hasTextContent ? "chat.stopGeneration" : isControlPressed ? "chat.queueMessage" : "chat.interruptAndGuide")}
+              >
+                <span
+                  className={`codicon ${!hasTextContent ? "codicon-debug-stop" : isControlPressed ? "codicon-list-ordered" : "codicon-debug-restart"}`}
+                  aria-hidden="true"
+                />
+              </button>
+            ) : (
+              <button className="sendBtn inside" type="button" onClick={handleSend} disabled={!canSend} aria-label={t("chat.sendMessage")}>
+                <span className="codicon codicon-send" aria-hidden="true" />
+              </button>
+            )}
+          </div>
+        </div>
       </div>
     );
   },
@@ -325,4 +419,20 @@ function toRequestReference(file: ReferencedFile) {
     rootUri: file.rootUri,
     bindingRevision: file.bindingRevision,
   };
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  const chunks: string[] = [];
+  const chunkSize = 0x8000;
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    chunks.push(String.fromCharCode(...bytes.subarray(offset, Math.min(bytes.length, offset + chunkSize))));
+  }
+  return btoa(chunks.join(""));
+}
+
+function extensionForMime(mediaType: string): string {
+  if (mediaType === "image/jpeg") {return "jpg";}
+  if (mediaType === "image/gif") {return "gif";}
+  if (mediaType === "image/webp") {return "webp";}
+  return "png";
 }

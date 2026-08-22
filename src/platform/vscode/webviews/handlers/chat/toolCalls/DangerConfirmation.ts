@@ -31,10 +31,7 @@ export async function requestDangerConfirmation(options: DangerConfirmationOptio
       toolCalls: [toolCall],
       round,
       autoExecute: false,
-      dangerConfirmation: {
-        ...confirmationResult,
-        canTrustForSession: confirmationResult.dangerLevel !== "destructive",
-      },
+      dangerConfirmation: confirmationResult,
     });
   });
 

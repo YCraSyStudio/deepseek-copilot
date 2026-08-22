@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import type { GenerationSnapshot, StoredToolCall, ToolCall } from "@/contracts";
 import type { VsCodeApi } from "@webview/VsCodeApi";
-import type { ChatMessage, ToolCallAction, ToolCallActionOptions, ToolCallGroup, ToolCallState } from "../../views/chatView/ChatViewTypes";
+import type { ChatMessage, ToolCallAction, ToolCallGroup, ToolCallState } from "../../views/chatView/ChatViewTypes";
 import type { MessageDispatcher } from "../../views/chatView/hooks";
 
 interface ToolCallControllerOptions {
@@ -84,7 +84,7 @@ export function useToolCallController({ conversationId, messages, isProcessing, 
     }, [conversationId]),
 
     onStreamDone: useCallback((info) => {
-      if (info.cancelled) {
+      if (info.status !== "completed") {
         setToolCallGroups([]);
       }
       setToolCallLimit(null);
@@ -109,17 +109,17 @@ export function useToolCallController({ conversationId, messages, isProcessing, 
   const pendingToolCalls = useMemo(() => getPendingUserDecisionToolCalls(activeTimelineGroups), [activeTimelineGroups]);
 
   const postToolCallAction = useCallback(
-    (toolCallId: string, action: ToolCallAction, options: ToolCallActionOptions = {}) => {
+    (toolCallId: string, action: ToolCallAction) => {
       const generationId = generationIdRef.current;
       if (generationId && !actionsDisabled) {
-        vscode?.postMessage({ type: "executeToolCall", generationId, toolCallId, action, trustForSession: options.trustForSession });
+        vscode?.postMessage({ type: "executeToolCall", generationId, toolCallId, action });
       }
     },
     [actionsDisabled, vscode],
   );
 
   const handleExecute = useCallback(
-    (toolCallId: string, options?: ToolCallActionOptions) => postToolCallAction(toolCallId, "execute", options),
+    (toolCallId: string) => postToolCallAction(toolCallId, "execute"),
     [postToolCallAction],
   );
   const handleReject = useCallback((toolCallId: string) => postToolCallAction(toolCallId, "reject"), [postToolCallAction]);

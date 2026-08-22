@@ -4,6 +4,7 @@ import type {
   AssistantTimelineEvent,
   AvailableToolInfo,
   Conversation,
+  ConversationMessage,
   ConversationSummary,
   DangerConfirmationData,
   GenerationSnapshot,
@@ -15,11 +16,12 @@ import type {
   WebviewConfig,
   WorkspaceContextStatus,
   HistoryTransitionPhase,
+  ImageAttachment,
 } from "./WebviewModels";
 
 export type HandlerToWebviewMessage =
-  | { type: "protocolReady"; protocolVersion: 3 }
-  | { type: "protocolError"; supportedVersion: 3; error: string }
+  | { type: "protocolReady"; protocolVersion: 5 }
+  | { type: "protocolError"; supportedVersion: 5; error: string }
   | { type: "requestRejected"; requestId?: string; action?: string; error: string }
   | { type: "configLoaded"; revision: number; config: Partial<WebviewConfig> }
   | {
@@ -57,7 +59,14 @@ export type HandlerToWebviewMessage =
   | { type: "showTyping"; generationId: string; conversationId: string }
   | { type: "streamTimelineDelta"; generationId: string; conversationId: string; eventId: string; eventType: "reasoning" | "content"; content: string }
   | { type: "streamTimelineToolGroup"; generationId: string; conversationId: string; event: Extract<AssistantTimelineEvent, { type: "tool-group" }> }
-  | { type: "streamDone"; generationId: string; conversationId: string; cancelled?: boolean; finish_reason?: string; restoredDraft?: QueuedGenerationMessage }
+  | {
+      type: "streamDone";
+      generationId: string;
+      conversationId: string;
+      status: "completed" | "cancelled" | "interrupted";
+      finish_reason?: string;
+      generationStopReason?: ConversationMessage["generationStopReason"];
+    }
   | { type: "streamError"; generationId: string; conversationId: string; error: string }
   | {
       type: "addMessage";
@@ -72,6 +81,7 @@ export type HandlerToWebviewMessage =
         toolCallId?: string;
         toolName?: string;
         usage?: UsageAggregate;
+        imageAttachments?: ImageAttachment[];
         generationId: string;
       };
     }
@@ -119,4 +129,6 @@ export type HandlerToWebviewMessage =
       dangerConfirmation?: DangerConfirmationData;
     }
   | { type: "availableTools"; tools: AvailableToolInfo[] }
+  | { type: "imageAttachmentsSelected"; requestId: string; attachments: ImageAttachment[]; error?: string }
+  | { type: "imageAttachmentDeleted"; requestId: string; fileId: string; success: boolean; error?: string }
   | { type: "assistantUsageUpdated"; generationId: string; conversationId: string; usage: UsageAggregate };

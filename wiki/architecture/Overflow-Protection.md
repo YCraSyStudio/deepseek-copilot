@@ -2,7 +2,7 @@
 
 # Overflow Protection
 
-Overflow control is generation-scoped. `GenerationBudgetManager` combines model capabilities, the configured output allowance, conservative UTF-8 token estimates, provider usage calibration, compaction count, and concise-recovery state. Official DeepSeek models use the registered 1M-token context and 384K output capabilities; unknown compatible endpoints fall back to 128K context and 8,192 output tokens.
+Overflow control is generation-scoped. `GenerationBudgetManager` combines model capabilities, the configured output allowance, conservative UTF-8 token estimates, provider usage calibration, compaction count, and concise-recovery state. DeepSeek V4 Vision (Flash) and V4 Pro use the registered 1M-token context and 384K output capabilities; the configured allowance defaults to 8,192 tokens. Unknown compatible endpoints fall back to 128K context and 8,192 output tokens.
 
 Requests are assessed as `within_budget`, `compaction_required`, or `hard_limit`. The preventive threshold is 80% of usable input and the terminal threshold is 95%; a non-consumable margin of 5% or 16K tokens is reserved. Context is checked before the first provider call and at every completed tool-round boundary. Active tool protocols are never cut in the middle.
 

@@ -1,9 +1,8 @@
-import type { AppConfig, AssistantTimelineEvent, ChatMessage, PermissionSnapshot, ToolCall, ToolDefinition, ToolExecutionMode } from "@/contracts";
+import type { AppConfig, AssistantTimelineEvent, ChatMessage, PermissionSnapshot, ToolCall, ToolDefinition } from "@/contracts";
 import type { ToolCallCycleResult } from "@/application/chat/toolCall";
 import type { ToolExecutor } from "@/application/tools/ToolExecutor";
 import type { ConfirmationRequiredResult, ExecutionResult } from "@/application/tools/Types";
 import type { StreamEventEmitter } from "../StreamEventEmitter";
-import type { DangerTrustScope } from "./DangerTrustStore";
 import type { ProviderTranscript } from "@/application/chat/ProviderTranscript";
 import type { CommandSafetyReview } from "@/infrastructure/deepseek/security/commandReview";
 import type { ProviderUsage, UsagePhase } from "@/shared/usage/Usage";
@@ -30,12 +29,10 @@ export type ToolCallLimitDecision = "continue" | "stop";
 export interface ToolCallActionPayload {
   toolCallId: string;
   action: ToolCallAction;
-  trustForSession?: boolean;
 }
 
 export interface DangerConfirmationDecision {
   confirmed: boolean;
-  trustForSession?: boolean;
 }
 
 export interface StoredExecution {
@@ -65,13 +62,13 @@ export interface ToolCallRunOptions {
   exposeReasoning: boolean;
   signal?: AbortSignal;
   isCancelling: () => boolean;
-  trustScope: DangerTrustScope;
   isWorkspaceTrusted: () => boolean;
   generationId: string;
   trustedUserRequest: string;
   authorizedUserUrls: readonly string[];
   budgetManager: GenerationBudgetManager;
   onContextCompacted?: (data: { estimatedTokensBefore: number; estimatedTokensAfter: number }) => Promise<void> | void;
+  analyzeImages?: (question: string, imageIds: string[], signal?: AbortSignal) => Promise<string>;
 }
 
 export interface ToolCallRunResult {
@@ -90,7 +87,6 @@ export interface ToolExecutionContext {
   autoApproveMode: boolean;
   fullAccessMode: boolean;
   isWorkspaceTrusted: () => boolean;
-  getToolMode: (toolName: string) => ToolExecutionMode;
   getCurrentRound: () => number;
   getPendingCycle: () => PendingToolCallCycle | null;
   requestDangerConfirmation: (
@@ -102,14 +98,13 @@ export interface ToolExecutionContext {
     toolCall: ToolCall,
     confirmationResult: ConfirmationRequiredResult,
   ) => Promise<CommandSafetyReview>;
-  isDangerTrusted: (toolCall: ToolCall, confirmationResult: ConfirmationRequiredResult) => boolean;
-  trustDangerForSession: (toolCall: ToolCall, confirmationResult: ConfirmationRequiredResult) => void;
   generationId?: string;
   trustedUserRequest?: string;
   availableToolNames?: readonly string[];
   authorizedUserUrls?: readonly string[];
   isWebTainted?: () => boolean;
   markWebTainted?: () => void;
+  analyzeImages?: (question: string, imageIds: string[], signal?: AbortSignal) => Promise<string>;
 }
 
 export interface HandleExecutionResultOptions {

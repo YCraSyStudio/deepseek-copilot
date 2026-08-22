@@ -1,5 +1,21 @@
 # Change Log
 
+## Unreleased
+
+## [0.1.10] - 2026-08-22
+
+- Simplified permissions to `default`, `auto-approve`, and `full-access`; removed the per-tool matrix, read-only/custom profiles, and session trust shortcuts.
+- Replaced local terminal danger analysis with an independent DeepSeek review that classifies mutations as routine, elevated, or critical. Auto-approve confirms elevated and critical actions; full-access confirms only critical actions that could make the computer unusable or cause broad irreversible loss.
+- Moved Web search into Tools below Permission mode and added a global switch that removes `search_web` and `read_web` from model requests while disabled.
+- Migrated retired settings and checkpoints to the new three-mode contract and advanced the webview protocol to version 5.
+- Unified the chat textarea, compact model/reasoning picker, attachments, permission mode, and send actions into one rounded composer, and removed the redundant settings-saved notification. During generation, one contextual button now switches between Stop when the draft is empty, Interrupt and guide for `Enter`, and Queue message while `Ctrl` is held (`Ctrl+Enter`).
+- Kept tool calling available in non-thinking mode while honoring `thinking: disabled` throughout every tool round, matching the current DeepSeek API contract.
+- Replaced the non-visual Flash option with `DeepSeek V4 Vision (Flash)` (`deepseek-v4-flash-vision-exp`). Vision receives image file IDs directly, while Pro can request the new `analyze_images` tool to delegate image interpretation to Vision and consume its text description.
+- Added a provider-local fallback from unavailable experimental Vision to stable `deepseek-v4-flash`. Text requests and connection tests retry once; direct Vision chats omit images and disclose the limitation, while Pro's delegated analyzer fails explicitly instead of returning invented visual analysis. Authentication, rate-limit, generic provider, and custom-endpoint failures never trigger the fallback.
+- Unified image and context-file attachment behind one native picker. Binary signatures, rather than file extensions, identify JPEG, PNG, GIF, and WebP images; pasted clipboard images are supported with `Ctrl+V`/`Cmd+V`.
+- Added DeepSeek Files API upload and deletion, 30-day remote expiry, bounded local preview caching, attachment limits, and deferred cleanup so history Undo can restore deleted conversations without losing their images. Base64 is used only transiently for clipboard IPC and is never persisted or sent in chat requests.
+- Redesigned explicit cancellation as a stable terminal outcome: Stop preserves the original prompt, partial assistant timeline, and completed tool results as `cancelled`, emits one terminal event, never rolls back completed side effects, and cannot leak stale cancellation state into the next message. Steering remains internally `interrupted`, but now carries a verified link to the source generation, explicitly continues the original task under the latest guidance, and hides the misleading interruption warning.
+
 ## [0.1.9] - 2026-08-11
 
 - Publish Marketplace builds through its normal release channel while retaining the extension's `preview: true` product status, and mark GitHub releases as prereleases.

@@ -271,7 +271,7 @@ function sanitizeWebFailure(error: unknown, fallback: string): string {
   return message && message.length <= 200 ? message : fallback;
 }
 
-const webMetadata: ToolMetadata = { dangerLevel: "safe", requiresConfirmation: true, scope: "global", approvalOwner: "extension" };
+const webMetadata: ToolMetadata = { dangerLevel: "safe", requiresConfirmation: true, scope: "global" };
 
 const searchWebDefinition: ToolDefinition = {
   type: "function",

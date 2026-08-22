@@ -8,3 +8,5 @@ Application work publishes discriminated serializable events through `Generation
 
 VS Code handlers validate and dispatch commands, invoke the relevant use case, and translate results. They must not own provider transport logic or generation invariants.
 
+Every accepted generation emits exactly one terminal outcome. `completed`, `cancelled`, `interrupted`, and `error` are distinct states: explicit Stop preserves the current presentation turn as `cancelled`, while steering and recoverable lifecycle interruption use `interrupted`. Steering additionally carries a verified source-generation link; only a matching persisted `steered` terminal can inject continuation semantics into the next provider request. The UI hides that internal boundary, while other interruptions remain visible. Terminal publication occurs only after persistence reconciliation, and repeated or stale cancellation is idempotent.
+

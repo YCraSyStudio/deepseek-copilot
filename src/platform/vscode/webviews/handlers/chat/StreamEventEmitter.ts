@@ -1,13 +1,14 @@
 import { randomUUID } from "crypto";
-import type { AssistantTimelineEvent, StreamChunk } from "@/contracts";
+import type { AssistantTimelineEvent, ConversationMessage, StreamChunk } from "@/contracts";
 import type { GenerationEventSink } from "@/application/ports";
 import { appendBoundedUtf8 } from "@/shared/utils/BoundedText";
 
 const MAX_RETAINED_REASONING_BYTES = 512 * 1024;
 
 export interface StreamDonePayload {
-  cancelled?: boolean;
+  status?: "completed" | "cancelled" | "interrupted";
   finish_reason?: string;
+  generationStopReason?: ConversationMessage["generationStopReason"];
 }
 
 export class StreamEventEmitter {

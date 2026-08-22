@@ -135,7 +135,7 @@ suite("ConversationState", () => {
       title: "Canonical",
       createdAt: 1,
       updatedAt: 1,
-      model: "deepseek-v4-flash",
+      model: "deepseek-v4-flash-vision-exp",
       workspaceUri: "file:///workspace",
       workspaceBinding: testWorkspaceBinding(),
       messages: [
@@ -253,7 +253,7 @@ suite("ConversationState", () => {
     assert.deepStrictEqual(state.getApiMessages(), [{ role: "assistant", content: "machine execution ledger" }]);
   });
 
-  test("atomically removes every artifact of one generation and keeps prior context", async () => {
+  test("persists a cancelled turn and keeps it available as bounded context", async () => {
     const saves: Conversation[] = [];
     const state = new ConversationState({ save: async (conversation) => {saves.push(structuredClone(conversation));} });
     state.load({
@@ -276,36 +276,27 @@ suite("ConversationState", () => {
       messages: [
         { id: "prior-user", role: "user", content: "Before", createdAt: 11, generationId: "prior" },
         { id: "prior-assistant", role: "assistant", content: "Answer", createdAt: 12, generationId: "prior" },
-        { id: "cancel-user", role: "user", content: "Cancel me", createdAt: 21, generationId: "cancelled" },
-        { id: "cancel-context", role: "context", content: "Compacted", createdAt: 22, generationId: "cancelled" },
-        { id: "cancel-assistant", role: "assistant", content: "Partial", createdAt: 23, generationId: "cancelled" },
+        { id: "cancel-user", role: "user", content: "Keep me", createdAt: 21, generationId: "cancelled" },
       ],
     });
-
-    const remaining = await state.removeGeneration("cancelled");
-
-    assert.deepStrictEqual(remaining?.messages.map((message) => message.id), ["prior-user", "prior-assistant"]);
-    assert.strictEqual(remaining?.contextSummary?.content, "Summary of prior turns");
-    assert.ok((remaining?.updatedAt ?? 0) > 20);
-    assert.deepStrictEqual(saves.at(-1)?.messages.map((message) => message.id), ["prior-user", "prior-assistant"]);
-  });
-
-  test("drops an empty conversation after its only generation is cancelled", async () => {
-    const state = new ConversationState({ save: async () => undefined });
-    state.load({
-      schemaVersion: 2,
-      id: "only-turn",
-      title: "Only turn",
-      createdAt: 1,
-      updatedAt: 1,
+    await state.saveMessages({
       model: "model",
-      workspaceUri: "file:///workspace",
-      workspaceBinding: testWorkspaceBinding(),
-      messages: [{ id: "user", role: "user", content: "Stop", createdAt: 1, generationId: "generation" }],
+      messages: [state.createMessage("assistant", "Partial", {
+        generationId: "cancelled",
+        generationStatus: "cancelled",
+        generationStopReason: "user_cancelled",
+        contextContent: "Partial",
+      })],
     });
 
-    assert.strictEqual(await state.removeGeneration("generation"), undefined);
-    assert.strictEqual(state.getConversation(), undefined);
+    assert.deepStrictEqual(state.getConversation()?.messages.map((message) => message.id), [
+      "prior-user", "prior-assistant", "cancel-user", state.getConversation()?.messages.at(-1)?.id,
+    ]);
+    assert.deepStrictEqual(state.getApiMessages().slice(-2), [
+      { role: "user", content: "Keep me" },
+      { role: "assistant", content: "Partial" },
+    ]);
+    assert.strictEqual(saves.at(-1)?.messages.at(-1)?.generationStatus, "cancelled");
   });
 });
 

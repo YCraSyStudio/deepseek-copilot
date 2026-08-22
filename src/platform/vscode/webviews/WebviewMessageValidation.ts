@@ -1,4 +1,4 @@
-import { MAX_OUTPUT_TOKENS, WEBVIEW_INPUT_LIMITS, type AppConfig, type WebviewToHandlerMessage } from "@/contracts";
+import { MAX_OUTPUT_TOKENS, WEBVIEW_INPUT_LIMITS, WEBVIEW_PROTOCOL_VERSION, type AppConfig, type WebviewToHandlerMessage } from "@/contracts";
 import { isAllowedApiBaseUrl } from "@/shared/security/ApiOrigin";
 
 const MAX_CHAT_TEXT = WEBVIEW_INPUT_LIMITS.chatText;
@@ -15,7 +15,7 @@ export function isWebviewToHandlerMessage(value: unknown): value is WebviewToHan
 
   switch (value.type) {
     case "initializeProtocol":
-      return hasOnlyKeys(value, ["type", "protocolVersion"]) && value.protocolVersion === 3;
+      return hasOnlyKeys(value, ["type", "protocolVersion"]) && value.protocolVersion === WEBVIEW_PROTOCOL_VERSION;
     case "getConfig":
     case "getHistory":
     case "getAvailableTools":
@@ -23,9 +23,21 @@ export function isWebviewToHandlerMessage(value: unknown): value is WebviewToHan
       return hasOnlyKeys(value, ["type"]);
     case "newConversation":
       return hasOnlyKeys(value, ["type", "requestId"]) && isNonEmptyBoundedString(value.requestId, 128);
-    case "selectContextFiles":
-      return hasOnlyKeys(value, ["type", "conversationId"]) &&
+    case "selectAttachments":
+      return hasOnlyKeys(value, ["type", "requestId", "conversationId"]) &&
+        isNonEmptyBoundedString(value.requestId, 128) &&
         (value.conversationId === undefined || isNonEmptyBoundedString(value.conversationId, 512));
+    case "uploadClipboardImage":
+      return hasOnlyKeys(value, ["type", "requestId", "name", "mediaType", "size", "dataBase64"]) &&
+        isNonEmptyBoundedString(value.requestId, 128) &&
+        isNonEmptyBoundedString(value.name, 512) &&
+        typeof value.mediaType === "string" && ["image/jpeg", "image/png", "image/gif", "image/webp"].includes(value.mediaType) &&
+        Number.isSafeInteger(value.size) && (value.size as number) > 0 && (value.size as number) <= WEBVIEW_INPUT_LIMITS.clipboardImageBytes &&
+        isNonEmptyBoundedString(value.dataBase64, Math.ceil(WEBVIEW_INPUT_LIMITS.clipboardImageBytes * 4 / 3) + 8) &&
+        /^[A-Za-z0-9+/]+={0,2}$/.test(value.dataBase64);
+    case "deleteImageAttachment":
+      return hasOnlyKeys(value, ["type", "requestId", "attachment"]) &&
+        isNonEmptyBoundedString(value.requestId, 128) && isImageAttachment(value.attachment);
     case "getWorkspaceContext":
       return hasOnlyKeys(value, ["type", "requestId", "conversationId"]) &&
         isNonEmptyBoundedString(value.requestId, 128) &&
@@ -67,7 +79,7 @@ export function isWebviewToHandlerMessage(value: unknown): value is WebviewToHan
     case "sendMessage":
       return validateSendMessage(value);
     case "steerGeneration":
-      return validateSendMessageFields(value, ["type", "generationId", "clientRequestId", "text", "modelId", "reasoning", "conversationId", "workspaceRevision", "referencedFiles"]) &&
+      return validateSendMessageFields(value, ["type", "generationId", "clientRequestId", "text", "modelId", "reasoning", "conversationId", "workspaceRevision", "referencedFiles", "imageAttachments"]) &&
         isNonEmptyBoundedString(value.generationId, 512) &&
         isNonEmptyBoundedString(value.conversationId, 512);
     case "copyCode":
@@ -92,11 +104,10 @@ export function isWebviewToHandlerMessage(value: unknown): value is WebviewToHan
       return hasOnlyKeys(value, ["type", "ids"]) && Array.isArray(value.ids) && value.ids.length <= 100 && value.ids.every((id) => isNonEmptyBoundedString(id, 512));
     case "executeToolCall":
       return (
-        hasOnlyKeys(value, ["type", "generationId", "toolCallId", "action", "trustForSession"]) &&
+        hasOnlyKeys(value, ["type", "generationId", "toolCallId", "action"]) &&
         isNonEmptyBoundedString(value.generationId, 512) &&
         isNonEmptyBoundedString(value.toolCallId, 512) &&
-        (value.action === "execute" || value.action === "reject") &&
-        isOptionalBoolean(value.trustForSession)
+        (value.action === "execute" || value.action === "reject")
       );
     case "toolCallLimitDecision":
       return hasOnlyKeys(value, ["type", "generationId", "action"]) &&
@@ -133,19 +144,31 @@ export function isWebviewToHandlerMessage(value: unknown): value is WebviewToHan
 }
 
 function validateSendMessage(value: Record<string, unknown>): boolean {
-  return validateSendMessageFields(value, ["type", "clientRequestId", "text", "modelId", "reasoning", "conversationId", "workspaceRevision", "referencedFiles"]);
+  return validateSendMessageFields(value, ["type", "clientRequestId", "text", "modelId", "reasoning", "conversationId", "workspaceRevision", "referencedFiles", "imageAttachments"]);
 }
 
 function validateSendMessageFields(value: Record<string, unknown>, keys: readonly string[]): boolean {
   if (
     !hasOnlyKeys(value, keys) ||
     !isNonEmptyBoundedString(value.clientRequestId, 512) ||
-    !isNonEmptyBoundedString(value.text, MAX_CHAT_TEXT) ||
+    !isBoundedString(value.text, MAX_CHAT_TEXT) ||
     !isNonEmptyBoundedString(value.modelId, 256) ||
     (value.reasoning !== "off" && value.reasoning !== "high" && value.reasoning !== "max") ||
     (value.conversationId !== undefined && !isNonEmptyBoundedString(value.conversationId, 512)) ||
     !isOptionalBoundedString(value.workspaceRevision, 256)
   ) {
+    return false;
+  }
+
+  if (!value.text.trim() && (!Array.isArray(value.imageAttachments) || value.imageAttachments.length === 0)) {
+    return false;
+  }
+
+  if (value.imageAttachments !== undefined && (
+    !Array.isArray(value.imageAttachments) ||
+    value.imageAttachments.length > WEBVIEW_INPUT_LIMITS.images ||
+    !value.imageAttachments.every(isImageAttachment)
+  )) {
     return false;
   }
 
@@ -180,6 +203,24 @@ function validateSendMessageFields(value: Record<string, unknown>, keys: readonl
   return true;
 }
 
+function isImageAttachment(value: unknown): boolean {
+  if (!isRecord(value) || !hasOnlyKeys(value, [
+    "id", "fileId", "name", "mediaType", "size", "source", "uploadedAt", "expiresAt",
+    "apiBaseUrl", "cacheFileName", "previewUri",
+  ])) {return false;}
+  return isNonEmptyBoundedString(value.id, 512) &&
+    isNonEmptyBoundedString(value.fileId, 512) && /^file-api-[A-Za-z0-9_-]+$/.test(value.fileId) &&
+    isNonEmptyBoundedString(value.name, 512) &&
+    ["image/jpeg", "image/png", "image/gif", "image/webp"].includes(String(value.mediaType)) &&
+    Number.isSafeInteger(value.size) && (value.size as number) > 0 && (value.size as number) <= WEBVIEW_INPUT_LIMITS.imageBytes &&
+    ["picker", "clipboard", "drop"].includes(String(value.source)) &&
+    Number.isSafeInteger(value.uploadedAt) && (value.uploadedAt as number) >= 0 &&
+    Number.isSafeInteger(value.expiresAt) && (value.expiresAt as number) >= 0 &&
+    isAllowedApiBaseUrl(value.apiBaseUrl) &&
+    isNonEmptyBoundedString(value.cacheFileName, 256) && /^[A-Za-z0-9._-]+$/.test(value.cacheFileName) &&
+    isOptionalBoundedString(value.previewUri, 32_768);
+}
+
 function isSelectionRange(value: unknown): boolean {
   return isRecord(value) && hasOnlyKeys(value, ["startLine", "startCharacter", "endLine", "endCharacter"]) &&
     [value.startLine, value.startCharacter, value.endLine, value.endCharacter].every((part) => Number.isSafeInteger(part) && (part as number) >= 1);
@@ -198,13 +239,13 @@ const APP_CONFIG_KEYS = [
   "maxToolRounds",
   "maxConcurrentGenerations",
   "permissionMode",
-  "toolExecutionModes",
   "autoContext",
   "historyEnabled",
   "historyRetentionDays",
   "includeHomeAgents",
   "userId",
   "usageBreakdown",
+  "webSearchEnabled",
   "webSearchEngine",
 ] as const satisfies readonly (keyof AppConfig)[];
 
@@ -225,24 +266,15 @@ function isAppConfigPatch(value: unknown): value is Partial<AppConfig> {
     (value.maxTokens === undefined || (Number.isSafeInteger(value.maxTokens) && (value.maxTokens as number) >= 1 && (value.maxTokens as number) <= MAX_OUTPUT_TOKENS)) &&
     (value.maxToolRounds === undefined || (Number.isSafeInteger(value.maxToolRounds) && (value.maxToolRounds as number) >= 1 && (value.maxToolRounds as number) <= 20)) &&
     (value.maxConcurrentGenerations === undefined || (Number.isSafeInteger(value.maxConcurrentGenerations) && (value.maxConcurrentGenerations as number) >= 1 && (value.maxConcurrentGenerations as number) <= 16)) &&
-    (value.permissionMode === undefined || ["default", "read-only", "auto-approve", "full-access", "custom"].includes(value.permissionMode as string)) &&
-    (value.toolExecutionModes === undefined || isToolExecutionModes(value.toolExecutionModes)) &&
+    (value.permissionMode === undefined || ["default", "auto-approve", "full-access"].includes(value.permissionMode as string)) &&
     isOptionalBoolean(value.autoContext) &&
     isOptionalBoolean(value.historyEnabled) &&
     (value.historyRetentionDays === undefined || (Number.isSafeInteger(value.historyRetentionDays) && (value.historyRetentionDays as number) >= 0 && (value.historyRetentionDays as number) <= 3650)) &&
     isOptionalBoolean(value.includeHomeAgents) &&
     isOptionalBoolean(value.usageBreakdown) &&
+    isOptionalBoolean(value.webSearchEnabled) &&
     (value.webSearchEngine === undefined || value.webSearchEngine === "bing" || value.webSearchEngine === "google" || value.webSearchEngine === "baidu") &&
     isOptionalBoundedString(value.userId, 256)
-  );
-}
-
-function isToolExecutionModes(value: unknown): boolean {
-  if (!isRecord(value) || Object.keys(value).length > 100) {
-    return false;
-  }
-  return Object.entries(value).every(
-    ([name, mode]) => /^[a-zA-Z0-9_-]{1,128}$/.test(name) && (mode === "disabled" || mode === "enabled" || mode === "auto_approve"),
   );
 }
 

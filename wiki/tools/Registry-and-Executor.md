@@ -25,7 +25,7 @@ Responsibilities:
 
 ## `ToolWorkspace`
 
-Interface that separates `core` from VS Code. It exposes capabilities such as:
+Application port that separates `application` from VS Code. It exposes capabilities such as:
 
 - read file.
 - write file.

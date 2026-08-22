@@ -9,7 +9,7 @@ suite("legacy conversation migration", () => {
       title: "Legacy",
       createdAt: 1,
       updatedAt: 2,
-      model: "deepseek-v4-flash",
+      model: "deepseek-v4-flash-vision-exp",
       workspaceUri: "file:///workspace",
       messages: [
         { id: "user-1", role: "user", content: "hello" },
@@ -31,7 +31,7 @@ suite("legacy conversation migration", () => {
       title: "Legacy",
       createdAt: 1,
       updatedAt: 2,
-      model: "deepseek-v4-flash",
+      model: "deepseek-v4-flash-vision-exp",
       workspaceUri: "file:///workspace",
       messages: [],
     };

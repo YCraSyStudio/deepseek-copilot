@@ -11,8 +11,6 @@ export interface ToolMetadata {
   requiresConfirmation: boolean;
   /** Whether the tool needs a workspace binding or can run globally. */
   scope?: "workspace" | "global";
-  /** Component responsible for presenting the user confirmation. */
-  approvalOwner?: "extension" | "vscode";
 }
 
 /** Registered tool definition, handler, and metadata. */
@@ -30,6 +28,7 @@ export interface ToolHandlerContext {
   availableToolNames?: readonly string[];
   authorizedUserUrls?: readonly string[];
   webTainted?: boolean;
+  analyzeImages?: (question: string, imageIds: string[], signal?: AbortSignal) => Promise<string>;
 }
 
 /** Tool-call validation result. */

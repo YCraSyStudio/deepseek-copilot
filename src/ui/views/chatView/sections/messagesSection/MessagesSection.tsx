@@ -22,7 +22,6 @@ function MessagesSection({
   permissionUpdatePending = false,
   onModelChanged,
   onProcessingChange,
-  onGenerationCancelled,
   onFocusInput,
   usageBreakdown,
 }: MessagesSectionProps) {
@@ -40,7 +39,6 @@ function MessagesSection({
     onConfigUpdateResult,
     onModelChanged,
     onProcessingChange,
-    onGenerationCancelled,
     focusInput,
   });
 
