@@ -45,7 +45,6 @@ export type WebviewToHandlerMessage =
   | { type: "deleteConversation"; id: string }
   | { type: "deleteConversations"; ids: string[] }
   | { type: "executeToolCall"; generationId: string; toolCallId: string; action: "execute" | "reject" }
-  | { type: "toolCallLimitDecision"; generationId: string; action: "continue" | "stop" }
   | { type: "getWorkspaceContext"; requestId: string; conversationId?: string }
   | { type: "rebindConversationWorkspace"; conversationId: string; workspaceRevision?: string }
   | { type: "openConversationWorkspace"; conversationId: string }

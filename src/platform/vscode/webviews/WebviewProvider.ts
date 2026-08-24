@@ -281,7 +281,7 @@ export class WebviewProvider implements vscode.WebviewViewProvider, vscode.Dispo
   private registerMessageHandlers(): void {
     this.commandDispatcher.registerMany([
       "sendMessage", "steerGeneration", "cancelGeneration", "getGenerationSnapshot",
-      "consumeRecoveredDraft", "getAvailableTools", "executeToolCall", "toolCallLimitDecision",
+      "consumeRecoveredDraft", "getAvailableTools", "executeToolCall",
       "newConversation", "getWorkspaceContext", "rebindConversationWorkspace", "openConversationWorkspace",
     ] as const, (message, view) => this.chatHandler.handle(message, view));
     this.commandDispatcher.registerMany([

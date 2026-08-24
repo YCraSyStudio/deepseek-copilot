@@ -2,7 +2,9 @@
 
 A DeepSeek-only coding assistant built for VS Code. Chat with DeepSeek, share workspace context, review its reasoning and tool activity, and let it work on your project under the permission mode you choose.
 
-> **Preview:** This extension is under active development. Review proposed changes and keep important work under version control.
+> **Development preview:** This extension is still under active development. Updates may change the conversation storage format and can make chats created by earlier `0.x` versions unavailable. Copy or export any conversation you need to keep before updating. Backward compatibility for saved chats will become a release commitment starting with version `1.0`.
+>
+> Review proposed workspace changes carefully and keep important project work under version control.
 
 ## Highlights
 

@@ -11,6 +11,8 @@ export type {
   RealPathResolver,
   ResolvedWorkspacePath,
   ResolveWorkspacePathOptions,
+  ToolHostCommandOptions,
+  ToolHostCommandResult,
   ToolHost,
   ToolWorkspaceEntryType,
   ToolWorkspaceFilePreview,

@@ -7,7 +7,3 @@ export function getRunnableToolsForPermissionSnapshot(
   void snapshot;
   return tools;
 }
-
-export function shouldEnforceToolCallLimits(snapshot: PermissionSnapshot): boolean {
-  return snapshot.permissionMode === "default";
-}

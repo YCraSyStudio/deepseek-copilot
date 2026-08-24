@@ -6,7 +6,6 @@ import { useMessageHandler } from "../../hooks";
 import { ChatEmptyState, ChatMessages, ToolCallConfirmationModal, ToolCallTimeline } from "@webview/components/chatView";
 import { useChatMessagesController, useCodeActionHandler, useToolCallController } from "../../../../hooks/chat";
 import { t } from "@webview/i18n";
-import ToolCallLimitModal from "@webview/components/chatView/tools/confirmations/ToolCallLimitModal";
 import { reconcileLatestAssistantToolCalls } from "@webview/components/chatView/messages/ToolCallReconciliation";
 
 function MessagesSection({
@@ -23,7 +22,6 @@ function MessagesSection({
   onModelChanged,
   onProcessingChange,
   onFocusInput,
-  usageBreakdown,
 }: MessagesSectionProps) {
   const vscode = useVsCode();
   const focusInput = useCallback(() => onFocusInput?.(), [onFocusInput]);
@@ -132,7 +130,6 @@ function MessagesSection({
                 messages={messages}
                 isProcessing={isProcessing}
                 activeToolCallGroups={tools.activeTimelineGroups}
-                showUsageBreakdown={usageBreakdown ?? false}
                 renderToolCallGroups={(groups) => (
                   <ToolCallTimeline
                     groups={groups}
@@ -174,7 +171,6 @@ function MessagesSection({
         onRejectAll={tools.handleRejectAll}
         disabled={permissionUpdatePending}
       />
-      <ToolCallLimitModal limit={tools.toolCallLimit} onDecision={tools.handleLimitDecision} disabled={permissionUpdatePending} />
     </>
   );
 }

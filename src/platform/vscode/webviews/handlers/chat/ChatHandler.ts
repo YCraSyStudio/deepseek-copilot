@@ -202,9 +202,6 @@ export class ChatHandler {
           action: message.action,
         });
         break;
-      case "toolCallLimitDecision":
-        this.runs.get(message.generationId)?.session.handleLimitDecision(message.action);
-        break;
       case "getGenerationSnapshot":
         this.postGenerationSnapshot();
         this.postAllGenerationActivity();

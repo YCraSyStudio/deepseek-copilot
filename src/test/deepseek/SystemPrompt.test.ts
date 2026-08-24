@@ -15,6 +15,7 @@ suite("system tool guidance", () => {
     assert.match(SYSTEM_PROMPT_COPILOT, /consulted HTTPS URLs/);
     assert.match(SYSTEM_PROMPT_COPILOT, /language of the user's latest message/);
     assert.match(SYSTEM_PROMPT_COPILOT, /Never stop after merely announcing a future action/);
+    assert.match(SYSTEM_PROMPT_COPILOT, /answer directly with only relevant results and no process narration/);
     assert.doesNotMatch(SYSTEM_PROMPT_COPILOT, /\b(?:Astro|frontend|backend|npm|template)\b|2>&1/i);
   });
 

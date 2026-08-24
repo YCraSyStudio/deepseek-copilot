@@ -109,10 +109,6 @@ export function isWebviewToHandlerMessage(value: unknown): value is WebviewToHan
         isNonEmptyBoundedString(value.toolCallId, 512) &&
         (value.action === "execute" || value.action === "reject")
       );
-    case "toolCallLimitDecision":
-      return hasOnlyKeys(value, ["type", "generationId", "action"]) &&
-        isNonEmptyBoundedString(value.generationId, 512) &&
-        (value.action === "continue" || value.action === "stop");
     case "getPathCompletions":
       return (
         hasOnlyKeys(value, ["type", "requestId", "query", "conversationId", "workspaceRevision"]) &&
@@ -236,7 +232,6 @@ const APP_CONFIG_KEYS = [
   "temperature",
   "topP",
   "maxTokens",
-  "maxToolRounds",
   "maxConcurrentGenerations",
   "permissionMode",
   "autoContext",
@@ -264,7 +259,6 @@ function isAppConfigPatch(value: unknown): value is Partial<AppConfig> {
     isOptionalNumberInRange(value.temperature, 0, 2) &&
     isOptionalNumberInRange(value.topP, 0, 1) &&
     (value.maxTokens === undefined || (Number.isSafeInteger(value.maxTokens) && (value.maxTokens as number) >= 1 && (value.maxTokens as number) <= MAX_OUTPUT_TOKENS)) &&
-    (value.maxToolRounds === undefined || (Number.isSafeInteger(value.maxToolRounds) && (value.maxToolRounds as number) >= 1 && (value.maxToolRounds as number) <= 20)) &&
     (value.maxConcurrentGenerations === undefined || (Number.isSafeInteger(value.maxConcurrentGenerations) && (value.maxConcurrentGenerations as number) >= 1 && (value.maxConcurrentGenerations as number) <= 16)) &&
     (value.permissionMode === undefined || ["default", "auto-approve", "full-access"].includes(value.permissionMode as string)) &&
     isOptionalBoolean(value.autoContext) &&

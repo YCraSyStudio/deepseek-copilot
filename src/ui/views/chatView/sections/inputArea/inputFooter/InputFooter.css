@@ -87,6 +87,13 @@
   gap: 3px;
   display: flex;
 }
+.inputFooterSecondaryControls {
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  display: flex;
+}
 .modelReasoningPicker {
   min-width: 0;
   position: relative;
@@ -147,6 +154,186 @@
   left: 0;
   overflow-y: auto;
   box-shadow: 0 12px 32px #0008;
+}
+.usagePicker {
+  flex: none;
+  position: relative;
+}
+.usageTrigger {
+  border: 0;
+  color: var(--text-secondary);
+  background: transparent;
+  border-radius: 7px;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  display: grid;
+
+  .codicon {
+    font-size: 15px;
+  }
+
+  &:hover:not(:disabled),
+  &.active {
+    color: var(--text-primary);
+    background: color-mix(in srgb, var(--input-bg) 78%, var(--text-primary) 22%);
+    opacity: 1;
+  }
+
+  &:focus-visible {
+    outline: 1px solid var(--vscode-focusBorder);
+    outline-offset: 1px;
+  }
+
+  &:disabled {
+    cursor: default;
+    opacity: .35;
+  }
+}
+.usagePopover {
+  z-index: 30;
+  border: 1px solid var(--vscode-menu-border, var(--border-color));
+  background: var(--vscode-menu-background, var(--bg-secondary));
+  color: var(--vscode-menu-foreground, var(--text-primary));
+  border-radius: 12px;
+  width: min(310px, calc(100vw - 20px));
+  max-height: min(430px, calc(100vh - 32px));
+  padding: 12px;
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  overflow-y: auto;
+  box-shadow: 0 12px 32px #0008;
+  user-select: text;
+}
+.usagePopoverHeader {
+  min-width: 0;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 11px;
+  display: flex;
+}
+.usagePopoverTitle {
+  font-size: 13px;
+  font-weight: 600;
+}
+.usagePopoverModel {
+  color: var(--text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+  overflow: hidden;
+}
+.usageHero {
+  border: 1px solid var(--border-color);
+  background: color-mix(in srgb, var(--vscode-menu-background, var(--bg-secondary)) 92%, var(--vscode-focusBorder) 8%);
+  border-radius: 9px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 10px;
+  padding: 9px 10px;
+  display: grid;
+}
+.usageMetricGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px 6px;
+  padding: 2px 2px 10px;
+  display: grid;
+}
+.usageMetric {
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  display: flex;
+
+  &.prominent + & {
+    border-left: 1px solid var(--border-color);
+    padding-left: 12px;
+  }
+}
+.usageMetricValue {
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 600;
+  overflow: hidden;
+}
+.usageMetric.prominent .usageMetricValue {
+  font-size: 16px;
+}
+.usageMetricLabel,
+.usageSectionLabel {
+  color: var(--text-secondary);
+  font-size: 10px;
+}
+.usageNotice {
+  color: var(--text-secondary);
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0 0 9px;
+  font-size: 10px;
+  line-height: 1.35;
+  display: flex;
+}
+.usageModels {
+  border-top: 1px solid var(--border-color);
+  padding: 8px 0 6px;
+}
+.usageModelRow {
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 34px;
+  display: flex;
+}
+.usageModelIdentity,
+.usageModelValues {
+  min-width: 0;
+  display: flex;
+}
+.usageModelIdentity {
+  flex-direction: column;
+  gap: 1px;
+}
+.usageModelName {
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  overflow: hidden;
+}
+.usageModelRequests {
+  color: var(--text-secondary);
+  font-size: 9px;
+}
+.usageModelValues {
+  color: var(--text-secondary);
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.usagePhases {
+  border-top: 1px solid var(--border-color);
+  padding-top: 8px;
+}
+.usageSectionLabel {
+  margin-bottom: 4px;
+}
+.usagePhaseRow {
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 23px;
+  font-size: 11px;
+  display: flex;
+}
+.usagePhaseValues {
+  color: var(--text-secondary);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 .modelReasoningSection {
   padding: 3px 0;
@@ -229,7 +416,7 @@
     }
   }
 
-  .inputFooterControls > .selectTooltipWrapper {
+  .inputFooterSecondaryControls {
     flex: 1 1 120px;
     max-width: 100%;
   }
@@ -251,7 +438,11 @@
     }
   }
 
-  .inputFooterControls > .selectTooltipWrapper {
+  .inputFooterSecondaryControls {
     width: 100%;
+  }
+
+  .inputFooterSecondaryControls > .selectTooltipWrapper {
+    flex: 1 1 auto;
   }
 }

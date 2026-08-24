@@ -14,7 +14,8 @@ export const chat = {
     model: "模型",
     reasoning: "推理",
     activity: "活动",
-    activitySteps: "{count} 个步骤",
+    activities: "活动",
+    toolCallItems: "{count} 个工具调用",
     off: "关闭",
     high: "高",
     max: "最大",
@@ -60,7 +61,22 @@ export const chat = {
       cacheHit: "缓存命中",
       cacheMiss: "缓存未命中",
       total: "总计",
-      cost: "成本"
+      cost: "成本",
+      breakdown: "按请求类型",
+      byModel: "按模型",
+      models: "{count} 个模型",
+      unknownModel: "未知模型",
+      partial: "{requests} 个请求中有 {reported} 个报告了令牌数据。",
+      phases: {
+        primary: "初始响应",
+        toolRound: "工具调用",
+        completionReview: "完成检查",
+        progressReview: "进度检查",
+        securityReview: "安全检查",
+        contextSummary: "上下文摘要",
+        fileCompaction: "文件压缩",
+        visionAnalysis: "视觉分析"
+      }
     }
   }
 } satisfies TranslationCatalog;

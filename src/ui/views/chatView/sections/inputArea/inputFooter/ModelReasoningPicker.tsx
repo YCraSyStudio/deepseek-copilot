@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { t } from "@webview/i18n";
+import { useComposerPopover } from "./UseComposerPopover";
 
 type PickerOption = { value: string; label: string };
 
@@ -20,9 +21,7 @@ function ModelReasoningPicker({
   onModelChange,
   onReasoningChange,
 }: ModelReasoningPickerProps) {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement | null>(null);
-  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const { open, rootRef, triggerRef, openPopover, closePopover, togglePopover } = useComposerPopover();
   const modelLabel = useMemo(
     () => modelOptions.find((option) => option.value === model)?.label ?? model,
     [model, modelOptions],
@@ -34,24 +33,11 @@ function ModelReasoningPicker({
 
   useEffect(() => {
     if (!open) {return;}
-    const handlePointerDown = (event: PointerEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) {setOpen(false);}
-    };
-    window.addEventListener("pointerdown", handlePointerDown);
-    return () => window.removeEventListener("pointerdown", handlePointerDown);
-  }, [open]);
-
-  const openMenu = () => {
-    setOpen(true);
-    requestAnimationFrame(() => {
+    const frame = requestAnimationFrame(() => {
       rootRef.current?.querySelector<HTMLButtonElement>('[role="menuitemradio"][aria-checked="true"]')?.focus();
     });
-  };
-
-  const closeMenu = () => {
-    setOpen(false);
-    requestAnimationFrame(() => triggerRef.current?.focus());
-  };
+    return () => cancelAnimationFrame(frame);
+  }, [open, rootRef]);
 
   return (
     <div className="modelReasoningPicker" ref={rootRef}>
@@ -62,11 +48,11 @@ function ModelReasoningPicker({
         aria-label={`${t("chat.modelSelector")}: ${modelLabel}; ${t("chat.reasoning")}: ${reasoningLabel}`}
         aria-haspopup="menu"
         aria-expanded={open}
-        onClick={() => open ? setOpen(false) : openMenu()}
+        onClick={togglePopover}
         onKeyDown={(event) => {
           if (!open && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
             event.preventDefault();
-            openMenu();
+            openPopover();
           }
         }}
       >
@@ -85,7 +71,7 @@ function ModelReasoningPicker({
           onKeyDown={(event) => {
             if (event.key === "Escape") {
               event.preventDefault();
-              closeMenu();
+              closePopover(true);
               return;
             }
             if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {

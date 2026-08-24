@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Reject DeepSeek DSML serialized inside assistant text, suppress protocol markup across streaming chunk boundaries, and retry once through the native tool-call path instead of accepting malformed assistant content.
+- Run agent terminal commands in a visible, per-command VS Code integrated terminal through shell integration, closing it after completion while retaining captured output, exit codes, timeouts, and cancellation.
+- Reject detached process launchers and disable .NET build-server/node reuse inside agent terminals so synthetic-test workspaces are not left locked by orphaned `dotnet` processes.
+- Scope duplicate tool-call suppression to the current workspace mutation epoch, and review progress every five rounds after the initial 20-round soft limit so legitimate rebuilds can run without encouraging verification detours.
+- Replaced language-specific stalled-response matching with a bounded, tool-free DeepSeek completion review. Premature stops retry once; a second incomplete stop is retained as a failed/incomplete generation instead of becoming a false final answer.
+- Removed the configurable tool-round checkpoint, per-block tool-call budget, continuation modal, and related protocol messages. Tool cycles now continue until a real final response, cancellation, context/output boundary, or error.
+- Added a progress review every 20 completed tool rounds. Its decision guides the next normal round without disabling tools or forcing a separate final response; uncertain or unavailable reviews fail open.
+- Progress reviews now receive a compact cumulative activity history and explicitly stop self-initiated test/debug loops once the requested deliverables already build, instead of treating optional verification failures as unfinished product work.
+- Moved usage observability out of individual messages into a compact conversation-level popover beside the chat permission selector, including per-model totals when a conversation switches models. When DeepSeek omits usage for some requests, the popover shows the calculable reported-request cost as a lower bound instead of hiding all cost data.
+
 ## [0.1.10] - 2026-08-22
 
 - Simplified permissions to `default`, `auto-approve`, and `full-access`; removed the per-tool matrix, read-only/custom profiles, and session trust shortcuts.

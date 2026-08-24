@@ -111,15 +111,6 @@ export type HandlerToWebviewMessage =
     }
   | { type: "toolCallActionAccepted"; generationId: string; conversationId: string; toolCallId: string; status: "running" | "rejected" }
   | {
-      type: "toolCallLimitReached";
-      generationId: string;
-      conversationId: string;
-      completedRounds: number;
-      batchSize: number;
-      completedToolCalls: number;
-      toolCallBudget: number;
-    }
-  | {
       type: "toolCallConfirmationRequired";
       generationId: string;
       conversationId: string;

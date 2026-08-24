@@ -96,27 +96,6 @@ function AdvancedSection({ config, updateConfig, saveOnBlur }: AdvancedSectionPr
             />
           </div>
           <div className="limitField">
-            <div
-              className="limitLabel"
-              tabIndex={0}
-              aria-label={`${t("settings.limits.maxToolRounds")}. ${t("settings.limits.maxToolRoundsDescription")}`}
-              data-tooltip={t("settings.limits.maxToolRoundsDescription")}
-              data-tooltip-position="bottom"
-            >
-              <label htmlFor="maxToolRoundsInput">{t("settings.limits.maxToolRounds")}</label>
-              <span className="codicon codicon-question" aria-hidden="true" />
-            </div>
-            <input
-              id="maxToolRoundsInput"
-              type="number"
-              min={1}
-              max={20}
-              value={config.maxToolRounds}
-              onChange={(event) => updateBoundedInteger(event.currentTarget, 1, 20, (value) => updateConfig("maxToolRounds", value))}
-              onBlur={(event) => updateBoundedInteger(event.currentTarget, 1, 20, (value) => saveOnBlur("maxToolRounds", value))}
-            />
-          </div>
-          <div className="limitField">
             <label htmlFor="maxConcurrentGenerationsInput">{t("settings.limits.maxConcurrentGenerations")}</label>
             <input
               id="maxConcurrentGenerationsInput"

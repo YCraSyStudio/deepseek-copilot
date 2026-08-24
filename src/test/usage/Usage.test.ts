@@ -1,8 +1,10 @@
 import * as assert from "node:assert";
 import {
   aggregateUsageAggregates,
+  aggregateUsageByModel,
   createUsageAggregate,
   estimateUsageCost,
+  estimateReportedUsageCost,
   formatUsageSummary,
   isOfficialDeepSeekEndpoint,
   isProviderUsage,
@@ -114,6 +116,19 @@ suite("usage observability", () => {
       assert.strictEqual(conversation?.priceCatalogVersion, PRICE_CATALOG_VERSION);
       assert.strictEqual(conversation?.costUsd, rounded((first.costUsd ?? 0) + (second.costUsd ?? 0)));
     });
+
+    test("keeps separate totals when a conversation changes models", () => {
+      const flash = createUsageAggregate(true, "deepseek-v4-flash-vision-exp");
+      const pro = createUsageAggregate(true, "deepseek-v4-pro");
+      recordUsage(flash, "primary", completeUsage(100, 20, 75, 25));
+      recordUsage(pro, "tool_round", completeUsage(50, 10, 40, 10));
+
+      const byModel = aggregateUsageByModel([flash, pro]);
+      assert.deepStrictEqual(byModel.map((value) => [value.model, value.count, value.totalTokens]), [
+        ["deepseek-v4-flash-vision-exp", 1, 120],
+        ["deepseek-v4-pro", 1, 60],
+      ]);
+    });
   });
 
   suite("official price catalog", () => {
@@ -129,6 +144,18 @@ suite("usage observability", () => {
       );
     });
 
+    test("prices the reported subset as a lower bound when some requests omit usage", () => {
+      const aggregate = createUsageAggregate(true, "deepseek-v4-flash-vision-exp");
+      recordUsage(aggregate, "tool_round", completeUsage(1_000, 100, 700, 300));
+      recordUsage(aggregate, "tool_round", undefined);
+
+      assert.strictEqual(aggregate.costUsd, undefined, "the persisted exact cost remains unavailable");
+      assert.strictEqual(
+        estimateReportedUsageCost(aggregate),
+        rounded((300 * 0.14 + 700 * 0.0028 + 100 * 0.28) / 1_000_000),
+      );
+    });
+
     test("does not estimate unknown models or usage without cache attribution", () => {
       const incomplete = { prompt_tokens: 10, completion_tokens: 2, total_tokens: 12 };
       assert.strictEqual(estimateUsageCost(incomplete, "deepseek-v4-flash-vision-exp"), undefined);
@@ -141,6 +168,7 @@ suite("usage observability", () => {
       assert.strictEqual(aggregate.costUsd, undefined);
       assert.strictEqual(aggregate.currency, undefined);
       assert.strictEqual(aggregate.priceCatalogVersion, undefined);
+      assert.strictEqual(estimateReportedUsageCost(aggregate), undefined);
     });
   });
 

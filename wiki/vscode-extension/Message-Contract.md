@@ -29,7 +29,7 @@ The removed `selectContextFiles` and `selectImageAttachments` request formats ar
 
 - Configuration: `getConfig`, `saveConfig`, `resetConfig`, and `testConnection` use correlated requests and authoritative revisions.
 - History: `getHistory`, `loadConversation`, `loadConversationPage`, and `deleteConversation` use navigation IDs and opaque pagination cursors.
-- Tools: `executeToolCall`, `toolCallLimitDecision`, `getAvailableTools`, `openFile`, and change-view actions.
+- Tools: `executeToolCall`, `getAvailableTools`, `openFile`, and change-view actions.
 - Workspace: `getWorkspaceContext`, `rebindConversationWorkspace`, `openConversationWorkspace`, and `getPathCompletions`.
 - Navigation: `newConversation` binds a blank view only through its matching `newConversationReady`.
 

@@ -24,8 +24,6 @@ export interface PendingDangerConfirmation {
 }
 
 export type ToolCallAction = "execute" | "reject";
-export type ToolCallLimitDecision = "continue" | "stop";
-
 export interface ToolCallActionPayload {
   toolCallId: string;
   action: ToolCallAction;

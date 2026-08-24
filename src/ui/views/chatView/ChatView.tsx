@@ -9,6 +9,7 @@ import type { Conversation, ImageAttachment, PermissionMode, QueuedGenerationMes
 import type { GenerationSnapshot } from "@/contracts";
 import { t } from "@webview/i18n";
 import { beginNavigationRequest } from "@webview/NavigationRequests";
+import { aggregateUsageAggregates, aggregateUsageByModel } from "@/shared/usage/Usage";
 
 type ChatCommandMessage =
   | { type: "addReferencedFiles"; files: ReferencedFile[] }
@@ -71,6 +72,13 @@ function ChatView({ loadedConversation, navigationPending = false }: ChatViewPro
   const workspaceMismatchRef = useRef<string | undefined>(undefined);
 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const usageSummary = useMemo(() => {
+    const generationUsages = messages.flatMap((message) => message.usage ? [message.usage] : []);
+    return {
+      total: aggregateUsageAggregates(generationUsages),
+      byModel: aggregateUsageByModel(generationUsages),
+    };
+  }, [messages]);
 
   useEffect(() => {
     conversationIdRef.current = conversationId;
@@ -393,7 +401,6 @@ function ChatView({ loadedConversation, navigationPending = false }: ChatViewPro
         onModelChanged={handleModelChanged}
         onProcessingChange={setIsProcessing}
         onFocusInput={focusInput}
-        usageBreakdown={usageBreakdown}
       />
       {apiKeyStatus === "missing" ? <div className="statusMessage warning">{t("chat.apiKeyMissing")}</div> : null}
       {isPermissionUpdatePending ? <div className="statusMessage" role="status" aria-live="polite">{t("chat.applyingPermissions")}</div> : null}
@@ -459,6 +466,9 @@ function ChatView({ loadedConversation, navigationPending = false }: ChatViewPro
               referencedFiles={referencedFiles}
               onRemoveReferencedFile={removeFile}
               conversationId={conversationId}
+              usage={usageSummary.total}
+              usageByModel={usageSummary.byModel}
+              showUsage={usageBreakdown}
             />
           )}
         />

@@ -13,7 +13,7 @@ export type StoredSettings = Pick<AppConfig, StoredSettingKey>;
 
 export const STORED_SETTING_KEYS = new Set<StoredSettingKey>([
   "interfaceLanguage", "baseUrl", "model", "thinkingMode", "reasoningEffort",
-  "temperature", "topP", "maxTokens", "maxToolRounds", "maxConcurrentGenerations",
+  "temperature", "topP", "maxTokens", "maxConcurrentGenerations",
   "permissionMode", "autoContext", "historyEnabled",
   "historyRetentionDays", "includeHomeAgents", "usageBreakdown", "webSearchEnabled", "webSearchEngine",
 ]);
@@ -30,7 +30,6 @@ export function normalizeConfig(value: unknown): AppConfig {
     temperature: clampNumber(config.temperature, 0, 2, DEFAULT_CONFIG.temperature),
     topP: clampNumber(config.topP, 0, 1, DEFAULT_CONFIG.topP),
     maxTokens: clampInteger(config.maxTokens, 1, MAX_OUTPUT_TOKENS, DEFAULT_CONFIG.maxTokens),
-    maxToolRounds: clampInteger(config.maxToolRounds, 1, 20, DEFAULT_CONFIG.maxToolRounds),
     maxConcurrentGenerations: clampInteger(config.maxConcurrentGenerations, 1, 16, DEFAULT_CONFIG.maxConcurrentGenerations),
     permissionMode: normalizePermissionMode(config.permissionMode),
     autoContext: normalizeBoolean(config.autoContext, DEFAULT_CONFIG.autoContext),
@@ -67,7 +66,6 @@ export function normalizeSettingValue(key: StoredSettingKey, value: unknown): un
   if (key === "temperature") {return clampNumber(value, 0, 2, DEFAULT_CONFIG.temperature);}
   if (key === "topP") {return clampNumber(value, 0, 1, DEFAULT_CONFIG.topP);}
   if (key === "maxTokens") {return clampInteger(value, 1, MAX_OUTPUT_TOKENS, DEFAULT_CONFIG.maxTokens);}
-  if (key === "maxToolRounds") {return clampInteger(value, 1, 20, DEFAULT_CONFIG.maxToolRounds);}
   if (key === "maxConcurrentGenerations") {return clampInteger(value, 1, 16, DEFAULT_CONFIG.maxConcurrentGenerations);}
   if (key === "historyRetentionDays") {return clampInteger(value, 0, 3650, DEFAULT_CONFIG.historyRetentionDays);}
   if (key === "webSearchEngine") {return normalizeWebSearchEngine(value);}

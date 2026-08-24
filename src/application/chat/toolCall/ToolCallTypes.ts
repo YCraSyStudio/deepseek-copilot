@@ -11,12 +11,8 @@ export interface ToolCallResult {
 
 export interface ToolCallCycleOptions {
   getToolsForRound?: (phase: "reasoning" | "tools", round: number) => Promise<ToolDefinition[]> | ToolDefinition[];
-  maxRounds?: number;
-  maxToolCallsPerBatch?: number;
-  shouldEnforceToolCallLimits?: () => boolean;
   onRoundStart?: (round: number, toolCalls: ToolCall[]) => Promise<void> | void;
   onToolResult?: (toolCallId: string, result: string) => void;
-  onToolSkipped?: (toolCall: ToolCall, result: string) => void;
   onTranscriptUpdate?: (messages: ChatMessage[], status: "complete" | "incomplete") => void;
   onUsage?: (usage?: ProviderUsage) => void;
   /** Runs only at a protocol-safe boundary, after every emitted tool call has a terminal result. */
@@ -37,11 +33,37 @@ export interface ToolCallCycleOptions {
   userId?: string;
   budgetManager?: GenerationBudgetManager;
   onRecoveryStarted?: () => Promise<void> | void;
-  onLimitReached?: (completedRounds: number, batchSize: number, completedToolCalls: number, toolCallBudget: number) =>
-    Promise<ToolRoundLimitDecision> | ToolRoundLimitDecision;
+  reviewCompletion?: (context: CompletionReviewContext) => Promise<CompletionReviewDecision>;
+  reviewProgress?: (context: ProgressReviewContext) => Promise<ProgressReviewResult>;
+  /** Internal override used by tests. Production starts at 20 rounds, then reviews every 5 rounds. */
+  progressReviewInterval?: number;
 }
 
-export type ToolRoundLimitDecision = "continue" | "stop";
+export type CompletionReviewDecision = "complete" | "incomplete" | "unknown";
+
+export interface CompletionReviewContext {
+  messages: ChatMessage[];
+  candidate: ChatMessage;
+  toolCallsExecuted: number;
+  recoveryAttempted: boolean;
+}
+
+export type ProgressReviewDecision = "continue" | "finalize" | "blocked" | "unknown";
+export type ProgressReviewConfidence = "high" | "medium" | "low";
+
+export interface ProgressReviewResult {
+  decision: ProgressReviewDecision;
+  confidence: ProgressReviewConfidence;
+  reason: string;
+  nextAction?: string;
+}
+
+export interface ProgressReviewContext {
+  messages: ChatMessage[];
+  completedRounds: number;
+  toolCallsExecuted: number;
+  reviewsCompleted: number;
+}
 
 export interface ToolCallCycleResult {
   finalMessage: ChatMessage;

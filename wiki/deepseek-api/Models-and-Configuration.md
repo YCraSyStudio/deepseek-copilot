@@ -34,7 +34,7 @@ The policy lives in `VisionFallback.ts` and is consumed only by the DeepSeek pro
 - `thinkingEnabled` controls DeepSeek thinking mode; tools remain available when thinking is off.
 - `reasoningEffort` is `off`, `high`, or `max` in the product UI.
 - `maxTokens` is the requested output allowance, defaults to 8,192, and is clamped from 1 to 384,000.
-- `maxToolRounds` defaults to 6 and is a confirmation checkpoint only in `default`; automatic modes do not have a round cap.
+- Tool execution has no artificial round or tool-call cap; context, output, cancellation, duplicate-call safeguards, and a tool-free progress review every 20 completed rounds remain in force.
 - `maxConcurrentGenerations` defaults to 8 and is clamped from 1 to 16.
 - `permissionMode` is exactly `default`, `auto-approve`, or `full-access`.
 - `webSearchEnabled` removes or restores `search_web` and `read_web` in model requests.

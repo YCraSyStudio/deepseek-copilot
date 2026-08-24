@@ -20,6 +20,8 @@ export interface ProviderUsage {
 export type UsagePhase =
   | "primary"
   | "tool_round"
+  | "completion_review"
+  | "progress_review"
   | "security_review"
   | "context_summary"
   | "file_compaction"
@@ -28,6 +30,8 @@ export type UsagePhase =
 export const USAGE_PHASES: readonly UsagePhase[] = [
   "primary",
   "tool_round",
+  "completion_review",
+  "progress_review",
   "security_review",
   "context_summary",
   "file_compaction",
@@ -166,11 +170,30 @@ export function estimateUsageCost(usage: ProviderUsage | UsageAggregate, model: 
     return undefined;
   }
 
-  return roundCost(
-    cacheMiss / 1_000_000 * tier.inputMissPerMillion +
-    cacheHit / 1_000_000 * tier.inputHitPerMillion +
-    output / 1_000_000 * tier.outputPerMillion,
-  );
+  return calculateUsageCost(tier, cacheHit, cacheMiss, output);
+}
+
+/**
+ * Prices the reported subset of an aggregate. When requests are missing usage,
+ * this is a lower bound for the conversation rather than its exact total.
+ */
+export function estimateReportedUsageCost(usage: UsageAggregate): number | undefined {
+  if (
+    !usage.officialEndpoint ||
+    usage.saturated ||
+    usage.reported === 0 ||
+    usage.cacheHitReported !== usage.reported ||
+    usage.cacheMissReported !== usage.reported ||
+    usage.cacheHitTokens === undefined ||
+    usage.cacheMissTokens === undefined ||
+    usage.outputTokens === undefined
+  ) {
+    return undefined;
+  }
+  const tier = resolvePriceTier(usage.model);
+  return tier
+    ? calculateUsageCost(tier, usage.cacheHitTokens, usage.cacheMissTokens, usage.outputTokens)
+    : undefined;
 }
 
 /** Combines persisted generation summaries into a conversation-level aggregate. */
@@ -212,6 +235,22 @@ export function aggregateUsageAggregates(values: readonly UsageAggregate[]): Usa
     delete aggregate.costUsd;
   }
   return aggregate;
+}
+
+/** Groups generation-level usage without losing model changes within a conversation. */
+export function aggregateUsageByModel(values: readonly UsageAggregate[]): UsageAggregate[] {
+  const groups = new Map<string | undefined, UsageAggregate[]>();
+  for (const value of values) {
+    if (value.count === 0) {continue;}
+    const group = groups.get(value.model) ?? [];
+    group.push(value);
+    groups.set(value.model, group);
+  }
+
+  return [...groups.values()].flatMap((group) => {
+    const aggregate = aggregateUsageAggregates(group);
+    return aggregate ? [aggregate] : [];
+  });
 }
 
 /** Validates a value read back from history; returns undefined when malformed or internally inconsistent. */
@@ -448,6 +487,14 @@ function safeAdd(left: number, right: number, aggregate: UsageAggregate): number
 
 function roundCost(value: number): number {
   return Math.round(value * 1_000_000) / 1_000_000;
+}
+
+function calculateUsageCost(tier: PriceTier, cacheHit: number, cacheMiss: number, output: number): number {
+  return roundCost(
+    cacheMiss / 1_000_000 * tier.inputMissPerMillion +
+    cacheHit / 1_000_000 * tier.inputHitPerMillion +
+    output / 1_000_000 * tier.outputPerMillion,
+  );
 }
 
 function isOptionalNonNegativeNumber(value: unknown): value is number | undefined {

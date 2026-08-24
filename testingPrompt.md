@@ -7,4 +7,7 @@ el proyecto en cuestion será desarrollar un registro de horario laboral, donde 
 - tema oscuro para que no gaste tanta bateria
 - cualquier otra mejora que se te ocurra
 - framework ASP.NET y astro web
-usa comandos npm create astro@latest y dotnet para agilizar
+usa comandos npm create astro@latest y dotnet para agilizar.
+Puedes hacer busquedas en internet si hace falta
+
+busca por internet para que este proyecto cumpla con la legistacion española

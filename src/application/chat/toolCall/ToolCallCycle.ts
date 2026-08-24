@@ -2,25 +2,27 @@ import { createSystemMessage, ensureSingleSystemPrompt, getTextContent } from "@
 import type { ChatMessage } from "@/contracts";
 import { createToolResultMessage, validateToolCall } from "./ToolCallMessages";
 import type {
+  ProgressReviewResult,
   RunToolCallCycleOptions,
   ToolCallCycleOptions,
   ToolCallCycleResult,
-  ToolRoundLimitDecision,
 } from "./ToolCallTypes";
 import { fitToolResultForModel } from "./ToolResultBudget";
+import { containsSerializedToolProtocol } from "./SerializedToolProtocol";
+
+const DEFAULT_PROGRESS_REVIEW_INTERVAL = 20;
+const DEFAULT_PROGRESS_REVIEW_FOLLOW_UP_INTERVAL = 5;
 
 export async function runToolCallCycle(options: RunToolCallCycleOptions): Promise<ToolCallCycleResult> {
   const { initialMessages, tools, model, modelClient, executeToolCall, cycleOptions = {} } = options;
 
-  const maxRounds = cycleOptions.maxRounds ?? 10;
-  const maxToolCallsPerBatch = cycleOptions.maxToolCallsPerBatch ?? maxRounds * 4;
   let messages = ensureSingleSystemPrompt(initialMessages, createSystemMessage);
   const transcript: ChatMessage[] = [];
   let toolCallsExecuted = 0;
-  let batchStartRound = 0;
-  let batchToolCalls = 0;
   let completionRecoveryUsed = false;
-  const executedSignatures = new Set<string>();
+  let progressReviewsCompleted = 0;
+  const executedSignatures = new Map<string, number>();
+  let mutationEpoch = 0;
   const seenProviderToolCallIds = new Set<string>();
 
   for (let round = 0; ; round++) {
@@ -51,15 +53,31 @@ export async function runToolCallCycle(options: RunToolCallCycleOptions): Promis
       );
     }
     if (!message.tool_calls || message.tool_calls.length === 0) {
-      if (
-        finishReason === "stop" &&
-        !completionRecoveryUsed &&
-        isIncompleteActionAnnouncement(getTextContent(message.content))
-      ) {
+      if (containsSerializedToolProtocol(getTextContent(message.content))) {
+        if (completionRecoveryUsed) {
+          throw new Error("DeepSeek serialized a tool call in assistant content again instead of using the native tool-call protocol.");
+        }
         completionRecoveryUsed = true;
-        messages[0] = withCompletionRecoveryInstruction(messages[0]);
+        messages[0] = withSerializedToolProtocolRecoveryInstruction(messages[0]);
         cycleOptions.onStreamChunk?.("\n\n");
         continue;
+      }
+      if (finishReason === "stop" && cycleOptions.reviewCompletion) {
+        const decision = await cycleOptions.reviewCompletion({
+          messages: structuredClone(messages),
+          candidate: structuredClone(message),
+          toolCallsExecuted,
+          recoveryAttempted: completionRecoveryUsed,
+        });
+        if (decision === "incomplete") {
+          if (completionRecoveryUsed) {
+            throw new Error("DeepSeek stopped again without completing the announced action.");
+          }
+          completionRecoveryUsed = true;
+          messages[0] = withCompletionRecoveryInstruction(messages[0]);
+          cycleOptions.onStreamChunk?.("\n\n");
+          continue;
+        }
       }
       transcript.push(structuredClone(message));
       cycleOptions.onTranscriptUpdate?.(structuredClone(transcript), "complete");
@@ -76,10 +94,10 @@ export async function runToolCallCycle(options: RunToolCallCycleOptions): Promis
     for (const toolCall of message.tool_calls) {seenProviderToolCallIds.add(toolCall.id);}
     assertValidToolArguments(message);
     const toolRoundTools = await cycleOptions.getToolsForRound?.("tools", round + 1) ?? reasoningTools;
-    const enforceToolCallLimits = cycleOptions.shouldEnforceToolCallLimits?.() ?? true;
     const availableTools = new Map(toolRoundTools.map((tool) => [tool.function.name, tool]));
     const executableToolCalls = message.tool_calls.filter(
-      (toolCall) => validateToolCall(toolCall, availableTools).valid && !executedSignatures.has(createToolSignature(toolCall)),
+      (toolCall) => validateToolCall(toolCall, availableTools).valid &&
+        executedSignatures.get(createToolSignature(toolCall)) !== mutationEpoch,
     );
     if (executableToolCalls.length > 0) {
       await cycleOptions.onRoundStart?.(round + 1, executableToolCalls);
@@ -103,28 +121,20 @@ export async function runToolCallCycle(options: RunToolCallCycleOptions): Promis
       }
 
       const signature = createToolSignature(toolCall);
-      if (executedSignatures.has(signature)) {
+      if (executedSignatures.get(signature) === mutationEpoch) {
         const duplicateResult = createToolResultMessage(toolCall.id, toolCall.function.name, "Skipped: identical tool call already executed in this cycle.");
         messages.push(duplicateResult);
         transcript.push(structuredClone(duplicateResult));
         cycleOptions.onTranscriptUpdate?.(structuredClone(transcript), "incomplete");
         continue;
       }
-      if (enforceToolCallLimits && batchToolCalls >= maxToolCallsPerBatch) {
-        const skipped = `Skipped: this generation reached its ${maxToolCallsPerBatch}-tool budget for the current block. Wait for the user to authorize another block before retrying any necessary operation.`;
-        cycleOptions.onToolSkipped?.(toolCall, skipped);
-        const skippedResult = createToolResultMessage(toolCall.id, toolCall.function.name, skipped);
-        messages.push(skippedResult);
-        transcript.push(structuredClone(skippedResult));
-        cycleOptions.onTranscriptUpdate?.(structuredClone(transcript), "incomplete");
-        continue;
-      }
-
       // Calls are intentionally sequential: writes preserve model order and manual approvals can advance one at a time.
       const result = await executeToolCall(toolCall);
       toolCallsExecuted++;
-      if (enforceToolCallLimits) {batchToolCalls++;}
-      if (shouldRememberToolSignature(toolCall, result)) {executedSignatures.add(signature);}
+      if (shouldRememberToolSignature(toolCall, result)) {
+        if (invalidatesPriorToolSignatures(toolCall)) {mutationEpoch++;}
+        executedSignatures.set(signature, mutationEpoch);
+      }
       cycleOptions.onToolResult?.(toolCall.id, result);
       const toolResult = createToolResultMessage(toolCall.id, toolCall.function.name, fitToolResultForModel(result));
       messages.push(toolResult);
@@ -133,53 +143,24 @@ export async function runToolCallCycle(options: RunToolCallCycleOptions): Promis
     }
 
     const completedRounds = round + 1;
-    if (!enforceToolCallLimits) {
-      batchStartRound = completedRounds;
-      batchToolCalls = 0;
-      continue;
-    }
-    const completedBatchRounds = completedRounds - batchStartRound;
-    if (completedBatchRounds >= maxRounds || batchToolCalls >= maxToolCallsPerBatch) {
-      const decision = await requestToolRoundLimitDecision(
-        cycleOptions.onLimitReached,
+    const progressReviewInterval = normalizeProgressReviewInterval(cycleOptions.progressReviewInterval);
+    if (
+      cycleOptions.reviewProgress &&
+      shouldReviewProgress(completedRounds, progressReviewInterval)
+    ) {
+      const review = await cycleOptions.reviewProgress({
+        messages: structuredClone(messages),
         completedRounds,
-        maxRounds,
-        batchToolCalls,
-        maxToolCallsPerBatch,
-      );
-      if (decision === "stop") {
-        let finalMessages = withToolFreeFinalInstruction(messages);
-        finalMessages = await prepareRequestContext(finalMessages, [], completedRounds + 1, cycleOptions);
-        cycleOptions.validateRequestBudget?.(finalMessages, []);
-        const finalResponse = await modelClient.streamRound({
-          messages: finalMessages,
-          tools: [],
-          model,
-          cycleOptions,
-          emitStreamEvents: true,
-        });
-        const finalMessage = finalResponse.choices[0].message;
-        transcript.push(structuredClone(finalMessage));
-        cycleOptions.onTranscriptUpdate?.(structuredClone(transcript), "complete");
-        return {
-          finalMessage,
-          rounds: completedRounds,
-          toolCallsExecuted,
-          response: finalResponse,
-          transcript,
-        };
+        toolCallsExecuted,
+        reviewsCompleted: progressReviewsCompleted,
+      });
+      progressReviewsCompleted++;
+
+      if (review.decision !== "unknown") {
+        messages[0] = withProgressReviewInstruction(messages[0], review, completedRounds);
       }
-      messages[0] = withToolRoundCheckpointInstruction(messages[0], completedRounds, batchToolCalls);
-      batchStartRound = completedRounds;
-      batchToolCalls = 0;
     }
   }
-}
-
-export function isIncompleteActionAnnouncement(content: string | null | undefined): boolean {
-  const normalized = content?.replace(/\s+/g, " ").trim() ?? "";
-  if (!normalized || normalized.length > 800) {return false;}
-  return /\b(?:let me|i(?:'ll| will| need to| am going to)|d[eé]jame|voy a|necesito)\s+(?:check|search|look(?:\s+up)?|inspect|read|verify|find|investigate|review|comprobar|buscar|revisar|consultar|verificar|investigar)(?:\s+[^.!?]{0,180})?[.!?]?\s*$/i.test(normalized);
 }
 
 function assertValidToolArguments(message: ChatMessage): void {
@@ -190,16 +171,6 @@ function assertValidToolArguments(message: ChatMessage): void {
       throw new Error(`DeepSeek returned invalid JSON arguments for tool "${toolCall.function.name}".`);
     }
   }
-}
-
-export async function requestToolRoundLimitDecision(
-  onLimitReached: ToolCallCycleOptions["onLimitReached"],
-  completedRounds: number,
-  batchSize: number,
-  completedToolCalls = 0,
-  toolCallBudget = batchSize * 4,
-): Promise<ToolRoundLimitDecision> {
-  return onLimitReached ? onLimitReached(completedRounds, batchSize, completedToolCalls, toolCallBudget) : "stop";
 }
 
 async function prepareRequestContext(
@@ -225,27 +196,6 @@ function assertUniqueToolCallIds(
   }
 }
 
-function withToolRoundCheckpointInstruction(
-  systemMessage: ChatMessage,
-  completedRounds: number,
-  completedToolCalls: number,
-): ChatMessage {
-  const contentWithoutPreviousCheckpoint = getTextContent(systemMessage.content).replace(
-    /\n\n<tool_round_checkpoint>[\s\S]*?<\/tool_round_checkpoint>/g,
-    "",
-  );
-  const checkpointInstruction =
-    `\n\n<tool_round_checkpoint>The user explicitly authorized another block after ${completedRounds} tool rounds and ${completedToolCalls} tool calls. The work is taking longer than expected. ` +
-    "Before doing anything else, reassess the user's goal and the tool results. " +
-    "Continue with tool calls only if concrete, necessary work remains and there is a clear next action. " +
-    "If progress requires missing information or a material user choice, do not call another tool; ask the user for the needed instructions. " +
-    "If the goal is complete, further progress is unlikely, or another call would only repeat or verify successful work, stop using tools and provide the best final response.</tool_round_checkpoint>";
-  return {
-    ...systemMessage,
-    content: `${contentWithoutPreviousCheckpoint}${checkpointInstruction}`,
-  };
-}
-
 function withCompletionRecoveryInstruction(systemMessage: ChatMessage): ChatMessage {
   return {
     ...systemMessage,
@@ -253,15 +203,68 @@ function withCompletionRecoveryInstruction(systemMessage: ChatMessage): ChatMess
   };
 }
 
-function withToolFreeFinalInstruction(messages: ChatMessage[]): ChatMessage[] {
-  return messages.map((message, index) =>
-    index === 0 && message.role === "system"
-      ? {
-          ...message,
-          content: `${message.content ?? ""}\n\nThe user chose to stop tool execution after reaching the tool-call round limit. Do not request or imply any further tool use. Provide the best final response now using the conversation and tool results already available, and clearly mention anything that remains incomplete.`,
-        }
-      : message,
-  );
+function withSerializedToolProtocolRecoveryInstruction(systemMessage: ChatMessage): ChatMessage {
+  const instruction = "The previous response incorrectly serialized an internal tool invocation as assistant text. Never output DSML or any tool protocol markup. If a tool is necessary, invoke it only through the native API tool-call mechanism; otherwise provide the complete final answer.";
+  return {
+    ...systemMessage,
+    content: `${systemMessage.content ?? ""}\n\n<tool_protocol_recovery>${instruction}</tool_protocol_recovery>`,
+  };
+}
+
+function withProgressReviewInstruction(
+  systemMessage: ChatMessage,
+  review: ProgressReviewResult,
+  completedRounds: number,
+): ChatMessage {
+  const content = removeProgressReviewInstruction(String(systemMessage.content ?? ""));
+  const evidence = JSON.stringify({
+    decision: review.decision,
+    confidence: review.confidence,
+    reason: sanitizeReviewText(review.reason),
+    ...(review.nextAction ? { nextAction: sanitizeReviewText(review.nextAction) } : {}),
+  });
+  const instruction =
+    `\n\n<progress_review_checkpoint completed_rounds="${completedRounds}">` +
+    `An independent progress reviewer assessed the completed work: ${evidence}. ` +
+    "Reassess the user's goal before the next tool call. Treat the bounded next action as the priority for the next block. Finish missing primary deliverables before deepening verification of an already working component, and do not repeat successful builds, tests, reads, endpoint matrices, or cleanup. " +
+    progressReviewGuidance(review) +
+    "</progress_review_checkpoint>";
+  return { ...systemMessage, content: `${content}${instruction}` };
+}
+
+function progressReviewGuidance(review: ProgressReviewResult): string {
+  if (review.decision === "blocked") {
+    return "The reviewer believes further work is blocked. Prefer a final response that summarizes completed work and asks only for the missing information or authorization. Use another tool only if the reviewer overlooked a concrete action that can actually remove the blocker. ";
+  }
+  if (review.decision === "finalize") {
+    return review.confidence === "high"
+      ? "The reviewer determined that the requested work is complete and remaining checks are unnecessary. Stop using tools now. Do not continue tests, cleanup, or optional verification; provide the concise final summary in this response. "
+      : "The reviewer believes the goal is complete. Prefer the final response now and avoid optional verification. Use another tool only when a concrete primary deliverable is demonstrably still missing. ";
+  }
+  return "If the goal is already complete or remaining work is optional, stop using tools and provide the final response. ";
+}
+
+function removeProgressReviewInstruction(content: string): string {
+  return content.replace(/\n\n<progress_review_(?:checkpoint|final)[\s\S]*?<\/progress_review_(?:checkpoint|final)>/g, "");
+}
+
+function sanitizeReviewText(value: string): string {
+  return value.replace(/[<>]/g, "").replace(/\s+/g, " ").trim().slice(0, 1_000);
+}
+
+function normalizeProgressReviewInterval(value: number | undefined): number {
+  return Number.isSafeInteger(value) && (value ?? 0) > 0
+    ? Math.trunc(value as number)
+    : DEFAULT_PROGRESS_REVIEW_INTERVAL;
+}
+
+function shouldReviewProgress(completedRounds: number, initialInterval: number): boolean {
+  if (completedRounds === initialInterval) {return true;}
+  if (completedRounds < initialInterval) {return false;}
+  const followUpInterval = initialInterval === DEFAULT_PROGRESS_REVIEW_INTERVAL
+    ? DEFAULT_PROGRESS_REVIEW_FOLLOW_UP_INTERVAL
+    : initialInterval;
+  return (completedRounds - initialInterval) % followUpInterval === 0;
 }
 
 function createToolSignature(toolCall: { function: { name: string; arguments: string } }): string {
@@ -285,6 +288,10 @@ function normalizeSignatureLineEndings(value: string): string {return value.repl
 function shouldRememberToolSignature(toolCall: { function: { name: string } }, result: string): boolean {
   if (toolCall.function.name === "read_file") {return false;}
   return !/^\s*(?:Error\b|Skipped:)/i.test(result);
+}
+
+function invalidatesPriorToolSignatures(toolCall: { function: { name: string } }): boolean {
+  return ["create_file", "edit_file", "apply_patch", "run_terminal_command"].includes(toolCall.function.name);
 }
 
 function stableStringify(value: unknown): string {

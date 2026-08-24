@@ -7,6 +7,26 @@ export interface ResolvedWorkspacePath { absolutePath: string; relativePath: str
 export interface ResolveWorkspacePathOptions { allowSensitive?: boolean; }
 export type RealPathResolver = (absolutePath: string) => Promise<string>;
 
+export interface ToolHostCommandOptions {
+  cwd: string;
+  workspaceRoot: string;
+  signal?: AbortSignal;
+  timeoutMs: number;
+  maxOutputBytes: number;
+}
+
+export interface ToolHostCommandResult {
+  stdout: string;
+  stderr: string;
+  exitCode: number | null;
+  signal: string | null;
+  timedOut: boolean;
+  durationMs: number;
+  truncated: { stdout: boolean; stderr: boolean };
+  terminationConfirmed?: boolean;
+  shell?: string;
+}
+
 export interface ToolHost {
   getRootPath(): string | undefined;
   getWorkspaceId?(): string;
@@ -15,6 +35,8 @@ export interface ToolHost {
   isPathInsideWorkspace?(path: string): Promise<boolean>;
   resolvePath?(path: string, allowSensitive: boolean): Promise<string>;
   resolveLocalPath?(path?: string): Promise<ResolvedWorkspacePath>;
+  getCommandShell?(): string;
+  executeCommand?(command: string, options: ToolHostCommandOptions): Promise<ToolHostCommandResult>;
   realPath?(absolutePath: string): Promise<string>;
   findFiles?(options: ToolWorkspaceFindOptions): Promise<string[]>;
   readFile(path: string): Promise<Uint8Array>;

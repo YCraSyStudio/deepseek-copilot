@@ -1,6 +1,7 @@
 import * as assert from "node:assert";
 import * as path from "node:path";
 import {
+  getTerminalLifecycleError,
   getTerminalRoutingError,
   normalizeLeadingDirectoryChange,
   terminalCommandHandler,
@@ -75,5 +76,17 @@ suite("terminal command confirmation", () => {
       availableToolNames,
       trustedUserRequest: "sin terminal, revisa src",
     }) ?? "", /Use list_directory/);
+  });
+
+  test("rejects process launchers that can escape the owned terminal lifecycle", () => {
+    assert.match(getTerminalLifecycleError(
+      "powershell -NoProfile -Command \"$p = Start-Process dotnet -PassThru\"",
+    ) ?? "", /background process launch rejected/);
+    assert.match(getTerminalLifecycleError("start /b dotnet run") ?? "", /background process launch rejected/);
+    assert.match(getTerminalLifecycleError("nohup npm run dev &") ?? "", /background process launch rejected/);
+    assert.match(getTerminalLifecycleError("dotnet run 2>&1 &\nsleep 8\ncurl http://localhost:5014") ?? "", /background process launch rejected/);
+    assert.strictEqual(getTerminalLifecycleError("dotnet build && dotnet test"), undefined);
+    assert.strictEqual(getTerminalLifecycleError("dotnet build"), undefined);
+    assert.strictEqual(getTerminalLifecycleError("npm start"), undefined);
   });
 });

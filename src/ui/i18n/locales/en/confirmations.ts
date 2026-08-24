@@ -23,10 +23,6 @@ export const confirmations = {
     destructiveOnceDescription: "This reviewed operation is approved once only. Later mutations receive a fresh independent review.",
     destructiveAction: "Destructive Action",
     potentiallyDangerousAction: "Potentially Dangerous Action",
-    cautionRequired: "Caution Required",
-    toolCallLimitReached: "Tool call limit reached",
-    toolCallLimitDescription: "The work is taking longer than expected: {rounds} rounds and {calls}/{callBudget} tool calls in the current block. Continue with up to {batchSize} more rounds?",
-    continueToolCalls: "Continue",
-    stopToolCalls: "Stop and answer"
+    cautionRequired: "Caution Required"
   }
 } satisfies TranslationCatalog;

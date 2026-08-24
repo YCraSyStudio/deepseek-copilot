@@ -153,8 +153,7 @@ export function replayGenerationEvents(
       type === "toolCallStarted" ||
       type === "toolCallConfirmationRequired" ||
       type === "toolCallResult" ||
-      type === "toolCallActionAccepted" ||
-      type === "toolCallLimitReached"
+      type === "toolCallActionAccepted"
     ) {
       void webviewView.webview.postMessage(event);
     }

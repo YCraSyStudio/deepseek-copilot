@@ -43,6 +43,8 @@ export interface CommandEnvironment {
 
 export async function resolveCommandEnvironment(cwd?: string): Promise<CommandEnvironment> {
   const workspace = getToolWorkspaceHost();
+  const shell = workspace.getCommandShell?.()
+    ?? (process.platform === "win32" ? (process.env.ComSpec ?? "cmd.exe") : (process.env.SHELL ?? "/bin/sh"));
   if (workspace.resolveLocalPath) {
     const resolved = await workspace.resolveLocalPath(cwd);
     if (!resolved.workspaceRoot) {
@@ -50,7 +52,7 @@ export async function resolveCommandEnvironment(cwd?: string): Promise<CommandEn
     }
     return {
       cwd: resolved.absolutePath,
-      shell: process.platform === "win32" ? (process.env.ComSpec ?? "cmd.exe") : (process.env.SHELL ?? "/bin/sh"),
+      shell,
       workspaceRoot: resolved.workspaceRoot,
     };
   }
@@ -61,7 +63,7 @@ export async function resolveCommandEnvironment(cwd?: string): Promise<CommandEn
   const workDir = cwd ? (await resolveWorkspacePathSecure(cwd, rootPath, realpath)).absolutePath : rootPath;
   return {
     cwd: workDir,
-    shell: process.platform === "win32" ? (process.env.ComSpec ?? "cmd.exe") : (process.env.SHELL ?? "/bin/sh"),
+    shell,
     workspaceRoot: rootPath,
   };
 }
@@ -73,6 +75,32 @@ export async function executeWorkspaceCommand(command: string, options: Workspac
 
   if (options.signal?.aborted) {
     throw createAbortError();
+  }
+
+  const hostExecutor = getToolWorkspaceHost().executeCommand;
+  if (hostExecutor) {
+    const result = await hostExecutor(command, {
+      cwd: environment.cwd,
+      workspaceRoot: environment.workspaceRoot,
+      signal: options.signal,
+      timeoutMs,
+      maxOutputBytes,
+    });
+    return {
+      kind: "command_result",
+      command,
+      cwd: environment.cwd,
+      shell: result.shell ?? environment.shell,
+      stdout: result.stdout,
+      stderr: result.stderr,
+      exitCode: result.exitCode,
+      signal: result.signal,
+      timedOut: result.timedOut,
+      cancelled: false,
+      durationMs: result.durationMs,
+      truncated: result.truncated,
+      terminationConfirmed: result.terminationConfirmed,
+    };
   }
 
   const startedAt = performance.now();
@@ -167,7 +195,7 @@ export async function executeWorkspaceCommand(command: string, options: Workspac
   });
 }
 
-class BoundedOutput {
+export class BoundedOutput {
   private readonly head: Buffer[] = [];
   private readonly tail: Buffer[] = [];
   private headBytes = 0;

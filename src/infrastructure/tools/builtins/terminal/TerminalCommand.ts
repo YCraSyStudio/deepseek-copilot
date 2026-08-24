@@ -14,6 +14,10 @@ async function handleTerminalCommand(args: Record<string, unknown>, context?: To
   if (!command) {
     return "Error: command parameter is required";
   }
+  const lifecycleError = getTerminalLifecycleError(command);
+  if (lifecycleError) {
+    return lifecycleError;
+  }
   const routingError = getTerminalRoutingError(command, context);
   if (routingError) {
     return routingError;
@@ -45,6 +49,10 @@ async function handleTerminalCommandForced(args: Record<string, unknown>, contex
   if (!command) {
     return "Error: command parameter is required";
   }
+  const lifecycleError = getTerminalLifecycleError(command);
+  if (lifecycleError) {
+    return lifecycleError;
+  }
   const routingError = getTerminalRoutingError(command, context);
   if (routingError) {
     return routingError;
@@ -55,6 +63,20 @@ async function handleTerminalCommandForced(args: Record<string, unknown>, contex
 
 const TERMINAL_REQUEST = /\b(?:use|run|execute|via|from|in|usa|usar|utiliza|ejecuta|mediante|desde|en)\b.{0,24}\b(?:terminal|shell|powershell|pwsh|cmd(?:\.exe)?|bash|zsh)\b/i;
 const TERMINAL_REJECTION = /\b(?:without|no|do not|don't|sin)\b.{0,16}\b(?:terminal|shell|powershell|pwsh|cmd(?:\.exe)?|bash|zsh)\b/i;
+
+const DETACHED_PROCESS_PATTERNS = [
+  /[ \t]&[ \t]*(?:\r?\n|$)/,
+  /\bStart-(?:Process|Job|ThreadJob)\b/i,
+  /\b(?:nohup|disown|setsid)\b/i,
+  /\bwmic(?:\.exe)?\s+process\s+call\s+create\b/i,
+  /\b(?:powershell|pwsh)(?:\.exe)?\b[^\r\n]*\s-AsJob\b/i,
+  /(?:^|[;&|]\s*|\bcmd(?:\.exe)?\s+\/[ck]\s+)start(?:\s+"[^"]*")?\s+(?!\/wait\b)/i,
+];
+
+export function getTerminalLifecycleError(command: string): string | undefined {
+  if (!DETACHED_PROCESS_PATTERNS.some((pattern) => pattern.test(command))) {return undefined;}
+  return "Error: background process launch rejected. run_terminal_command owns one finite foreground process tree; do not use Start-Process, start, jobs, nohup, disown, or similar detachment. For startup verification, run the server in the foreground with a bounded timeout.";
+}
 
 export function getTerminalRoutingError(command: string, context?: ToolHandlerContext): string | undefined {
   const available = new Set(context?.availableToolNames ?? []);
@@ -127,7 +149,7 @@ export const terminalCommandDefinition: ToolDefinition = {
   function: {
     name: "run_terminal_command",
     description:
-      "Run one finite, non-interactive executable workflow such as a build, test, Git operation, or package-manager command. When file tools are available, never use shell commands or inline scripts to list, read, search, edit, check, or inspect line endings in workspace files. Stay inside the workspace unless the user explicitly requests external computer access and the active permission mode allows it. Never detach or leave background processes running. For temporary servers, start, verify, and stop them in the same command with guaranteed cleanup. The structured result is authoritative; do not add verification-only reads unless output is ambiguous or verification was requested. Commands cannot answer prompts or use a TTY.",
+      "Run one finite, non-interactive executable workflow such as a build, test, Git operation, or package-manager command. When file tools are available, never use shell commands or inline scripts to list, read, search, edit, check, or inspect line endings in workspace files. Stay inside the workspace unless the user explicitly requests external computer access and the active permission mode allows it. Never use Start-Process, start, jobs, nohup, disown, or any mechanism that detaches a process. Run temporary servers only in the foreground with a bounded timeout. The structured result is authoritative; do not add verification-only reads unless output is ambiguous or verification was requested. Commands cannot answer prompts or use a TTY.",
     strict: true,
     parameters: {
       type: "object",

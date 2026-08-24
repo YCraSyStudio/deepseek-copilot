@@ -21,10 +21,11 @@ Key files:
 1. DeepSeek receives currently enabled function definitions.
 2. The response may end with `finish_reason: "tool_calls"` and JSON-string arguments.
 3. The host parses and validates the call, applies the permission policy, and requests confirmation when required.
-4. Calls in one round execute sequentially; identical name-and-argument calls are skipped.
+4. Calls in one round execute sequentially. An identical name-and-argument call is skipped only while no successful workspace mutation has occurred since its previous execution.
 5. Each result returns as `role: "tool"` with the original `tool_call_id`.
-6. Default mode asks whether to continue at each configured round checkpoint. `auto-approve` and `full-access` have no round or per-block call limit.
-7. Only complete `assistant(tool_calls) -> tool results -> assistant` sequences are replayed to the provider.
+6. Tool execution has no artificial round or per-block call limit. It continues until a final response, cancellation, context/output boundary, or error.
+7. At 20 completed tool rounds, and every 5 rounds thereafter, a separate tool-free progress reviewer evaluates recent context plus a compact cumulative activity history. It compares that history with the original request, treats self-initiated optional test/debug loops as finalization evidence once the requested deliverables build, and asks the primary model to stop tools and summarize. Its `finalize`, `blocked`, or `continue` decision becomes guidance for the next normal round, while uncertain or unavailable reviews continue safely.
+8. Only complete `assistant(tool_calls) -> tool results -> assistant` sequences are replayed to the provider.
 
 ## `analyze_images`
 

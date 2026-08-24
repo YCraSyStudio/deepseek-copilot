@@ -21,6 +21,37 @@ suite("shell execution", () => {
     assert.ok(result.durationMs >= 0);
   });
 
+  test("delegates command execution to the configured workspace host", async () => {
+    let capturedCommand: string | undefined;
+    let capturedCwd: string | undefined;
+    setToolWorkspaceHost({
+      ...createUnusedWorkspaceHost(process.cwd()),
+      getCommandShell: () => "integrated-test-shell",
+      executeCommand: async (command, options) => {
+        capturedCommand = command;
+        capturedCwd = options.cwd;
+        return {
+          stdout: "integrated output",
+          stderr: "",
+          exitCode: 0,
+          signal: null,
+          timedOut: false,
+          durationMs: 12,
+          truncated: { stdout: false, stderr: false },
+          shell: "pwsh",
+        };
+      },
+    });
+
+    const result = await executeWorkspaceCommand("npm test");
+
+    assert.strictEqual(capturedCommand, "npm test");
+    assert.strictEqual(capturedCwd, process.cwd());
+    assert.strictEqual(result.stdout, "integrated output");
+    assert.strictEqual(result.shell, "pwsh");
+    assert.strictEqual(result.exitCode, 0);
+  });
+
   test("aborts a running command promptly", async () => {
     setToolWorkspaceHost(createUnusedWorkspaceHost(process.cwd()));
     const controller = new AbortController();

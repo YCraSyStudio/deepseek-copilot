@@ -12,7 +12,6 @@ Current defaults and limits:
 - permission modes: `default`, `auto-approve`, and `full-access` only.
 - Web search: enabled by default and represented by one capability toggle.
 - output allowance: 8,192 tokens, clamped to 1–384,000.
-- default-mode tool checkpoint: 6 rounds, clamped to 1–20.
 - concurrent generations: 8, clamped to 1–16.
 - history retention: 30 days by default.
 

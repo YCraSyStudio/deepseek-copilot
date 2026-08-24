@@ -14,7 +14,8 @@ export const chat = {
     model: "Modelo",
     reasoning: "Razonamiento",
     activity: "Actividad",
-    activitySteps: "{count} pasos",
+    activities: "Actividades",
+    toolCallItems: "{count} tool calls",
     off: "Desactivado",
     high: "Alto",
     max: "Máximo",
@@ -60,7 +61,22 @@ export const chat = {
       cacheMiss: "Caché fallida",
       total: "Total",
       cost: "Coste",
-      unavailable: "No disponible"
+      unavailable: "No disponible",
+      breakdown: "Por tipo de petición",
+      byModel: "Por modelo",
+      models: "{count} modelos",
+      unknownModel: "Modelo desconocido",
+      partial: "Hay datos de tokens para {reported} de {requests} peticiones.",
+      phases: {
+        primary: "Respuesta inicial",
+        toolRound: "Tool calls",
+        completionReview: "Revisión de finalización",
+        progressReview: "Revisión de progreso",
+        securityReview: "Revisión de seguridad",
+        contextSummary: "Resumen de contexto",
+        fileCompaction: "Compactación de archivos",
+        visionAnalysis: "Análisis visual"
+      }
     }
   }
 } satisfies TranslationCatalog;

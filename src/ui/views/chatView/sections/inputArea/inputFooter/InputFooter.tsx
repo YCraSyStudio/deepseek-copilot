@@ -7,6 +7,8 @@ import type { PermissionMode } from "@/contracts";
 import { t } from "@webview/i18n";
 import { getVsCodeApi } from "@webview/VsCodeApi";
 import ModelReasoningPicker from "./ModelReasoningPicker";
+import UsagePicker from "./UsagePicker";
+import type { UsageAggregate } from "@/shared/usage/Usage";
 
 type Props = {
   reasoning: string;
@@ -21,6 +23,9 @@ type Props = {
   /** Remove a referenced file. */
   onRemoveReferencedFile?: (index: number) => void;
   conversationId?: string;
+  usage?: UsageAggregate;
+  usageByModel?: readonly UsageAggregate[];
+  showUsage?: boolean;
 };
 
 const PERMISSION_MODES: readonly PermissionMode[] = ["default", "auto-approve", "full-access"];
@@ -40,6 +45,9 @@ function InputFooter({
   referencedFiles = [],
   onRemoveReferencedFile,
   conversationId,
+  usage,
+  usageByModel = [],
+  showUsage = false,
 }: Props) {
   const reasoningOptions = useMemo(() => {
     return [{ value: "off", label: t("chat.off") }, { value: "high", label: t("chat.high") }, { value: "max", label: t("chat.max") }];
@@ -88,24 +96,27 @@ function InputFooter({
             onReasoningChange={onReasoningChange}
           />
         </div>
-        <span className="selectTooltipWrapper" data-tooltip={t("tools.permissionMode")}>
-          <select
-            name="PermissionMode"
-            id="PermissionMode"
-            aria-label={t("tools.permissionMode")}
-            aria-busy={permissionUpdatePending}
-            disabled={permissionUpdatePending}
-            value={permissionMode}
-            onChange={(event) => {
-              const nextPermissionMode = parsePermissionMode(event.target.value);
-              if (nextPermissionMode) { onPermissionModeChange(nextPermissionMode); }
-            }}
-          >
-            {permissionOptions.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </select>
-        </span>
+        <div className="inputFooterSecondaryControls">
+          {showUsage ? <UsagePicker usage={usage} usageByModel={usageByModel} /> : null}
+          <span className="selectTooltipWrapper" data-tooltip={t("tools.permissionMode")}>
+            <select
+              name="PermissionMode"
+              id="PermissionMode"
+              aria-label={t("tools.permissionMode")}
+              aria-busy={permissionUpdatePending}
+              disabled={permissionUpdatePending}
+              value={permissionMode}
+              onChange={(event) => {
+                const nextPermissionMode = parsePermissionMode(event.target.value);
+                if (nextPermissionMode) { onPermissionModeChange(nextPermissionMode); }
+              }}
+            >
+              {permissionOptions.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </span>
+        </div>
       </div>
     </div>
   );

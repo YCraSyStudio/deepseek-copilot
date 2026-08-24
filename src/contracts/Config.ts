@@ -18,7 +18,6 @@ export interface AppConfig {
   topP: number;
 
   maxTokens: number;
-  maxToolRounds: number;
   maxConcurrentGenerations: number;
   permissionMode: PermissionMode;
 
@@ -50,7 +49,6 @@ export const DEFAULT_CONFIG: AppConfig = {
   temperature: 1.0,
   topP: 1.0,
   maxTokens: 8192,
-  maxToolRounds: 6,
   maxConcurrentGenerations: 8,
   permissionMode: "default",
   autoContext: false,

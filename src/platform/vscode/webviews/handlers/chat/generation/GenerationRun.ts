@@ -23,7 +23,6 @@ const REPLAY_EVENT_TYPES = new Set([
   "toolCallConfirmationRequired",
   "toolCallResult",
   "toolCallActionAccepted",
-  "toolCallLimitReached",
 ]);
 
 export interface GenerationRunRecord {

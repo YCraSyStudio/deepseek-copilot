@@ -15,6 +15,7 @@ import {
   type WorkspaceRunSnapshot,
 } from "@/platform/vscode/workspace";
 import { createInlineDiffPreview } from "./InlineDiffPreview";
+import { describeVsCodeTerminalShell, executeInVsCodeTerminal } from "./VsCodeTerminalExecution";
 import {
   createAbortError,
   findFilesInRoot,
@@ -56,6 +57,12 @@ export function createVsCodeToolWorkspace(
     getDefaultRootAlias(): string | undefined {
       return defaultFolder?.alias;
     },
+
+    getCommandShell(): string {
+      return describeVsCodeTerminalShell();
+    },
+
+    executeCommand: executeInVsCodeTerminal,
 
     async isPathInsideWorkspace(rawPath: string): Promise<boolean> {
       if (path.isAbsolute(rawPath) || path.win32.isAbsolute(rawPath)) {

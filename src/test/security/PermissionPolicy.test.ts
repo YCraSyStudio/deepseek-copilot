@@ -1,9 +1,6 @@
 import * as assert from "node:assert";
 import type { PermissionSnapshot, ToolDefinition } from "@/contracts";
-import {
-  getRunnableToolsForPermissionSnapshot,
-  shouldEnforceToolCallLimits,
-} from "@/platform/vscode/webviews/handlers/chat/toolCalls/PermissionPolicy";
+import { getRunnableToolsForPermissionSnapshot } from "@/platform/vscode/webviews/handlers/chat/toolCalls/PermissionPolicy";
 
 const tools = ["read_file", "read_web", "create_file", "run_terminal_command"].map((name) => ({
   type: "function",
@@ -18,12 +15,6 @@ suite("permission policy snapshots", () => {
         ["read_file", "read_web", "create_file", "run_terminal_command"],
       );
     }
-  });
-
-  test("enforces tool round limits only in default mode", () => {
-    assert.strictEqual(shouldEnforceToolCallLimits(createSnapshot("default")), true);
-    assert.strictEqual(shouldEnforceToolCallLimits(createSnapshot("auto-approve")), false);
-    assert.strictEqual(shouldEnforceToolCallLimits(createSnapshot("full-access")), false);
   });
 });
 

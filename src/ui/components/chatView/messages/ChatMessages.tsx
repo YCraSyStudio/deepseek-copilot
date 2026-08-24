@@ -1,11 +1,9 @@
 import type React from "react";
-import { aggregateUsageAggregates } from "@/shared/usage/Usage";
 import type { ChatMessage, ToolCallGroup } from "@webview/views/chatView/ChatViewTypes";
 import "../../shared/collapsiblePanel/CollapsiblePanel.css";
 import "./ChatMessages.css";
 import { AssistantActivity } from "./AssistantActivity";
 import { PlainText } from "./MarkdownMessage";
-import UsageBreakdown from "./UsageBreakdown";
 import { t } from "@webview/i18n";
 import {
   buildMessageToolCallGroups,
@@ -17,7 +15,6 @@ interface ChatMessagesProps {
   isProcessing?: boolean;
   renderToolCallGroups?: (groups: ToolCallGroup[]) => React.ReactNode;
   activeToolCallGroups?: ToolCallGroup[];
-  showUsageBreakdown?: boolean;
 }
 
 function ChatMessages({
@@ -25,11 +22,7 @@ function ChatMessages({
   isProcessing = false,
   renderToolCallGroups,
   activeToolCallGroups = [],
-  showUsageBreakdown = false,
 }: ChatMessagesProps) {
-  const conversationUsage = aggregateUsageAggregates(
-    messages.flatMap((message) => message.usage ? [message.usage] : []),
-  );
   return (
     <>
       {messages.map((message, messageIndex) => {
@@ -48,12 +41,10 @@ function ChatMessages({
               isActive={isLastAssistant && isProcessing}
               toolCallGroups={toolCallGroups}
               renderToolCallGroups={renderToolCallGroups}
-              showUsageBreakdown={showUsageBreakdown}
             />
           </div>
         );
       })}
-      {showUsageBreakdown && conversationUsage ? <UsageBreakdown usage={conversationUsage} scope="conversation" /> : null}
     </>
   );
 }
@@ -63,13 +54,11 @@ function MessageBody({
   isActive,
   toolCallGroups,
   renderToolCallGroups,
-  showUsageBreakdown,
 }: {
   message: ChatMessage;
   isActive: boolean;
   toolCallGroups: ToolCallGroup[];
   renderToolCallGroups?: (groups: ToolCallGroup[]) => React.ReactNode;
-  showUsageBreakdown: boolean;
 }) {
   if (message.role === "error") {
     return <div className="errorMessage">{message.content}</div>;
@@ -88,7 +77,6 @@ function MessageBody({
           generationStatus={message.generationStatus}
           generationStopReason={message.generationStopReason}
         />
-        {showUsageBreakdown && message.usage ? <UsageBreakdown usage={message.usage} /> : null}
       </>
     );
   }

@@ -67,5 +67,4 @@ export type MessagesSectionProps = {
   onModelChanged?: (modelId: string) => void;
   onProcessingChange?: (isProcessing: boolean) => void;
   onFocusInput?: () => void;
-  usageBreakdown?: boolean;
 };

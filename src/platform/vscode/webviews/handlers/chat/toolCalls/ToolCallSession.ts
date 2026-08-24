@@ -18,20 +18,18 @@ import type {
   PostFinalMessageOptions,
   StoredExecution,
   ToolCallActionPayload,
-  ToolCallLimitDecision,
   ToolCallRunOptions,
   ToolCallRunResult,
 } from "./Types";
-import {
-  getRunnableToolsForPermissionSnapshot,
-  shouldEnforceToolCallLimits,
-} from "./PermissionPolicy";
+import { getRunnableToolsForPermissionSnapshot } from "./PermissionPolicy";
 import { createProviderTranscript } from "@/application/chat/ProviderTranscript";
 import { getToolWorkspaceHost } from "@/infrastructure/tools/ToolWorkspace";
 import { reviewCommandSafety } from "@/infrastructure/deepseek/security/commandReview";
 import { compactToolCycleContext } from "@/application/chat/context/ToolCycleCompaction";
 import { isCancellationError } from "@/shared/utils/Cancellation";
 import { getTextContent } from "@/contracts/deepseek/Chat";
+import { reviewCompletion } from "@/infrastructure/deepseek/providers/deepseek/features/CompletionReviewer";
+import { reviewProgress } from "@/infrastructure/deepseek/providers/deepseek/features/ProgressReviewer";
 
 export class ToolCallSession {
   private pendingToolCallCycle: PendingToolCallCycle | null = null;
@@ -39,7 +37,6 @@ export class ToolCallSession {
   private activePermissionSnapshot?: PermissionSnapshot;
   private currentRound = 0;
   private activeEventSink?: GenerationEventSink<Record<string, unknown>>;
-  private pendingLimitDecision: ((decision: ToolCallLimitDecision) => void) | null = null;
   private webTainted = false;
   constructor(private readonly toolExecutor: ToolExecutor) {}
 
@@ -80,11 +77,6 @@ export class ToolCallSession {
             options.onPermissionSnapshot?.(snapshot);
             return getRunnableToolsForPermissionSnapshot(options.tools, snapshot);
           },
-          maxRounds: options.providerConfig.maxToolRounds,
-          maxToolCallsPerBatch: options.providerConfig.maxToolRounds * 4,
-          shouldEnforceToolCallLimits: () => shouldEnforceToolCallLimits(
-            this.activePermissionSnapshot ?? options.permissionSnapshot,
-          ),
           signal: options.signal,
           streamFinalResponse: true,
           streamToolCallRounds: hasAutoApprovedTools(options, enabledTools),
@@ -97,6 +89,18 @@ export class ToolCallSession {
             type: "generationRecoveryStarted",
             reason: "excessive_reasoning",
             message: "The previous tool round reasoned more than necessary. Retrying once concisely.",
+          }),
+          reviewCompletion: (context) => reviewCompletion({
+            ...context,
+            providerConfig: options.providerConfig,
+            signal: options.signal,
+            onUsage: (usage) => options.onUsage?.("completion_review", usage),
+          }),
+          reviewProgress: (context) => reviewProgress({
+            ...context,
+            providerConfig: options.providerConfig,
+            signal: options.signal,
+            onUsage: (usage) => options.onUsage?.("progress_review", usage),
           }),
           onRoundStart: async (round, toolCalls) => {
             stream.toolGroup(round, toolCalls.map((toolCall) => toolCall.id));
@@ -144,17 +148,12 @@ export class ToolCallSession {
             await options.eventSink.publish({ type: "contextCompacted" });
             return compacted.messages;
           },
-          onToolSkipped: (toolCall, result) => {
-            recordSyntheticToolError(toolCall, this.createExecutionContext(options, executedToolCalls), result);
-          },
           validateRequestBudget: (messages, toolsForRound) => {
             const assessment = options.budgetManager.assessRequest(messages, toolsForRound);
             if (assessment.status === "hard_limit") {
               options.budgetManager.assertRequestFitsContext(messages, toolsForRound);
             }
           },
-          onLimitReached: (completedRounds, batchSize, completedToolCalls, toolCallBudget) =>
-            this.requestLimitDecision(options.eventSink, completedRounds, batchSize, completedToolCalls, toolCallBudget),
         },
       });
 
@@ -164,7 +163,6 @@ export class ToolCallSession {
     } finally {
       this.pendingToolCallCycle = null;
       this.pendingDangerConfirmation = null;
-      this.pendingLimitDecision = null;
       this.activeEventSink = undefined;
       this.activePermissionSnapshot = undefined;
       this.webTainted = false;
@@ -172,8 +170,6 @@ export class ToolCallSession {
   }
 
   cancel(): void {
-    this.pendingLimitDecision?.("stop");
-    this.pendingLimitDecision = null;
     if (this.pendingToolCallCycle) {
       for (const [toolCallId, toolCall] of this.pendingToolCallCycle.toolCalls) {
         if (!this.pendingToolCallCycle.resolved.has(toolCallId)) {
@@ -234,32 +230,6 @@ export class ToolCallSession {
         status: payload.action === "execute" ? "running" : "rejected",
       });
     }
-  }
-
-  handleLimitDecision(decision: ToolCallLimitDecision): void {
-    if (!this.pendingLimitDecision) {
-      logWarning("[ChatHandler] No pending tool call limit decision");
-      return;
-    }
-    const resolve = this.pendingLimitDecision;
-    this.pendingLimitDecision = null;
-    resolve(decision);
-  }
-
-  private requestLimitDecision(
-    eventSink: GenerationEventSink<Record<string, unknown>>,
-    completedRounds: number,
-    batchSize: number,
-    completedToolCalls: number,
-    toolCallBudget: number,
-  ): Promise<ToolCallLimitDecision> {
-    if (this.pendingLimitDecision) {
-      return Promise.resolve("stop");
-    }
-    eventSink.publish({ type: "toolCallLimitReached", completedRounds, batchSize, completedToolCalls, toolCallBudget });
-    return new Promise((resolve) => {
-      this.pendingLimitDecision = resolve;
-    });
   }
 
   private createExecutionContext(options: ToolCallRunOptions, executedToolCalls: Map<string, StoredExecution>) {

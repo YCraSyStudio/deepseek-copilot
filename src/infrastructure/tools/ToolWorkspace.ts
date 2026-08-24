@@ -4,6 +4,8 @@ import type {
   RealPathResolver,
   ResolvedWorkspacePath,
   ResolveWorkspacePathOptions,
+  ToolHostCommandOptions,
+  ToolHostCommandResult,
   ToolWorkspaceEntryType,
   ToolWorkspaceFindOptions,
   ToolWorkspaceHost,
@@ -12,6 +14,8 @@ export type {
   RealPathResolver,
   ResolvedWorkspacePath,
   ResolveWorkspacePathOptions,
+  ToolHostCommandOptions,
+  ToolHostCommandResult,
   ToolWorkspaceEntryType,
   ToolWorkspaceFilePreview,
   ToolWorkspaceFindOptions,
@@ -119,6 +123,8 @@ function createValidatingWorkspaceHost(host: ToolWorkspaceHost): ToolWorkspaceHo
     isPathInsideWorkspace: host.isPathInsideWorkspace?.bind(host),
     resolvePath: host.resolvePath?.bind(host),
     resolveLocalPath: host.resolveLocalPath?.bind(host),
+    getCommandShell: host.getCommandShell?.bind(host),
+    executeCommand: host.executeCommand?.bind(host),
     realPath: host.realPath?.bind(host),
     findFiles: host.findFiles
       ? async (options: ToolWorkspaceFindOptions) => {

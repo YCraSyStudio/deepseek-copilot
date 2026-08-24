@@ -112,6 +112,36 @@
 .activity-block {
   width: 100%;
   box-sizing: border-box;
+
+  &:not([open]) {
+    background: transparent;
+    border-width: 0 0 1px;
+    border-radius: 0;
+    overflow: visible;
+
+    > .collapsiblePanelSummary {
+      gap: 7px;
+      padding: 6px 2px 9px;
+    }
+
+    .collapsiblePanelTitle {
+      color: var(--text-secondary);
+      flex: 0 1 auto;
+      font-weight: 500;
+    }
+
+    &.completed .activityStatus {
+      display: none;
+    }
+
+    .collapsiblePanelChevron {
+      border: solid currentColor;
+      border-width: 0 1.5px 1.5px 0;
+      width: 5px;
+      height: 5px;
+      transform: rotate(-45deg);
+    }
+  }
 }
 
 .activityMeta,
@@ -121,12 +151,6 @@
 
 .activityMeta {
   gap: 7px;
-}
-
-.activityStepCount {
-  white-space: nowrap;
-  font-size: 11px;
-  font-weight: 400;
 }
 
 .activityStatus {
@@ -160,8 +184,30 @@
 
 .activityBody {
   flex-direction: column;
-  gap: 8px;
+  gap: 7px;
   display: flex;
+}
+
+.activityNarration {
+  color: var(--text-secondary);
+  padding: 2px 2px 4px;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.activityToolList {
+  background: color-mix(in srgb, var(--bg-primary) 58%, transparent);
+  border-radius: 8px;
+}
+
+.activityToolListSummary {
+  padding: 8px 10px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.activityToolListBody {
+  padding: 0 8px 8px;
 }
 
 .activityReasoning {
@@ -197,12 +243,6 @@
   padding: 0 10px 10px;
   font-size: 12px;
   line-height: 1.6;
-}
-
-@media (max-width: 320px) {
-  .activityStepCount {
-    display: none;
-  }
 }
 
 .code-block-header {

@@ -50,6 +50,7 @@
 4. Required confirmations are shown in the webview.
 5. `ToolExecutionPipeline` runs through the generation-scoped workspace or infrastructure adapter.
 6. Results return to the same model cycle. Completed side effects and their recorded results remain visible even if the later generation is cancelled.
+7. Every 20 completed tool rounds, an independent tool-free progress reviewer decides whether concrete work remains, a final response should be produced, or progress requires a user decision. Its bounded recommendation guides the next normal round without disabling tools; the primary model can still perform a demonstrably necessary action.
 
 Read-only work may overlap across conversations. Workspace mutations are serialized per logical workspace.
 

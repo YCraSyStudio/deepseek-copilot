@@ -9,6 +9,7 @@ import { t } from "@webview/i18n";
 import {
   groupAssistantTimeline,
   summarizeActivity,
+  type AssistantActivityRound,
   type AssistantTimelineBlock,
 } from "../tools/timeline/AssistantTimelineGrouping";
 import { MarkdownMessage } from "./MarkdownMessage";
@@ -29,7 +30,8 @@ export function AssistantActivity({
   generationStatus?: ChatMessage["generationStatus"];
   generationStopReason?: ChatMessage["generationStopReason"];
 }) {
-  const blocks = groupAssistantTimeline(timeline);
+  const compactCompletedCycle = generationStatus === "completed" || (!isActive && generationStatus === undefined);
+  const blocks = groupAssistantTimeline(timeline, { compactCompletedCycle });
   return (
     <div className="chronologicalAssistant">
       {blocks.map((block, index) =>
@@ -40,6 +42,7 @@ export function AssistantActivity({
             toolCallGroups={toolCallGroups}
             renderToolCallGroups={renderToolCallGroups}
             missingToolStatus={getMissingToolStatus(blocks, index, isActive, generationStatus)}
+            isLive={isActive && index === blocks.length - 1}
           />
         ) : (
           <MarkdownMessage key={block.id} content={block.content} role="assistant" />
@@ -60,42 +63,36 @@ function ActivityPanel({
   toolCallGroups,
   renderToolCallGroups,
   missingToolStatus,
+  isLive,
 }: {
   block: Extract<AssistantTimelineBlock, { type: "activity" }>;
   toolCallGroups: ToolCallGroup[];
   renderToolCallGroups?: (groups: ToolCallGroup[]) => React.ReactNode;
   missingToolStatus: ToolCallStatus;
+  isLive: boolean;
 }) {
-  const storageKey = `deepseek.activity.expanded.${block.id}`;
-  const [open, setOpen] = React.useState(() => {
-    try {
-      return window.localStorage.getItem(storageKey) === "true";
-    } catch {
-      return false;
+  const [open, setOpen] = React.useState(isLive);
+  const wasLiveRef = React.useRef(isLive);
+  const summary = summarizeActivity(block.rounds.flatMap((round) => round.events), toolCallGroups, missingToolStatus);
+
+  React.useEffect(() => {
+    if (isLive) {
+      setOpen(true);
+    } else if (wasLiveRef.current) {
+      setOpen(false);
     }
-  });
-  const summary = summarizeActivity(block.events, toolCallGroups, missingToolStatus);
+    wasLiveRef.current = isLive;
+  }, [isLive]);
 
   return (
     <details
-      className={`collapsiblePanel activity-block ${summary.status}`}
+      className={`collapsiblePanel activity-block ${summary.status}${isLive ? " live" : ""}`}
       open={open}
-      onToggle={(event) => {
-        const isOpen = event.currentTarget.open;
-        setOpen(isOpen);
-        try {
-          window.localStorage.setItem(storageKey, String(isOpen));
-        } catch {
-          // The panel still works when webview storage is unavailable.
-        }
-      }}
+      onToggle={(event) => setOpen(event.currentTarget.open)}
     >
       <summary className="collapsiblePanelSummary">
-        <span className="collapsiblePanelTitle">{t("chat.activity")}</span>
+        <span className="collapsiblePanelTitle">{t("chat.activities")}</span>
         <span className="collapsiblePanelMeta activityMeta">
-          <span className="activityStepCount">
-            {t("chat.activitySteps", { count: summary.stepCount })}
-          </span>
           <span className={`activityStatus ${summary.status}`} role="status" aria-live="polite">
             {formatActivityStatus(summary.status)}
           </span>
@@ -103,20 +100,105 @@ function ActivityPanel({
         <span className="collapsiblePanelChevron" aria-hidden="true" />
       </summary>
       <div className="collapsiblePanelBody activityBody">
-        {block.events.map((event) => {
-          if (event.type === "reasoning") {
-            return (
-              <section className="activityReasoning" key={event.id}>
-                <div className="activityItemLabel">{t("chat.reasoning")}</div>
-                <div className="reasoning-content">{event.content}</div>
-              </section>
-            );
-          }
-          const group = findTimelineToolGroup(event, toolCallGroups);
-          return group
-            ? <React.Fragment key={event.id}>{renderToolCallGroups?.([group])}</React.Fragment>
-            : null;
-        })}
+        {block.rounds.map((round) => (
+          <ActivityRound
+            key={round.id}
+            round={round}
+            toolCallGroups={toolCallGroups}
+            renderToolCallGroups={renderToolCallGroups}
+            isLive={isLive}
+          />
+        ))}
+      </div>
+    </details>
+  );
+}
+
+function ActivityRound({
+  round,
+  toolCallGroups,
+  renderToolCallGroups,
+  isLive,
+}: {
+  round: AssistantActivityRound;
+  toolCallGroups: ToolCallGroup[];
+  renderToolCallGroups?: (groups: ToolCallGroup[]) => React.ReactNode;
+  isLive: boolean;
+}) {
+  return (
+    <>
+      {round.events.map((event) => {
+        if (event.type === "content") {
+          return (
+            <div className="activityNarration" key={event.id}>
+              <MarkdownMessage content={event.content} role="assistant" />
+            </div>
+          );
+        }
+        if (event.type === "reasoning") {
+          return (
+            <section className="activityReasoning" key={event.id}>
+              <div className="activityItemLabel">{t("chat.reasoning")}</div>
+              <div className="reasoning-content">{event.content}</div>
+            </section>
+          );
+        }
+        return (
+          <RoundToolCallList
+            key={event.id}
+            event={event}
+            toolCallGroups={toolCallGroups}
+            renderToolCallGroups={renderToolCallGroups}
+            isLive={isLive}
+          />
+        );
+      })}
+    </>
+  );
+}
+
+function RoundToolCallList({
+  event,
+  toolCallGroups,
+  renderToolCallGroups,
+  isLive,
+}: {
+  event: Extract<AssistantTimelineEvent, { type: "tool-group" }>;
+  toolCallGroups: ToolCallGroup[];
+  renderToolCallGroups?: (groups: ToolCallGroup[]) => React.ReactNode;
+  isLive: boolean;
+}) {
+  const group = findTimelineToolGroup(event, toolCallGroups);
+  const [open, setOpen] = React.useState(isLive);
+  const wasLiveRef = React.useRef(isLive);
+
+  React.useEffect(() => {
+    if (isLive) {
+      setOpen(true);
+    } else if (wasLiveRef.current) {
+      setOpen(false);
+    }
+    wasLiveRef.current = isLive;
+  }, [isLive]);
+
+  if (!group || group.toolCalls.length === 0) {
+    return null;
+  }
+
+  return (
+    <details
+      className="collapsiblePanel activityToolList"
+      open={open}
+      onToggle={(toggleEvent) => setOpen(toggleEvent.currentTarget.open)}
+    >
+      <summary className="collapsiblePanelSummary activityToolListSummary">
+        <span className="collapsiblePanelTitle">
+          {t("chat.toolCallItems", { count: group.toolCalls.length })}
+        </span>
+        <span className="collapsiblePanelChevron" aria-hidden="true" />
+      </summary>
+      <div className="collapsiblePanelBody activityToolListBody">
+        {renderToolCallGroups?.([group])}
       </div>
     </details>
   );

@@ -23,10 +23,6 @@ export const confirmations = {
     destructiveOnceDescription: "Esta operación revisada solo se aprueba una vez. Las mutaciones posteriores reciben una nueva revisión independiente.",
     destructiveAction: "Acción destructiva",
     potentiallyDangerousAction: "Acción potencialmente peligrosa",
-    cautionRequired: "Se requiere precaución",
-    toolCallLimitReached: "Se alcanzó el límite de llamadas a herramientas",
-    toolCallLimitDescription: "El trabajo se está extendiendo: {rounds} rondas y {calls}/{callBudget} herramientas en el bloque actual. ¿Continuar con hasta {batchSize} rondas más?",
-    continueToolCalls: "Continuar",
-    stopToolCalls: "Detener y responder"
+    cautionRequired: "Se requiere precaución"
   }
 } satisfies TranslationCatalog;
