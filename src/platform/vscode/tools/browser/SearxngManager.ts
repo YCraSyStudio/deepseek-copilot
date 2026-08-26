@@ -1,6 +1,4 @@
 import * as vscode from "vscode";
-import * as path from "node:path";
-import * as fs from "node:fs/promises";
 import * as net from "node:net";
 import { randomBytes } from "node:crypto";
 import { execFile } from "node:child_process";
@@ -10,12 +8,15 @@ import { normalizeSearxngEndpoint } from "@/infrastructure/browser/SearxngSearch
 const execFileAsync = promisify(execFile);
 const DEFAULT_SEARXNG_URL = "http://127.0.0.1:8888";
 const SEARXNG_IMAGE = "docker.io/searxng/searxng:latest";
+const READY_ATTEMPTS = 80;
+const READY_INTERVAL_MS = 250;
 
 type ContainerRuntime = "docker" | "podman";
 
 interface ManagedInstance {
   runtime: ContainerRuntime;
   containerName: string;
+  volumeName: string;
   endpoint: string;
 }
 
@@ -23,7 +24,7 @@ export class SearxngManager implements vscode.Disposable {
   private managed?: ManagedInstance;
   private resolving?: Promise<string>;
 
-  constructor(private readonly context: vscode.ExtensionContext) {}
+  constructor(private readonly _context: vscode.ExtensionContext) {}
 
   async resolve(configuredUrl: string): Promise<string> {
     const normalized = normalizeSearxngEndpoint(configuredUrl).toString().replace(/\/$/, "");
@@ -46,7 +47,7 @@ export class SearxngManager implements vscode.Disposable {
     const current = this.managed;
     this.managed = undefined;
     if (!current) {return;}
-    await runContainerCommand(current.runtime, ["rm", "-f", current.containerName]).catch(() => undefined);
+    await removeManagedResources(current);
   }
 
   getDiagnostics(): Record<string, unknown> {
@@ -65,36 +66,52 @@ export class SearxngManager implements vscode.Disposable {
   private async startManaged(): Promise<string> {
     const runtime = await resolveContainerRuntime();
     const port = await findAvailablePort();
-    const configDir = path.join(this.context.globalStorageUri.fsPath, "searxng");
-    await fs.mkdir(configDir, { recursive: true });
-    await fs.writeFile(path.join(configDir, "settings.yml"), createSettings(), { encoding: "utf8", mode: 0o600 });
-
-    const containerName = `deepseek-copilot-searxng-${process.pid}-${randomBytes(4).toString("hex")}`;
+    const suffix = `${process.pid}-${randomBytes(4).toString("hex")}`;
+    const containerName = `deepseek-copilot-searxng-${suffix}`;
+    const volumeName = `deepseek-copilot-searxng-config-${suffix}`;
     const endpoint = `http://127.0.0.1:${port}`;
-    const mount = `${configDir}:/etc/searxng:ro`;
-    await runContainerCommand(runtime, [
-      "run", "--rm", "-d",
-      "--name", containerName,
-      "-p", `127.0.0.1:${port}:8080`,
-      "-e", "FORCE_OWNERSHIP=false",
-      "-v", mount,
-      SEARXNG_IMAGE,
-    ]);
+    const candidate: ManagedInstance = { runtime, containerName, volumeName, endpoint };
 
-    const candidate: ManagedInstance = { runtime, containerName, endpoint };
-    this.managed = candidate;
     try {
-      for (let attempt = 0; attempt < 40; attempt += 1) {
+      await runContainerCommand(runtime, ["volume", "create", volumeName]);
+      await initializeConfigVolume(runtime, volumeName);
+      await runContainerCommand(runtime, [
+        "run", "--rm", "-d",
+        "--name", containerName,
+        "-p", `127.0.0.1:${port}:8080`,
+        "-v", `${volumeName}:/etc/searxng`,
+        SEARXNG_IMAGE,
+      ]);
+      this.managed = candidate;
+
+      for (let attempt = 0; attempt < READY_ATTEMPTS; attempt += 1) {
         if (await isSearxngAvailable(endpoint)) {return endpoint;}
-        await delay(250);
+        await delay(READY_INTERVAL_MS);
       }
       throw new Error("Local SearXNG container started but did not become ready");
     } catch (error) {
-      this.managed = undefined;
-      await runContainerCommand(runtime, ["rm", "-f", containerName]).catch(() => undefined);
+      if (this.managed === candidate) {this.managed = undefined;}
+      await removeManagedResources(candidate);
       throw error;
     }
   }
+}
+
+async function initializeConfigVolume(runtime: ContainerRuntime, volumeName: string): Promise<void> {
+  await runContainerCommand(runtime, [
+    "run", "--rm",
+    "--user", "0:0",
+    "--entrypoint", "/bin/sh",
+    "-e", `DEEPSEEK_COPILOT_SEARXNG_SETTINGS=${createSettings()}`,
+    "-v", `${volumeName}:/etc/searxng`,
+    SEARXNG_IMAGE,
+    "-c", "printf '%s' \"$DEEPSEEK_COPILOT_SEARXNG_SETTINGS\" > /etc/searxng/settings.yml && chmod 0644 /etc/searxng/settings.yml",
+  ]);
+}
+
+async function removeManagedResources(instance: ManagedInstance): Promise<void> {
+  await runContainerCommand(instance.runtime, ["rm", "-f", instance.containerName], 15_000).catch(() => undefined);
+  await runContainerCommand(instance.runtime, ["volume", "rm", "-f", instance.volumeName], 15_000).catch(() => undefined);
 }
 
 async function resolveContainerRuntime(): Promise<ContainerRuntime> {
@@ -148,7 +165,7 @@ async function findAvailablePort(): Promise<number> {
 }
 
 function createSettings(): string {
-  return `use_default_settings: true\n\ngeneral:\n  debug: false\n  instance_name: "DeepSeek Copilot Search"\n  enable_metrics: false\n\nsearch:\n  safe_search: 0\n  autocomplete: ""\n  formats:\n    - json\n\nserver:\n  secret_key: "${randomBytes(32).toString("hex")}"\n  limiter: false\n  public_instance: false\n  image_proxy: false\n\noutgoing:\n  request_timeout: 4.0\n  max_request_timeout: 8.0\n`;
+  return `use_default_settings: true\n\ngeneral:\n  debug: false\n  instance_name: "DeepSeek Copilot Search"\n  enable_metrics: false\n\nsearch:\n  safe_search: 0\n  autocomplete: ""\n  formats:\n    - json\n\nserver:\n  bind_address: "0.0.0.0"\n  secret_key: "${randomBytes(32).toString("hex")}"\n  limiter: false\n  public_instance: false\n  image_proxy: false\n\noutgoing:\n  request_timeout: 4.0\n  max_request_timeout: 8.0\n`;
 }
 
 function delay(ms: number): Promise<void> {
