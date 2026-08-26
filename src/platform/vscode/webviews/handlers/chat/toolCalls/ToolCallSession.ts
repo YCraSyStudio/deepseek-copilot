@@ -1,6 +1,7 @@
-import type { PermissionSnapshot, ToolCall, ToolDefinition } from "@/contracts";
+import type { PermissionSnapshot, ToolCall } from "@/contracts";
 import type { GenerationEventSink } from "@/application/ports";
 import { runToolCallCycle } from "@/application/chat/toolCall";
+import { shouldEnforceToolCallLimits } from "@/application/chat/toolCall/PermissionPolicy";
 import { createDeepSeekToolCallModelClient } from "@/infrastructure/deepseek/providers/deepseek/features/toolCall/DeepSeekToolCallModelClient";
 import { logWarning } from "@/shared/logging/Logger";
 import { redactSensitiveText } from "@/shared/security/Redaction";
@@ -22,10 +23,6 @@ import type {
   ToolCallRunOptions,
   ToolCallRunResult,
 } from "./Types";
-import {
-  getRunnableToolsForPermissionSnapshot,
-  shouldEnforceToolCallLimits,
-} from "./PermissionPolicy";
 import { createProviderTranscript } from "@/application/chat/ProviderTranscript";
 import { getToolWorkspaceHost } from "@/infrastructure/tools/ToolWorkspace";
 import { reviewCommandSafety } from "@/infrastructure/deepseek/security/commandReview";
@@ -50,13 +47,12 @@ export class ToolCallSession {
     let streamedContent = "";
     const executedToolCalls = new Map<string, StoredExecution>();
     const mutationFailureGuard = new MutationFailureGuard();
-    const enabledTools = getRunnableToolsForPermissionSnapshot(options.tools, options.permissionSnapshot);
     const stream = new StreamEventEmitter(options.eventSink);
 
     try {
       const result = await runToolCallCycle({
         initialMessages: options.messages,
-        tools: enabledTools,
+        tools: options.tools,
         model: options.providerConfig.model,
         modelClient: createDeepSeekToolCallModelClient(
           options.providerConfig.apiKey,
@@ -78,7 +74,7 @@ export class ToolCallSession {
             const snapshot = await options.capturePermissionSnapshot();
             this.activePermissionSnapshot = snapshot;
             options.onPermissionSnapshot?.(snapshot);
-            return getRunnableToolsForPermissionSnapshot(options.tools, snapshot);
+            return options.tools;
           },
           maxRounds: options.providerConfig.maxToolRounds,
           maxToolCallsPerBatch: options.providerConfig.maxToolRounds * 4,
@@ -87,7 +83,7 @@ export class ToolCallSession {
           ),
           signal: options.signal,
           streamFinalResponse: true,
-          streamToolCallRounds: hasAutoApprovedTools(options, enabledTools),
+          streamToolCallRounds: hasAutomaticPermissionMode(options),
           thinkingMode: options.providerConfig.thinkingMode,
           reasoningEffort: options.providerConfig.reasoningEffort as "high" | "max" | undefined,
           maxTokens: options.providerConfig.maxTokens,
@@ -263,7 +259,6 @@ export class ToolCallSession {
   }
 
   private createExecutionContext(options: ToolCallRunOptions, executedToolCalls: Map<string, StoredExecution>) {
-    const snapshot = this.activePermissionSnapshot ?? options.permissionSnapshot;
     return {
       toolExecutor: this.toolExecutor,
       eventSink: options.eventSink,
@@ -273,8 +268,7 @@ export class ToolCallSession {
       fullAccessMode: this.activePermissionSnapshot?.permissionMode === "full-access",
       generationId: options.generationId,
       trustedUserRequest: options.trustedUserRequest,
-      availableToolNames: getRunnableToolsForPermissionSnapshot(options.tools, snapshot)
-        .map((tool) => tool.function.name),
+      availableToolNames: options.tools.map((tool) => tool.function.name),
       authorizedUserUrls: options.authorizedUserUrls,
       isWebTainted: () => this.webTainted,
       markWebTainted: () => {this.webTainted = true;},
@@ -457,8 +451,7 @@ function getErrorMessage(err: unknown): string {
   return redactSensitiveText(err);
 }
 
-function hasAutoApprovedTools(options: ToolCallRunOptions, tools: ToolDefinition[]): boolean {
-  void tools;
+function hasAutomaticPermissionMode(options: ToolCallRunOptions): boolean {
   return options.permissionSnapshot.permissionMode === "auto-approve" ||
     options.permissionSnapshot.permissionMode === "full-access";
 }

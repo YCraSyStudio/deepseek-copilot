@@ -2,7 +2,6 @@
 export const TOOL_EXECUTION_STAGE_ORDER = [
   "argument_validation",
   "workspace_trust",
-  "permission_policy",
   "prepare_remote_review",
   "remote_review",
   "user_confirmation",

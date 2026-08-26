@@ -4,6 +4,15 @@ import type { ToolExecutionOutcome } from "@/domain/tools/ToolExecutionOutcome";
 /** Tool danger level. */
 export type DangerLevel = "safe" | "caution" | "dangerous" | "destructive";
 
+/**
+ * Operational effect used by execution policy.
+ *
+ * Keeping this explicit avoids duplicating tool-name lists in the executor and
+ * safety pipeline. New workspace tools default conservatively unless they are
+ * explicitly marked read-only.
+ */
+export type ToolEffect = "read-only" | "workspace-mutation" | "external-effect";
+
 /** Extended metadata for a registered tool. */
 export interface ToolMetadata {
   dangerLevel: DangerLevel;
@@ -11,6 +20,8 @@ export interface ToolMetadata {
   requiresConfirmation: boolean;
   /** Whether the tool needs a workspace binding or can run globally. */
   scope?: "workspace" | "global";
+  /** What kind of side effect the tool may produce. */
+  effect?: ToolEffect;
 }
 
 /** Registered tool definition, handler, and metadata. */

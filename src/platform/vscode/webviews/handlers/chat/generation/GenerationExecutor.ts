@@ -11,6 +11,7 @@ import { getTextContent, mapReasoningEffort } from "@/contracts/deepseek/Chat";
 import { ConversationState } from "@/application/chat/ConversationState";
 import { buildInterruptedContextContent } from "@/application/chat/InterruptedContext";
 import { getGenerationStopReason, type GenerationTask } from "@/application/chat/GenerationCoordinator";
+import { selectGenerationTools } from "@/application/chat/GenerationToolSelection";
 import {
   createProviderTranscript,
   type ProviderTranscript,
@@ -303,26 +304,12 @@ export class GenerationExecutor {
     stream.showTyping();
 
     try {
-      const allTools = toolRegistry.getDefinitionsForAPI();
-      const workspaceTools = allTools.filter((tool) => {
-        const registered = toolRegistry.get(tool.function.name);
-        if (registered?.metadata.scope === "global") {
-          return true;
-        }
-        if (!workspaceSnapshot.binding.capabilities.files) {
-          return false;
-        }
-        return tool.function.name !== "run_terminal_command" ||
-          workspaceSnapshot.binding.capabilities.terminal;
-      });
-      const tools = workspaceTools.filter((tool) => {
-        if (!providerConfig.webSearchEnabled && (tool.function.name === "search_web" || tool.function.name === "read_web")) {
-          return false;
-        }
-        if (tool.function.name === "analyze_images") {
-          return requestedModel === DEEPSEEK_PRO_MODEL_ID && (payload.imageAttachments?.length ?? 0) > 0;
-        }
-        return true;
+      const tools = selectGenerationTools(toolRegistry, {
+        files: workspaceSnapshot.binding.capabilities.files,
+        terminal: workspaceSnapshot.binding.capabilities.terminal,
+        webSearchEnabled: providerConfig.webSearchEnabled,
+        modelId: requestedModel,
+        hasImageAttachments: (payload.imageAttachments?.length ?? 0) > 0,
       });
       appendToolAvailabilityContext(
         messages,

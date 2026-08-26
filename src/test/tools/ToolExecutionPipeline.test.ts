@@ -17,7 +17,6 @@ suite("ToolExecutionPipeline", () => {
     const pipeline = new ToolExecutionPipeline([
       stage("argument_validation"),
       stage("workspace_trust"),
-      stage("permission_policy"),
       stage("prepare_remote_review"),
       stage("remote_review"),
       stage("user_confirmation"),
@@ -30,14 +29,13 @@ suite("ToolExecutionPipeline", () => {
     assert.deepStrictEqual(visited, [
       "argument_validation",
       "workspace_trust",
-      "permission_policy",
       "prepare_remote_review",
       "remote_review",
       "user_confirmation",
       "execution",
       "record_and_publish",
     ]);
-    assert.deepStrictEqual(decision, { kind: "continue", context: 8 });
+    assert.deepStrictEqual(decision, { kind: "continue", context: 7 });
   });
 
   test("short-circuits after a resolved policy", async () => {

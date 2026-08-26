@@ -12,7 +12,6 @@ const DANGER_CANCELLED = "Tool call cancelled by user (dangerous operation)";
 const USER_REJECTED = "Tool call rejected by user";
 const CYCLE_UNAVAILABLE = "Tool call cycle not available";
 const UNTRUSTED_WORKSPACE = "Tool call rejected because the workspace is not trusted";
-const MUTATING_TOOLS = new Set(["create_file", "edit_file", "apply_patch", "run_terminal_command"]);
 
 export async function executeToolCall(toolCall: ToolCall, ctx: ToolExecutionContext): Promise<string> {
   recordInitialToolCall(toolCall, ctx);
@@ -45,16 +44,10 @@ function createToolExecutionPipeline(): ToolExecutionPipeline<ToolPipelineContex
     {
       name: "workspace_trust",
       async handle(context) {
-        if (!context.ctx.isWorkspaceTrusted() && MUTATING_TOOLS.has(context.toolCall.function.name)) {
+        if (!context.ctx.isWorkspaceTrusted() && requiresWorkspaceMutationPolicy(context)) {
           postToolCallResult(context.ctx, createRejectedResult(context.toolCall, UNTRUSTED_WORKSPACE));
           context.resultText = UNTRUSTED_WORKSPACE;
         }
-        return { kind: "continue", context };
-      },
-    },
-    {
-      name: "permission_policy",
-      async handle(context) {
         return { kind: "continue", context };
       },
     },
@@ -63,7 +56,7 @@ function createToolExecutionPipeline(): ToolExecutionPipeline<ToolPipelineContex
       async handle(context) {
         if (context.resultText) {return { kind: "continue", context };}
         if (!isAutomaticExecution(context)) {return { kind: "continue", context };}
-        if (!MUTATING_TOOLS.has(context.toolCall.function.name)) {
+        if (!requiresWorkspaceMutationPolicy(context)) {
           const result = await context.ctx.toolExecutor.executeForced(context.toolCall, handlerContext(context.ctx));
           postToolCallResult(context.ctx, result);
           context.resultText = serializeExecutionResult(result);
@@ -156,6 +149,16 @@ function createToolExecutionPipeline(): ToolExecutionPipeline<ToolPipelineContex
 
 function isAutomaticExecution(context: ToolPipelineContext): boolean {
   return context.ctx.fullAccessMode || context.ctx.autoApproveMode;
+}
+
+/**
+ * Treat unknown workspace-scoped tools conservatively. Only tools explicitly
+ * marked read-only bypass mutation serialization, Workspace Trust blocking,
+ * and the automatic-mode safety review.
+ */
+function requiresWorkspaceMutationPolicy(context: ToolPipelineContext): boolean {
+  const metadata = context.ctx.toolExecutor.getMetadata(context.toolCall.function.name);
+  return metadata?.scope !== "global" && metadata?.effect !== "read-only";
 }
 
 export function recordSyntheticToolError(toolCall: ToolCall, ctx: ToolExecutionContext, result: string): void {

@@ -12,6 +12,7 @@ export type {
   DangerLevel,
   ExecutionResult,
   RegisteredTool,
+  ToolEffect,
   ToolHandlerContext,
   ToolMetadata,
 } from "./Types";
