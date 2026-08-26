@@ -15,7 +15,7 @@ export const STORED_SETTING_KEYS = new Set<StoredSettingKey>([
   "interfaceLanguage", "baseUrl", "model", "thinkingMode", "reasoningEffort",
   "temperature", "topP", "maxTokens", "maxToolRounds", "maxConcurrentGenerations",
   "permissionMode", "autoContext", "historyEnabled",
-  "historyRetentionDays", "includeHomeAgents", "usageBreakdown", "webSearchEnabled", "webSearchEngine",
+  "historyRetentionDays", "includeHomeAgents", "usageBreakdown", "webSearchEnabled", "webSearchEngine", "searxngUrl",
 ]);
 
 export function normalizeConfig(value: unknown): AppConfig {
@@ -40,6 +40,7 @@ export function normalizeConfig(value: unknown): AppConfig {
     usageBreakdown: normalizeBoolean(config.usageBreakdown, DEFAULT_CONFIG.usageBreakdown),
     webSearchEnabled: normalizeBoolean(config.webSearchEnabled, DEFAULT_CONFIG.webSearchEnabled),
     webSearchEngine: normalizeWebSearchEngine(config.webSearchEngine),
+    searxngUrl: normalizeSearxngUrl(config.searxngUrl),
   };
 }
 
@@ -71,6 +72,7 @@ export function normalizeSettingValue(key: StoredSettingKey, value: unknown): un
   if (key === "maxConcurrentGenerations") {return clampInteger(value, 1, 16, DEFAULT_CONFIG.maxConcurrentGenerations);}
   if (key === "historyRetentionDays") {return clampInteger(value, 0, 3650, DEFAULT_CONFIG.historyRetentionDays);}
   if (key === "webSearchEngine") {return normalizeWebSearchEngine(value);}
+  if (key === "searxngUrl") {return normalizeSearxngUrl(value);}
   return value;
 }
 
@@ -96,7 +98,22 @@ function normalizeReasoningEffort(value: unknown): AppConfig["reasoningEffort"] 
 }
 
 function normalizeWebSearchEngine(value: unknown): WebSearchEngine {
-  return value === "bing" || value === "google" || value === "baidu" ? value : DEFAULT_CONFIG.webSearchEngine;
+  return value === "bing" || value === "google" || value === "baidu" || value === "searxng" ? value : DEFAULT_CONFIG.webSearchEngine;
+}
+
+function normalizeSearxngUrl(value: unknown): string {
+  if (typeof value !== "string" || value.trim().length === 0) {return DEFAULT_CONFIG.searxngUrl;}
+  try {
+    const url = new URL(value.trim());
+    if (url.username || url.password) {return DEFAULT_CONFIG.searxngUrl;}
+    const hostname = url.hostname.toLowerCase();
+    const loopback = hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
+    if (url.protocol !== "https:" && !(url.protocol === "http:" && loopback)) {return DEFAULT_CONFIG.searxngUrl;}
+    url.search = "";
+    url.hash = "";
+    url.pathname = url.pathname.replace(/\/+$/, "");
+    return url.toString().replace(/\/$/, "");
+  } catch {return DEFAULT_CONFIG.searxngUrl;}
 }
 
 function normalizeBoolean(value: unknown, fallback: boolean): boolean {
