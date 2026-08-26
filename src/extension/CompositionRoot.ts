@@ -5,6 +5,7 @@ import { HeadlessWebRuntime } from "@/infrastructure/browser/HeadlessWebRuntime"
 import { BUILT_IN_TOOLS } from "@/infrastructure/tools/builtins";
 import { BrowserManager } from "@/platform/vscode/tools/browser/BrowserManager";
 import { configureWebRuntimeDiagnostics } from "@/platform/vscode/tools/browser/Diagnostics";
+import { SearxngManager } from "@/platform/vscode/tools/browser/SearxngManager";
 import {
   HistoryManager,
   SettingsManager,
@@ -21,6 +22,7 @@ export class ExtensionCompositionRoot implements vscode.Disposable {
   readonly secrets: VsCodeSecretStore;
   readonly history: HistoryManager;
   readonly browserManager: BrowserManager;
+  readonly searxngManager: SearxngManager;
   readonly webRuntime: HeadlessWebRuntime;
   readonly toolRegistry: ToolRegistry;
   readonly webviewProvider: WebviewProvider;
@@ -30,6 +32,7 @@ export class ExtensionCompositionRoot implements vscode.Disposable {
     this.secrets = new VsCodeSecretStore(context);
     this.history = new HistoryManager(context, this.settings);
     this.browserManager = new BrowserManager(context);
+    this.searxngManager = new SearxngManager(context);
     this.webRuntime = new HeadlessWebRuntime(this.browserManager);
     configureWebRuntimeDiagnostics(this.webRuntime, this.settings);
 
@@ -39,6 +42,7 @@ export class ExtensionCompositionRoot implements vscode.Disposable {
       configuredEngine: () => this.settings.load().webSearchEngine,
       systemLocale: () => Intl.DateTimeFormat().resolvedOptions().locale,
       vscodeLanguage: () => vscode.env.language,
+      resolveSearxngUrl: () => this.searxngManager.resolve(this.settings.load().searxngUrl),
     })) {
       this.toolRegistry.register(tool);
     }
@@ -51,7 +55,7 @@ export class ExtensionCompositionRoot implements vscode.Disposable {
       secrets: this.secrets,
       modelProviderFactory: new DeepSeekModelProviderFactory(),
     });
-    this.disposables = registerBrowserCommands(context, this.browserManager);
+    this.disposables = [this.searxngManager, ...registerBrowserCommands(context, this.browserManager)];
     context.subscriptions.push(...this.disposables);
   }
 
