@@ -60,9 +60,11 @@ export const settings = {
     },
     webSearch: {
       title: "Web search",
-      description: "Choose how the extension searches the public web through its isolated browser.",
+      description: "Choose how the extension searches the public web through SearXNG or its isolated browser.",
       enabled: "Enable web search",
       engine: "Search engine",
+      searxngUrl: "SearXNG endpoint",
+      searxngManagedHint: "The default local endpoint is managed automatically with Docker or Podman when no SearXNG instance is already running. Set another HTTPS endpoint to use your own instance.",
     },
     sampling: {
       temperature: "Temperature",
