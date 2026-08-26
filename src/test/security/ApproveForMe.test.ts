@@ -59,7 +59,9 @@ function createHarness(risk: CommandSafetyRisk, fullAccessMode: boolean) {
       forced += 1;
       return { toolCallId: "call", toolName: "tool", result: "completed", isError: false };
     },
-    getMetadata: () => undefined,
+    getMetadata: (toolName: string) => toolName === "read_file"
+      ? { dangerLevel: "safe", requiresConfirmation: false, effect: "read-only" }
+      : { dangerLevel: "caution", requiresConfirmation: true, effect: "workspace-mutation" },
   } as unknown as ToolExecutor;
   const context: ToolExecutionContext = {
     toolExecutor,
