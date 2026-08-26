@@ -34,11 +34,12 @@ export class SearxngManager implements vscode.Disposable {
     }
     if (this.managed && await isSearxngAvailable(this.managed.endpoint)) {return this.managed.endpoint;}
     if (!this.resolving) {
-      this.resolving = vscode.window.withProgress({
+      const startup = vscode.window.withProgress({
         location: vscode.ProgressLocation.Notification,
         title: "Starting local SearXNG",
         cancellable: false,
-      }, async () => this.startManaged()).finally(() => {this.resolving = undefined;});
+      }, async () => this.startManaged());
+      this.resolving = Promise.resolve(startup).finally(() => {this.resolving = undefined;});
     }
     return this.resolving;
   }
