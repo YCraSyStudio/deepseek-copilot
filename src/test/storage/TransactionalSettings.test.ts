@@ -38,14 +38,18 @@ suite("transactional settings", () => {
   test("persists normalized web search settings with safe defaults", async () => {
     assert.strictEqual(SettingsManager.load().webSearchEngine, "bing");
     assert.strictEqual(SettingsManager.load().webSearchEnabled, true);
+    assert.strictEqual(SettingsManager.load().searxngUrl, "http://127.0.0.1:8888");
     await SettingsManager.save({ webSearchEnabled: false });
     assert.strictEqual(SettingsManager.load().webSearchEnabled, false);
-    await SettingsManager.save({ webSearchEngine: "google" });
-    assert.strictEqual(SettingsManager.load().webSearchEngine, "google");
+    await SettingsManager.save({ webSearchEngine: "searxng", searxngUrl: "https://search.example.com/" });
+    assert.strictEqual(SettingsManager.load().webSearchEngine, "searxng");
+    assert.strictEqual(SettingsManager.load().searxngUrl, "https://search.example.com");
     const disk = JSON.parse(readFileSync(getSettingsFilePath(), "utf8")) as Record<string, unknown>;
+    assert.strictEqual(disk.webSearchEngine, "searxng");
+    assert.strictEqual(disk.searxngUrl, "https://search.example.com");
     assert.strictEqual(Object.prototype.hasOwnProperty.call(disk, "webSearchBrowserVisible"), false);
     assert.strictEqual(Object.prototype.hasOwnProperty.call(disk, "usageBudgets"), false);
-    await SettingsManager.save({ webSearchEngine: "bing" });
+    await SettingsManager.save({ webSearchEngine: "bing", searxngUrl: "http://127.0.0.1:8888" });
     await SettingsManager.save({ webSearchEnabled: true });
   });
 
