@@ -264,7 +264,7 @@ function serializeDocument(
 function createNonce(contents: readonly string[]): string {
   for (;;) {
     const nonce = randomBytes(16).toString("base64url");
-    if (contents.every((content) => !content.includes(nonce)) {return nonce;}
+    if (contents.every((content) => !content.includes(nonce))) {return nonce;}
   }
 }
 
