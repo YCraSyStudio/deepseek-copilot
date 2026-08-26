@@ -60,9 +60,11 @@ export const settings = {
     },
     webSearch: {
       title: "Búsqueda web",
-      description: "Elige cómo busca la extensión en la web pública mediante su navegador aislado.",
+      description: "Elige cómo busca la extensión en la web pública mediante SearXNG o su navegador aislado.",
       enabled: "Habilitar búsqueda web",
       engine: "Buscador",
+      searxngUrl: "Endpoint de SearXNG",
+      searxngManagedHint: "El endpoint local predeterminado se gestiona automáticamente con Docker o Podman si no hay una instancia SearXNG activa. Indica otro endpoint HTTPS para usar tu propia instancia.",
     },
     sampling: {
       temperature: "Temperatura",
