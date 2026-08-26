@@ -60,9 +60,11 @@ export const settings = {
     },
     webSearch: {
       title: "Web 搜索",
-      description: "选择扩展通过隔离浏览器搜索公共网页的方式。",
+      description: "选择扩展通过 SearXNG 或隔离浏览器搜索公共网页的方式。",
       enabled: "启用 Web 搜索",
       engine: "搜索引擎",
+      searxngUrl: "SearXNG 端点",
+      searxngManagedHint: "如果默认本地端点没有正在运行的 SearXNG 实例，扩展会通过 Docker 或 Podman 自动管理一个实例。也可以填写其他 HTTPS 端点来使用自己的实例。",
     },
     sampling: {
       temperature: "温度",
