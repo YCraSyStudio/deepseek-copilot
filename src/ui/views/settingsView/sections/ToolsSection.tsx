@@ -69,11 +69,27 @@ function ToolsSection({ config, updateConfig, saveOnBlur, permissionUpdatePendin
               saveOnBlur("webSearchEngine", engine);
             }}
           >
+            <option value="searxng">SearXNG</option>
             <option value="bing">Bing</option>
             <option value="google">Google</option>
             <option value="baidu">Baidu</option>
           </select>
         </div>
+        {config.webSearchEngine === "searxng" && (
+          <div className="settingRow searxngEndpointRow">
+            <label htmlFor="searxngUrl">{t("settings.webSearch.searxngUrl")}</label>
+            <input
+              id="searxngUrl"
+              type="url"
+              spellCheck={false}
+              value={config.searxngUrl}
+              disabled={!config.webSearchEnabled}
+              onChange={(event) => updateConfig("searxngUrl", event.currentTarget.value)}
+              onBlur={(event) => saveOnBlur("searxngUrl", event.currentTarget.value)}
+            />
+            <small className="settingsHint">{t("settings.webSearch.searxngManagedHint")}</small>
+          </div>
+        )}
       </div>
     </section>
   );
@@ -86,5 +102,5 @@ function parsePermissionMode(value: string): PermissionMode | undefined {
 }
 
 function parseWebSearchEngine(value: string): ToolsSectionProps["config"]["webSearchEngine"] | undefined {
-  return value === "bing" || value === "google" || value === "baidu" ? value : undefined;
+  return value === "bing" || value === "google" || value === "baidu" || value === "searxng" ? value : undefined;
 }
