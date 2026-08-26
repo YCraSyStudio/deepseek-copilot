@@ -242,6 +242,8 @@ const APP_CONFIG_KEYS = [
   "usageBreakdown",
   "webSearchEnabled",
   "webSearchEngine",
+  "searxngUrl",
+  "searxngEngines",
 ] as const satisfies readonly (keyof AppConfig)[];
 
 function isAppConfigPatch(value: unknown): value is Partial<AppConfig> {
@@ -267,9 +269,27 @@ function isAppConfigPatch(value: unknown): value is Partial<AppConfig> {
     isOptionalBoolean(value.includeHomeAgents) &&
     isOptionalBoolean(value.usageBreakdown) &&
     isOptionalBoolean(value.webSearchEnabled) &&
-    (value.webSearchEngine === undefined || value.webSearchEngine === "bing" || value.webSearchEngine === "google" || value.webSearchEngine === "baidu") &&
+    (value.webSearchEngine === undefined || value.webSearchEngine === "bing" || value.webSearchEngine === "google" || value.webSearchEngine === "baidu" || value.webSearchEngine === "searxng") &&
+    (value.searxngUrl === undefined || isAllowedSearxngUrl(value.searxngUrl)) &&
+    (value.searxngEngines === undefined || isSearxngEngineSelection(value.searxngEngines)) &&
     isOptionalBoundedString(value.userId, 256)
   );
+}
+
+function isAllowedSearxngUrl(value: unknown): boolean {
+  if (!isNonEmptyBoundedString(value, 2048)) {return false;}
+  try {
+    const url = new URL(value.trim());
+    if (url.username || url.password) {return false;}
+    const hostname = url.hostname.toLowerCase();
+    const loopback = hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
+    return url.protocol === "https:" || (url.protocol === "http:" && loopback);
+  } catch {return false;}
+}
+
+function isSearxngEngineSelection(value: unknown): boolean {
+  return Array.isArray(value) && value.length <= 512 && value.every((item) =>
+    typeof item === "string" && /^[a-zA-Z0-9_-]{1,64}$/.test(item));
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

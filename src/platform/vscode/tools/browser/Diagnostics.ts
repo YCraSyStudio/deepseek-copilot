@@ -14,11 +14,21 @@ export function configureWebRuntimeDiagnostics(value: HeadlessWebRuntime, reposi
 export function getWebRuntimeDiagnostics(): Record<string, unknown> {
   const config = settings?.load() ?? DEFAULT_CONFIG;
   return {
-    backend: "chromium-headless",
+    backend: "searxng+bounded-http",
     nativeVsCodeTools: false,
-    configuredEngine: config.webSearchEngine,
+    searchProvider: "searxng",
+    searxngEndpoint: redactEndpoint(config.searxngUrl),
     resolvedSystemLocale: Intl.DateTimeFormat().resolvedOptions().locale || vscode.env.language,
     runtime: runtime?.getDiagnostics() ?? { source: "unresolved", available: false },
     vscodeVersion: vscode.version,
   };
+}
+
+function redactEndpoint(value: string): string {
+  try {
+    const url = new URL(value);
+    return `${url.protocol}//${url.host}`;
+  } catch {
+    return "invalid";
+  }
 }

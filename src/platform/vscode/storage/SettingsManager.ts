@@ -11,6 +11,7 @@ import {
 import { withFileLock, writeJsonFileAtomic } from "@/infrastructure/persistence/JsonFileStorage";
 import { getSettingsFilePath } from "@/infrastructure/persistence/UserDataPaths";
 
+type SettingsChangeListener = (config: AppConfig) => void;
 
 export class SettingsManager {
   private static writeQueue: Promise<void> = Promise.resolve();
@@ -19,6 +20,7 @@ export class SettingsManager {
   private static initialized = false;
   private static persistenceError?: string;
   private static pendingPermissionUpdates = 0;
+  private static readonly changeListeners = new Set<SettingsChangeListener>();
   private static persistSettings: (settings: StoredSettings) => Promise<void> =
     (settings) => writeJsonFileAtomic(getSettingsFilePath(), settings);
 
@@ -58,6 +60,11 @@ export class SettingsManager {
     SettingsManager.initialized = true;
   }
 
+  static onDidChange(listener: SettingsChangeListener): () => void {
+    SettingsManager.changeListeners.add(listener);
+    return () => SettingsManager.changeListeners.delete(listener);
+  }
+
   static getPersistenceError(): string | undefined {
     return SettingsManager.persistenceError;
   }
@@ -66,6 +73,7 @@ export class SettingsManager {
     SettingsManager.persistenceError = error instanceof Error ? error.message : String(error);
     SettingsManager.currentConfig = { ...SettingsManager.currentConfig, historyEnabled: false };
     SettingsManager.revision += 1;
+    SettingsManager.emitChange();
   }
 
   static load(): AppConfig {
@@ -110,6 +118,7 @@ export class SettingsManager {
       }
       SettingsManager.currentConfig = { ...normalizeConfig(next), historyEnabled: false };
       SettingsManager.revision += 1;
+      SettingsManager.emitChange();
       return Promise.resolve();
     }
     return SettingsManager.enqueueMutation(isPermissionAffectingPatch(partial), async () => {
@@ -123,6 +132,7 @@ export class SettingsManager {
         SettingsManager.currentConfig = normalizeConfig(next);
         SettingsManager.revision += 1;
       });
+      SettingsManager.emitChange();
     });
   }
 
@@ -130,6 +140,7 @@ export class SettingsManager {
     if (SettingsManager.persistenceError) {
       SettingsManager.currentConfig = { ...normalizeConfig(DEFAULT_CONFIG), historyEnabled: false };
       SettingsManager.revision += 1;
+      SettingsManager.emitChange();
       return Promise.resolve();
     }
     return SettingsManager.enqueueMutation(true, async () => {
@@ -139,6 +150,7 @@ export class SettingsManager {
         SettingsManager.currentConfig = next;
         SettingsManager.revision += 1;
       });
+      SettingsManager.emitChange();
     });
   }
 
@@ -149,6 +161,13 @@ export class SettingsManager {
     SettingsManager.persistSettings = persist
       ? (settings) => persist(settings)
       : (settings) => writeJsonFileAtomic(getSettingsFilePath(), settings);
+  }
+
+  private static emitChange(): void {
+    const snapshot = SettingsManager.load();
+    for (const listener of SettingsManager.changeListeners) {
+      try {listener(snapshot);} catch { /* Runtime observers must not break committed settings. */ }
+    }
   }
 
   private static enqueueMutation(permissionAffecting: boolean, operation: () => Promise<void>): Promise<void> {
@@ -170,7 +189,14 @@ export class SettingsManager {
 }
 
 function cloneConfig(config: AppConfig): AppConfig {
-  return { ...config };
+  return {
+    ...config,
+    searxngEngines: [...config.searxngEngines],
+    searxngEngineCatalog: config.searxngEngineCatalog.map((engine) => ({
+      ...engine,
+      categories: [...engine.categories],
+    })),
+  };
 }
 
 function isPermissionAffectingPatch(partial: Partial<AppConfig>): boolean {

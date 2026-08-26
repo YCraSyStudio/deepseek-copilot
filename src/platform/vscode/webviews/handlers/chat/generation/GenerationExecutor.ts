@@ -1,24 +1,19 @@
 import * as vscode from "vscode";
-import { createHash, randomUUID } from "crypto";
 import type {
   AppConfig,
-  AssistantTimelineEvent,
   PermissionSnapshot,
   StoredToolCall,
 } from "@/contracts";
-import { DEEPSEEK_PRO_MODEL_ID, DEEPSEEK_VISION_MODEL_ID } from "@/contracts";
-import { getTextContent, mapReasoningEffort } from "@/contracts/deepseek/Chat";
+import { mapReasoningEffort } from "@/contracts/deepseek/Chat";
 import { ConversationState } from "@/application/chat/ConversationState";
-import { buildInterruptedContextContent } from "@/application/chat/InterruptedContext";
 import { getGenerationStopReason, type GenerationTask } from "@/application/chat/GenerationCoordinator";
-import {
-  createProviderTranscript,
-  type ProviderTranscript,
-} from "@/application/chat/ProviderTranscript";
+import { selectGenerationTools } from "@/application/chat/GenerationToolSelection";
+import { createProviderTranscript } from "@/application/chat/ProviderTranscript";
 import { PartialStreamError } from "@/application/errors/PartialStreamError";
 import { GenerationBudgetManager } from "@/application/chat/context/GenerationBudgetManager";
 import { ToolExecutor, type ToolRegistry } from "@/application/tools";
 import type { ModelProviderFactory, SecretStore, SettingsRepository } from "@/application/ports";
+import { createDelegatedVisionAnalyzer } from "@/infrastructure/deepseek/providers/deepseek/DelegatedVisionAnalyzer";
 import { getToolWorkspaceHost, runWithToolWorkspaceHost } from "@/infrastructure/tools/ToolWorkspace";
 import {
   aggregateUsageAggregates,
@@ -27,7 +22,6 @@ import {
   isOfficialDeepSeekEndpoint,
   recordUsage,
   type ProviderUsage,
-  type UsageAggregate,
 } from "@/shared/usage/Usage";
 import { logInfo } from "@/shared/logging/Logger";
 import type {
@@ -54,6 +48,8 @@ import {
   buildGenerationMessages,
   fitGenerationRequestContext,
 } from "./GenerationContext";
+import { recordToolCycleCompaction } from "./GenerationCompactionRecorder";
+import { GenerationResultStore } from "./GenerationResultStore";
 import {
   createGenerationEventSink,
   publishGenerationTerminal,
@@ -61,19 +57,6 @@ import {
   type GenerationEventCallbacks,
   type GenerationRunRecord,
 } from "./GenerationRun";
-
-interface SaveAssistantResultOptions {
-  content: string;
-  timeline: AssistantTimelineEvent[];
-  model: string;
-  toolCalls?: StoredToolCall[];
-  state: ConversationState;
-  generationId: string;
-  status: "completed" | "cancelled" | "interrupted" | "error";
-  stopReason?: "user_cancelled" | "steered" | "workspace_changed" | "shutdown" | "deleted" | "history_transition";
-  providerTranscript?: ProviderTranscript;
-  usage?: UsageAggregate;
-}
 
 interface GenerationExecutorDependencies {
   historyManager: HistoryManager;
@@ -92,7 +75,14 @@ interface GenerationExecutorDependencies {
 }
 
 export class GenerationExecutor {
-  constructor(private readonly dependencies: GenerationExecutorDependencies) {}
+  private readonly resultStore: GenerationResultStore;
+
+  constructor(private readonly dependencies: GenerationExecutorDependencies) {
+    this.resultStore = new GenerationResultStore({
+      runs: dependencies.runs,
+      syncSelectedConversation: dependencies.syncSelectedConversation,
+    });
+  }
 
   async executeInWorkspace(
     generationId: string,
@@ -141,9 +131,14 @@ export class GenerationExecutor {
         const aborted = signal.aborted || isCancellationError(error);
         const status = getGenerationStopReason(signal) === "user_cancelled" ? "cancelled" : "interrupted";
         if (aborted) {
-          if (status === "cancelled") {this.logCompletedToolsNotRolledBack(record);}
-          await this.persistTerminalAssistant(record, task.payload.modelId, status, getGenerationStopReason(signal));
-          this.transitionToTerminal(record, status);
+          if (status === "cancelled") {this.resultStore.logCompletedToolsNotRolledBack(record);}
+          await this.resultStore.persistTerminalAssistant(
+            record,
+            task.payload.modelId,
+            status,
+            getGenerationStopReason(signal),
+          );
+          this.resultStore.transitionToTerminal(record, status);
         } else {
           transitionGenerationRun(record, "error");
         }
@@ -169,21 +164,6 @@ export class GenerationExecutor {
             : { error: getErrorMessage(error) }),
         });
       }
-    }
-  }
-
-  private logCompletedToolsNotRolledBack(record: GenerationRunRecord): void {
-    if (record.cancellationEffectsLogged) {
-      return;
-    }
-    record.cancellationEffectsLogged = true;
-    const completedToolCount = record.toolCalls
-      .filter((toolCall) => toolCall.status === "completed").length;
-    if (completedToolCount > 0) {
-      logInfo(`[cancel] ${completedToolCount} completed tool effect(s) were not rolled back.`, undefined, {
-        generationId: record.generationId,
-        conversationId: record.conversationId,
-      });
     }
   }
 
@@ -303,26 +283,12 @@ export class GenerationExecutor {
     stream.showTyping();
 
     try {
-      const allTools = toolRegistry.getDefinitionsForAPI();
-      const workspaceTools = allTools.filter((tool) => {
-        const registered = toolRegistry.get(tool.function.name);
-        if (registered?.metadata.scope === "global") {
-          return true;
-        }
-        if (!workspaceSnapshot.binding.capabilities.files) {
-          return false;
-        }
-        return tool.function.name !== "run_terminal_command" ||
-          workspaceSnapshot.binding.capabilities.terminal;
-      });
-      const tools = workspaceTools.filter((tool) => {
-        if (!providerConfig.webSearchEnabled && (tool.function.name === "search_web" || tool.function.name === "read_web")) {
-          return false;
-        }
-        if (tool.function.name === "analyze_images") {
-          return requestedModel === DEEPSEEK_PRO_MODEL_ID && (payload.imageAttachments?.length ?? 0) > 0;
-        }
-        return true;
+      const tools = selectGenerationTools(toolRegistry, {
+        files: workspaceSnapshot.binding.capabilities.files,
+        terminal: workspaceSnapshot.binding.capabilities.terminal,
+        webSearchEnabled: providerConfig.webSearchEnabled,
+        modelId: requestedModel,
+        hasImageAttachments: (payload.imageAttachments?.length ?? 0) > 0,
       });
       appendToolAvailabilityContext(
         messages,
@@ -374,42 +340,24 @@ export class GenerationExecutor {
           trustedUserRequest: payload.text,
           authorizedUserUrls: extractHttpsUrls(payload.text),
           budgetManager: record.budgetManager,
-          analyzeImages: this.createImageAnalyzer(payload, providerConfig, usageAggregate),
-          onContextCompacted: async ({ estimatedTokensBefore, estimatedTokensAfter }) => {
-            const previous = runState.getConversation()?.contextSummary;
-            const now = Date.now();
-            const sourceDigest = createHash("sha256")
-              .update(`${generationId}:${estimatedTokensBefore}:${estimatedTokensAfter}`)
-              .digest("hex");
-            await runState.saveContextSummary({
-              schemaVersion: 2,
-              provider: previous?.provider ?? "local",
-              content: previous?.content ?? "",
-              coveredGenerationIds: previous?.coveredGenerationIds ?? [],
-              sourceDigest: previous?.sourceDigest ?? sourceDigest,
-              updatedAt: now,
-              boundaries: [
-                ...(previous?.boundaries ?? []),
-                {
-                  id: randomUUID(),
-                  createdAt: now,
-                  reason: "tool_cycle_rollover" as const,
-                  estimatedTokensBefore,
-                  estimatedTokensAfter,
-                  coveredGenerationIds: [],
-                  sourceDigest,
-                },
-              ].slice(-1_000),
-            });
-            await runState.saveMessages({
-              messages: [runState.createMessage("context", "Context automatically compacted", { generationId })],
+          analyzeImages: createDelegatedVisionAnalyzer({
+            attachments: payload.imageAttachments,
+            providerConfig,
+            modelProviderFactory: this.dependencies.modelProviderFactory,
+            usageAggregate,
+          }),
+          onContextCompacted: ({ estimatedTokensBefore, estimatedTokensAfter }) =>
+            recordToolCycleCompaction({
+              state: runState,
+              generationId,
               model: providerConfig.model,
-            });
-            this.dependencies.syncSelectedConversation(runState);
-          },
+              estimatedTokensBefore,
+              estimatedTokensAfter,
+              syncSelectedConversation: this.dependencies.syncSelectedConversation,
+            }),
         });
         if (result) {
-          await this.saveAssistantResult({
+          await this.resultStore.save({
             content: result.content,
             timeline: result.timeline,
             model: providerConfig.model,
@@ -432,7 +380,7 @@ export class GenerationExecutor {
           signal,
           budgetManager: record.budgetManager,
         });
-        await this.saveAssistantResult({
+        await this.resultStore.save({
           content: result.content,
           timeline: result.timeline,
           model: providerConfig.model,
@@ -450,7 +398,7 @@ export class GenerationExecutor {
       if (error instanceof PartialStreamError) {
         const stopReason = getGenerationStopReason(signal);
         const status = stopReason === "user_cancelled" ? "cancelled" : "interrupted";
-        await this.saveAssistantResult({
+        await this.resultStore.save({
           content: error.partial.content,
           timeline: error.partial.timeline,
           model: providerConfig.model,
@@ -510,7 +458,7 @@ export class GenerationExecutor {
             message.generationId === generationId,
         )
       ) {
-        await this.saveAssistantResult({
+        await this.resultStore.save({
           content: record.content,
           timeline: record.timeline,
           toolCalls: record.toolCalls,
@@ -530,8 +478,8 @@ export class GenerationExecutor {
         clearTimeout(record.checkpointTimer);
       }
       if (userCancelled) {
-        this.logCompletedToolsNotRolledBack(record);
-        this.transitionToTerminal(record, "cancelled");
+        this.resultStore.logCompletedToolsNotRolledBack(record);
+        this.resultStore.transitionToTerminal(record, "cancelled");
         await checkpointStore.delete(record.conversationId);
         publishGenerationTerminal(record, this.dependencies.generationEventCallbacks, {
           type: "streamDone",
@@ -540,7 +488,7 @@ export class GenerationExecutor {
         });
       } else {
         if (interrupted) {
-          this.transitionToTerminal(record, "interrupted");
+          this.resultStore.transitionToTerminal(record, "interrupted");
         }
         if ((record.status as string) === "completed" || interrupted) {
           await checkpointStore.delete(record.conversationId);
@@ -564,126 +512,6 @@ export class GenerationExecutor {
     }
   }
 
-  private async saveAssistantResult({
-    content,
-    timeline,
-    model,
-    toolCalls,
-    state,
-    generationId,
-    status,
-    stopReason,
-    providerTranscript,
-    usage,
-  }: SaveAssistantResultOptions): Promise<void> {
-    await state.saveMessages({
-      messages: [
-        state.createMessage("assistant", content, {
-          timeline,
-          toolCalls,
-          generationId,
-          generationStatus: status,
-          generationStopReason: stopReason,
-          contextContent: status === "completed" ? content : buildInterruptedContextContent(content, toolCalls),
-          providerTranscript: status === "completed" ? undefined : providerTranscript,
-          ...(usage !== undefined ? { usage } : {}),
-        }),
-      ],
-      model,
-    });
-    const record = this.dependencies.runs.get(generationId);
-    if (record) {
-      record.content = content;
-      record.timeline = timeline;
-      record.toolCalls = toolCalls ?? [];
-      transitionGenerationRun(record, status);
-      record.providerTranscript = providerTranscript;
-    }
-    this.dependencies.syncSelectedConversation(state);
-  }
-
-  private async persistTerminalAssistant(
-    record: GenerationRunRecord,
-    model: string,
-    status: "cancelled" | "interrupted",
-    stopReason: ReturnType<typeof getGenerationStopReason>,
-  ): Promise<void> {
-    const existing = record.state.getConversation()?.messages.some(
-      (message) => message.role === "assistant" && message.generationId === record.generationId,
-    );
-    if (existing) {return;}
-    await this.saveAssistantResult({
-      content: record.content,
-      timeline: record.timeline,
-      toolCalls: record.toolCalls,
-      model,
-      state: record.state,
-      generationId: record.generationId,
-      status,
-      stopReason,
-      providerTranscript: record.providerTranscript,
-    });
-  }
-
-  private transitionToTerminal(record: GenerationRunRecord, status: "cancelled" | "interrupted"): void {
-    if (status === "cancelled" && record.status !== "cancelling" && record.status !== "cancelled") {
-      transitionGenerationRun(record, "cancelling");
-    }
-    transitionGenerationRun(record, status);
-  }
-
-  private createImageAnalyzer(
-    payload: SendMessagePayload,
-    providerConfig: AppConfig,
-    usageAggregate: UsageAggregate,
-  ): ((question: string, imageIds: string[], signal?: AbortSignal) => Promise<string>) | undefined {
-    const attachments = payload.imageAttachments ?? [];
-    if (providerConfig.model !== DEEPSEEK_PRO_MODEL_ID || attachments.length === 0) {return undefined;}
-
-    return async (question, imageIds, signal) => {
-      const selectedIds = new Set(imageIds);
-      const selected = selectedIds.size > 0
-        ? attachments.filter((attachment) => selectedIds.has(attachment.id))
-        : attachments;
-      if (selected.length === 0) {throw new Error("None of the requested image IDs belongs to the current user message.");}
-      if (selected.some((attachment) => attachment.expiresAt <= Date.now())) {
-        throw new Error("One or more attached DeepSeek files have expired. Attach the images again.");
-      }
-      if (selected.some((attachment) => normalizeBaseUrl(attachment.apiBaseUrl) !== normalizeBaseUrl(providerConfig.baseUrl))) {
-        throw new Error("The attached image was uploaded to a different DeepSeek API endpoint. Attach it again.");
-      }
-
-      const visionConfig: AppConfig = {
-        ...providerConfig,
-        model: DEEPSEEK_VISION_MODEL_ID,
-        thinkingMode: false,
-        reasoningEffort: undefined,
-        maxTokens: Math.min(providerConfig.maxTokens, 8_192),
-      };
-      const response = await this.dependencies.modelProviderFactory.create(visionConfig).chatCompletion({
-        model: visionConfig.model,
-        messages: [{
-          role: "user",
-          content: [
-            { type: "text", text: question },
-            ...selected.map((attachment) => ({ type: "file" as const, file_id: attachment.fileId })),
-          ],
-        }],
-        stream: false,
-        max_tokens: visionConfig.maxTokens,
-        thinking: { type: "disabled" },
-      }, signal);
-      delete usageAggregate.model;
-      delete usageAggregate.priceCatalogVersion;
-      delete usageAggregate.currency;
-      delete usageAggregate.costUsd;
-      recordUsage(usageAggregate, "vision_analysis", response.usage);
-      const content = getTextContent(response.choices[0]?.message.content).trim();
-      if (!content) {throw new Error("DeepSeek V4 Vision returned an empty image analysis.");}
-      return content;
-    };
-  }
-
   private handleSendError(error: unknown, stream: StreamEventEmitter, signal?: AbortSignal): void {
     if (signal?.aborted || isCancellationError(error)) {
       const generationStopReason = signal ? getGenerationStopReason(signal) : undefined;
@@ -695,8 +523,4 @@ export class GenerationExecutor {
     }
     stream.error(getErrorMessage(error));
   }
-}
-
-function normalizeBaseUrl(value: string): string {
-  return value.replace(/\/+$/, "").toLowerCase();
 }

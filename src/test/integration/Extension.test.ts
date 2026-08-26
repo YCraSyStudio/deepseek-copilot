@@ -46,9 +46,11 @@ suite("Extension integration", () => {
     assert.match(migrated.messages?.[0]?.generationId ?? "", /^legacy-/);
     const commands = await vscode.commands.getCommands(true);
     assert.ok(commands.includes("yrs-dpsk-copilot.openChat"));
-    assert.ok(commands.includes("yrs-dpsk-copilot.installChromiumHeadless"));
-    assert.ok(commands.includes("yrs-dpsk-copilot.updateChromiumHeadless"));
-    assert.ok(commands.includes("yrs-dpsk-copilot.removeChromiumHeadless"));
+    assert.ok(commands.includes("yrs-dpsk-copilot.startSearxng"));
+    assert.ok(commands.includes("yrs-dpsk-copilot.stopSearxng"));
+    assert.strictEqual(commands.includes("yrs-dpsk-copilot.installChromiumHeadless"), false);
+    assert.strictEqual(commands.includes("yrs-dpsk-copilot.updateChromiumHeadless"), false);
+    assert.strictEqual(commands.includes("yrs-dpsk-copilot.removeChromiumHeadless"), false);
   });
 
   test("captures a revisioned workspace binding and rejects parent autocomplete", async () => {

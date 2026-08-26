@@ -57,9 +57,6 @@ async function main() {
     sourcemap: !production,
     sourcesContent: false,
     platform: "node",
-    define: {
-      "process.env.PUPPETEER_DANGEROUS_NO_SANDBOX": '"false"',
-    },
     outfile: "dist/extension.js",
     external: ["vscode"],
     logLevel: "silent",

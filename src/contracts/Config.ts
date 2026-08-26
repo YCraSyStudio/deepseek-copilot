@@ -2,7 +2,15 @@ import { DEEPSEEK_VISION_MODEL_ID } from "./deepseek/Models";
 
 export type PermissionMode = "default" | "auto-approve" | "full-access";
 export type InterfaceLanguage = "auto" | "en" | "es" | "zh";
-export type WebSearchEngine = "bing" | "google" | "baidu";
+/** @deprecated SearXNG is now the only web-search provider. */
+export type WebSearchEngine = "searxng";
+
+export interface SearxngEngineOption {
+  name: string;
+  shortcut: string;
+  categories: string[];
+  enabled: boolean;
+}
 
 export interface AppConfig {
   interfaceLanguage: InterfaceLanguage;
@@ -27,7 +35,13 @@ export interface AppConfig {
   includeHomeAgents: boolean;
   usageBreakdown: boolean;
   webSearchEnabled: boolean;
+  /** @deprecated Preserved for persisted-config compatibility. */
   webSearchEngine: WebSearchEngine;
+  searxngUrl: string;
+  /** SearXNG engine shortcuts. Empty means use the instance defaults. */
+  searxngEngines: string[];
+  /** Cached engine metadata obtained from the configured SearXNG instance. */
+  searxngEngineCatalog: SearxngEngineOption[];
 
   userId?: string;
 }
@@ -57,5 +71,8 @@ export const DEFAULT_CONFIG: AppConfig = {
   includeHomeAgents: false,
   usageBreakdown: false,
   webSearchEnabled: true,
-  webSearchEngine: "bing",
+  webSearchEngine: "searxng",
+  searxngUrl: "http://127.0.0.1:8888",
+  searxngEngines: [],
+  searxngEngineCatalog: [],
 };

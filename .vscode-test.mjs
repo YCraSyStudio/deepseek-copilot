@@ -25,6 +25,9 @@ writeFileSync(invalidConversationPath, JSON.stringify({
 export default defineConfig({
 	files: 'out/test/Extension.test.js',
 	workspaceFolder,
+	mocha: {
+		timeout: 5_000,
+	},
 	env: {
 		NODE_ENV: 'test',
 		DEEPSEEK_COPILOT_USER_DATA_DIR: testDataDirectory,

@@ -1,6 +1,7 @@
 import * as assert from "node:assert";
 import { readFileSync, readdirSync } from "node:fs";
 import { dirname, extname, relative, resolve } from "node:path";
+import ts from "typescript";
 
 const sourceRoot = resolve(process.cwd(), "src");
 const allowedDependencies: Record<string, ReadonlySet<string>> = {
@@ -23,7 +24,7 @@ suite("architecture boundaries", () => {
       if (!allowed) {
         continue;
       }
-      for (const specifier of getImportSpecifiers(readFileSync(file, "utf8"))) {
+      for (const specifier of getImportSpecifiers(readFileSync(file, "utf8"), file)) {
         const importedFile = resolveInternalImport(file, specifier);
         if (!importedFile) {
           continue;
@@ -69,7 +70,7 @@ suite("architecture boundaries", () => {
     const violations: string[] = [];
     for (const file of collectSourceFiles(sourceRoot)) {
       const owner = getLayer(file);
-      for (const specifier of getImportSpecifiers(readFileSync(file, "utf8"))) {
+      for (const specifier of getImportSpecifiers(readFileSync(file, "utf8"), file)) {
         if ((owner === "domain" || owner === "application") && (specifier.startsWith("node:") || specifier === "path")) {
           violations.push(`${relative(sourceRoot, file)} imports ${specifier}`);
         }
@@ -86,7 +87,7 @@ suite("architecture boundaries", () => {
 });
 
 function getResolvedImports(file: string): string[] {
-  return getImportSpecifiers(readFileSync(file, "utf8"))
+  return getImportSpecifiers(readFileSync(file, "utf8"), file)
     .map((specifier) => resolveInternalImport(file, specifier))
     .filter((candidate): candidate is string => candidate !== undefined)
     .map(resolveSourceFile)
@@ -105,12 +106,39 @@ function collectSourceFiles(directory: string): string[] {
   });
 }
 
-function getImportSpecifiers(source: string): string[] {
+function getImportSpecifiers(source: string, fileName: string): string[] {
+  const sourceFile = ts.createSourceFile(
+    fileName,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    extname(fileName) === ".tsx" ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+  );
   const specifiers: string[] = [];
-  const pattern = /(?:import|export)\s+(?:type\s+)?(?:[\s\S]*?\s+from\s+)?["']([^"']+)["']/g;
-  for (const match of source.matchAll(pattern)) {
-    specifiers.push(match[1]);
-  }
+
+  const visit = (node: ts.Node): void => {
+    if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier && ts.isStringLiteralLike(node.moduleSpecifier)) {
+      specifiers.push(node.moduleSpecifier.text);
+    } else if (
+      ts.isCallExpression(node) &&
+      node.expression.kind === ts.SyntaxKind.ImportKeyword &&
+      node.arguments.length === 1 &&
+      ts.isStringLiteralLike(node.arguments[0])
+    ) {
+      specifiers.push(node.arguments[0].text);
+    } else if (
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === "require" &&
+      node.arguments.length === 1 &&
+      ts.isStringLiteralLike(node.arguments[0])
+    ) {
+      specifiers.push(node.arguments[0].text);
+    }
+    ts.forEachChild(node, visit);
+  };
+
+  visit(sourceFile);
   return specifiers;
 }
 

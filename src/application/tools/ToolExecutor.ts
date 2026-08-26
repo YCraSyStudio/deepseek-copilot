@@ -4,7 +4,6 @@ import type { DangerLevel, ExecutionResult, ConfirmationRequiredResult, ToolHand
 import type { ToolExecutionOutcome } from "@/domain/tools/ToolExecutionOutcome";
 import { isCancellationError, throwIfAborted } from "@/shared/utils/Cancellation";
 
-const READ_ONLY_TOOLS = new Set(["read_file", "list_directory", "search_content"]);
 const workspaceMutationQueues = new Map<string, Promise<void>>();
 
 /**
@@ -16,7 +15,7 @@ export class ToolExecutor {
     private readonly mutationScopeKey: () => string = () => "workspace:default",
   ) {}
 
-  /** Read-only access to execution metadata used by the permission coordinator. */
+  /** Read-only access to execution metadata used by execution policy. */
   getMetadata(toolName: string): import("./Types").ToolMetadata | undefined {
     return this.registry.get(toolName)?.metadata;
   }
@@ -102,7 +101,8 @@ export class ToolExecutor {
   }
 
   private shouldSerializeWorkspaceMutation(toolName: string): boolean {
-    return this.registry.get(toolName)?.metadata.scope !== "global" && !READ_ONLY_TOOLS.has(toolName);
+    const metadata = this.registry.get(toolName)?.metadata;
+    return metadata?.scope !== "global" && metadata?.effect !== "read-only";
   }
 
   private async executeForcedInternal(toolCall: ToolCall, context: ToolHandlerContext): Promise<ExecutionResult> {

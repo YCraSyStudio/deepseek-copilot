@@ -1,4 +1,4 @@
-export type { AppConfig, InterfaceLanguage, PermissionMode, PermissionSnapshot, WebSearchEngine } from "./Config";
+export type { AppConfig, InterfaceLanguage, PermissionMode, PermissionSnapshot, SearxngEngineOption, WebSearchEngine } from "./Config";
 export { DEFAULT_CONFIG } from "./Config";
 export type {
   WebviewToHandlerMessage,

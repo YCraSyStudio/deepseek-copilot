@@ -1,11 +1,51 @@
 [Back](INDEX.md)
 
-# Beta Publishing
+# Release Channels and Publishing
+
+## Versioning policy
+
+`0.1.11` is the final **Public Preview** release. It keeps `preview: true` and is published through the normal Marketplace release channel, matching the historical `0.1.x` behavior.
+
+Starting after `0.1.11`, the extension uses VS Code's two Marketplace channels instead of the `preview` gallery flag:
+
+- **Stable channel:** even minor versions (`0.2.x`, `0.4.x`, `0.6.x`, ...).
+- **Pre-release channel:** odd minor versions (`0.3.x`, `0.5.x`, `0.7.x`, ...), published with `vsce --pre-release`.
+- New release lines start at patch `.0`. Patch increments are reserved for fixes or incremental builds within the same line.
+- `preview` must be `false` for both stable and pre-release builds after `0.1.11`; channel selection is handled by the Marketplace pre-release flag.
+
+The first stable release is therefore `0.2.0`. The next development line is `0.3.0` on the pre-release channel. When the `0.3.x` work is ready for stable users, it is promoted as `0.4.0`, not as `0.2.x`. This keeps the stable release numerically newer than every pre-release build that preceded it.
+
+Example lifecycle:
+
+```text
+0.1.11  Public Preview, final legacy preview release
+   ↓
+0.2.0   Stable
+0.2.1   Stable hotfix
+   │
+   └──── 0.3.0  Pre-release
+         0.3.1  Pre-release update
+         0.3.2  Pre-release update
+            ↓ promote
+0.4.0   Stable
+0.4.1   Stable hotfix
+   │
+   └──── 0.5.0  Next pre-release line
+            ↓ promote
+0.6.0   Stable
+```
+
+Do not use SemVer suffixes such as `-beta.1` or `-preview.1` for Marketplace package versions. The version number and Marketplace channel together identify release stability.
 
 ## Target release
 
-The current target is the preview release declared in `package.json`. Keep the
-root lockfile aligned with that version.
+For the current branch, `0.1.11` remains the final preview target. Keep `package.json` and the root lockfile aligned to `0.1.11` until that release is cut.
+
+After `0.1.11`:
+
+- stable releases use an even minor version and the normal Marketplace channel;
+- pre-release builds use the following odd minor version and the Marketplace pre-release channel;
+- a pre-release line is promoted by advancing to the next even minor version.
 
 ## Marketplace metadata
 
@@ -44,30 +84,56 @@ npx @vscode/vsce package --no-dependencies
 
 Do not use the deprecated `vsce` package. Older versions still require explicit `activationEvents`; modern VS Code generates activation events from contribution declarations.
 
-## GitHub release
+## Marketplace publishing
 
-Push a `vX.Y.Z` tag after `main` points at the release commit:
+### Final Public Preview: 0.1.11
 
-```bash
-git tag v0.1.10
-git push origin v0.1.10
-```
-
-The production workflow validates the tag against `package.json`, extracts the matching section from `CHANGELOG.md`, waits for the quality, extension-host, and packaged-VSIX smoke gates, verifies `sha256.txt`, and creates a GitHub prerelease with the verified VSIX and checksum attached.
-
-Publish only after installing the packaged VSIX in a clean profile and testing
-an upgrade from `0.1.3`:
+`0.1.11` is published through the normal release channel while retaining `preview: true` in `package.json`.
 
 ```bash
 npx @vscode/vsce publish
 ```
 
-Every Marketplace publication uses the normal release channel. The manifest
-keeps `preview: true`, so Marketplace presents the extension as a preview
-product without placing it in the pre-release channel. SemVer suffixes such as
-`-preview.1` are not supported.
+### Stable channel
 
-## Manual beta validation
+Even-minor versions are published normally:
+
+```bash
+# Example: 0.2.0, 0.2.1, 0.4.0
+npx @vscode/vsce publish
+```
+
+### Pre-release channel
+
+Odd-minor versions are published explicitly to VS Code's pre-release channel:
+
+```bash
+# Example: 0.3.0, 0.3.1, 0.5.0
+npx @vscode/vsce publish --pre-release
+```
+
+A pre-release build must never be republished as stable with the same version number. Promotion always advances to the next even minor version.
+
+## GitHub release
+
+Push a `vX.Y.Z` tag after `main` points at the release commit:
+
+```bash
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+The production workflow must validate the tag against `package.json`, extract the matching section from `CHANGELOG.md`, wait for quality, extension-host, and packaged-VSIX smoke gates, verify `sha256.txt`, and publish the verified VSIX and checksum.
+
+GitHub release status mirrors the Marketplace channel:
+
+- even-minor stable releases are normal GitHub releases;
+- odd-minor Marketplace pre-releases are GitHub prereleases;
+- `0.1.11` remains a GitHub prerelease because it is the final Public Preview build.
+
+Publish only after installing the packaged VSIX in a clean profile and testing an upgrade from the previous Marketplace release.
+
+## Manual release validation
 
 - Open Extension Development Host.
 - Open DeepSeek Copilot from the Activity Bar.
@@ -88,10 +154,10 @@ product without placing it in the pre-release channel. SemVer suffixes such as
 - Enable Incognito mode, verify the chat survives in memory without history/checkpoints, then test both explicit save and discard transitions.
 - Enable the usage breakdown and verify request/report coverage, reasoning, cache hit/miss, conversation totals, and official V4 cost estimates after a normal and a tool-assisted generation.
 - Verify custom API origins do not receive DeepSeek-specific `stream_options` automatically and never show an estimated currency.
-- Run searches with Bing, Google, and Baidu and verify that results stay headless, organic, HTTPS-only, and limited to ten URLs.
+- Verify SearXNG starts automatically, exposes its engine catalog, respects custom engine selection, and performs `search_web` without requiring Chromium, Docker, Podman, or a system Python installation.
 - Open Diagnostics and verify generation/conversation usage summaries contain counts and phases but no prompt, response, command, or path content.
 
-## Known beta constraints
+## Known constraints
 
 - DeepSeek is the only AI provider.
 - At most one generation runs per conversation; the global concurrent-generation limit is configurable from 1 to 16.

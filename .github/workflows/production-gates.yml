@@ -3,7 +3,7 @@ name: Production gates
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, feature/searxng]
     tags: ["v*"]
   workflow_dispatch:
 

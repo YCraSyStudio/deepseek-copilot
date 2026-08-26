@@ -1,5 +1,4 @@
-export type SearchEngine = "bing" | "google" | "baidu";
-export type ResolvedSearchEngine = SearchEngine;
+export type WebSearchProviderId = "searxng";
 
 export interface WebSecurityMetadata {
   source: "live_web";
@@ -11,7 +10,7 @@ export interface WebSecurityMetadata {
 export interface WebSearchResult {
   kind: "web_search_results";
   search_id: string;
-  provider: ResolvedSearchEngine;
+  provider: WebSearchProviderId;
   urls: string[];
   trust: "untrusted_web_content";
   security: WebSecurityMetadata;
@@ -20,7 +19,7 @@ export interface WebSearchResult {
 export interface WebSearchFailure {
   kind: "web_search_failure";
   terminal: true;
-  provider: ResolvedSearchEngine;
+  provider: WebSearchProviderId;
   reason: string;
   trust: "untrusted_web_content";
 }

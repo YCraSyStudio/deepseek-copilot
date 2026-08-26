@@ -2,7 +2,7 @@
   "name": "yrs-dpsk-copilot",
   "displayName": "Yar's Deepseek copilot - A VS Code copilot specialized on Deepseek.",
   "description": "A deeply integrated VS Code coding assistant specialized in DeepSeek.",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "preview": true,
   "publisher": "yarcrasy",
   "license": "MIT",
@@ -50,18 +50,13 @@
   "contributes": {
     "commands": [
       {
-        "command": "yrs-dpsk-copilot.installChromiumHeadless",
-        "title": "Yar's DeepSeek Copilot: Install Chromium Headless",
+        "command": "yrs-dpsk-copilot.startSearxng",
+        "title": "Yar's DeepSeek Copilot: Start Local SearXNG",
         "category": "Yar's DeepSeek Copilot"
       },
       {
-        "command": "yrs-dpsk-copilot.removeChromiumHeadless",
-        "title": "Yar's DeepSeek Copilot: Remove Chromium Headless",
-        "category": "Yar's DeepSeek Copilot"
-      },
-      {
-        "command": "yrs-dpsk-copilot.updateChromiumHeadless",
-        "title": "Yar's DeepSeek Copilot: Update Chromium Headless",
+        "command": "yrs-dpsk-copilot.stopSearxng",
+        "title": "Yar's DeepSeek Copilot: Stop Local SearXNG",
         "category": "Yar's DeepSeek Copilot"
       },
       {
@@ -170,9 +165,7 @@
     "verify:vsix": "node scripts/assert-vsix-contents.mjs"
   },
   "dependencies": {
-    "@puppeteer/browsers": "^3.1.0",
     "@vscode/codicons": "^0.0.45",
-    "puppeteer-core": "^25.5.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-markdown": "^10.1.0",
