@@ -2,7 +2,7 @@ import { DEEPSEEK_VISION_MODEL_ID } from "./deepseek/Models";
 
 export type PermissionMode = "default" | "auto-approve" | "full-access";
 export type InterfaceLanguage = "auto" | "en" | "es" | "zh";
-export type WebSearchEngine = "bing" | "google" | "baidu";
+export type WebSearchEngine = "bing" | "google" | "baidu" | "searxng";
 
 export interface AppConfig {
   interfaceLanguage: InterfaceLanguage;
@@ -29,6 +29,7 @@ export interface AppConfig {
   usageBreakdown: boolean;
   webSearchEnabled: boolean;
   webSearchEngine: WebSearchEngine;
+  searxngUrl: string;
 
   userId?: string;
 }
@@ -60,4 +61,5 @@ export const DEFAULT_CONFIG: AppConfig = {
   usageBreakdown: false,
   webSearchEnabled: true,
   webSearchEngine: "bing",
+  searxngUrl: "http://127.0.0.1:8888",
 };
