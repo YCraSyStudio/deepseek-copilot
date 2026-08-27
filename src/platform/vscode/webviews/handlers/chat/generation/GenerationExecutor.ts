@@ -32,7 +32,6 @@ import { createVsCodeToolWorkspace } from "@/platform/vscode/tools/VsCodeToolWor
 import { extractHttpsUrls } from "@/infrastructure/browser/NetworkPolicy";
 import {
   captureWorkspaceRunSnapshot,
-  createLegacyWorkspaceBinding,
   type WorkspaceRunSnapshot,
 } from "@/platform/vscode/workspace";
 import { StreamEventEmitter } from "../StreamEventEmitter";
@@ -111,8 +110,7 @@ export class GenerationExecutor {
     }
 
     try {
-      const binding = conversation?.workspaceBinding ??
-        createLegacyWorkspaceBinding(conversation?.workspaceUri ?? "workspace:unknown");
+      const binding = conversation?.workspaceBinding ?? historyManager.getWorkspaceBinding();
       const workspaceSnapshot = captureWorkspaceRunSnapshot(binding);
       const permissionSnapshot = await this.dependencies.settings.capturePermissionSnapshot(
         vscode.workspace.isTrusted,

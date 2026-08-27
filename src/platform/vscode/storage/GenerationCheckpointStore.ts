@@ -1,17 +1,17 @@
-import { mkdir, readdir, readFile, rename, rm } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm } from "node:fs/promises";
 import * as path from "node:path";
 import type { AppConfig, AssistantTimelineEvent, ConversationMessage, PermissionSnapshot, QueuedGenerationMessage, StoredToolCall, WorkspaceBinding } from "@/contracts";
 import { isWorkspaceBinding } from "@/application/chat/ConversationValidation";
 import { isProviderTranscript, type ProviderTranscript } from "@/application/chat/ProviderTranscript";
 import { writeJsonFileAtomic } from "@/infrastructure/persistence/JsonFileStorage";
-import { getCorruptGenerationCheckpointDirectory, getGenerationCheckpointDirectory } from "@/infrastructure/persistence/UserDataPaths";
+import { getGenerationCheckpointDirectory } from "@/infrastructure/persistence/UserDataPaths";
 import type { SettingsRepository } from "@/application/ports";
 import { fitToolResultForModel } from "@/application/chat/toolCall/ToolResultBudget";
 
 const MAX_CHECKPOINT_BYTES = 16 * 1024 * 1024;
 
 export interface GenerationCheckpoint {
-  schemaVersion: 1 | 2 | 3;
+  schemaVersion: 3;
   revision: number;
   conversationId: string;
   generationId?: string;
@@ -25,7 +25,7 @@ export interface GenerationCheckpoint {
   permissionSnapshot?: PermissionSnapshot;
   providerTranscript?: ProviderTranscript;
   workspaceUri: string;
-  workspaceBinding?: WorkspaceBinding;
+  workspaceBinding: WorkspaceBinding;
   updatedAt: number;
 }
 
@@ -79,6 +79,7 @@ export class GenerationCheckpointStore {
     }
     const directory = getGenerationCheckpointDirectory();
     await mkdir(directory, { recursive: true });
+    await rm(path.join(directory, "corrupt"), { recursive: true, force: true });
     const entries = await readdir(directory, { withFileTypes: true });
     const checkpoints: GenerationCheckpoint[] = [];
     for (const entry of entries) {
@@ -87,15 +88,14 @@ export class GenerationCheckpointStore {
       }
       const filePath = path.join(directory, entry.name);
       try {
-        const parsed = migrateLegacyPermissionMode(JSON.parse(await readFile(filePath, "utf8")) as unknown);
-        if (!isGenerationCheckpoint(parsed)) {
+        const parsed = JSON.parse(await readFile(filePath, "utf8")) as unknown;
+        if (!isGenerationCheckpoint(parsed) || entry.name !== `${safeFileName(parsed.conversationId)}.json`) {
           throw new Error("Invalid generation checkpoint");
         }
         this.revisions.set(parsed.conversationId, parsed.revision);
         checkpoints.push(parsed);
       } catch {
-        await mkdir(getCorruptGenerationCheckpointDirectory(), { recursive: true });
-        await rename(filePath, path.join(getCorruptGenerationCheckpointDirectory(), `${Date.now()}-${entry.name}`)).catch(() => undefined);
+        await rm(filePath, { force: true }).catch(() => undefined);
       }
     }
     return checkpoints;
@@ -130,7 +130,7 @@ function isGenerationCheckpoint(value: unknown): value is GenerationCheckpoint {
     return false;
   }
   const record = value as Partial<GenerationCheckpoint>;
-  return (record.schemaVersion === 1 || record.schemaVersion === 2 || record.schemaVersion === 3) &&
+  return record.schemaVersion === 3 &&
     Number.isSafeInteger(record.revision) &&
     typeof record.conversationId === "string" &&
     typeof record.status === "string" &&
@@ -139,7 +139,8 @@ function isGenerationCheckpoint(value: unknown): value is GenerationCheckpoint {
     Array.isArray(record.toolCalls) &&
     Array.isArray(record.queue) &&
     typeof record.workspaceUri === "string" &&
-    (record.workspaceBinding === undefined || isWorkspaceBinding(record.workspaceBinding)) &&
+    isWorkspaceBinding(record.workspaceBinding) &&
+    record.workspaceUri === record.workspaceBinding.uri &&
     (record.permissionSnapshot === undefined || isPermissionSnapshot(record.permissionSnapshot)) &&
     (record.providerTranscript === undefined || isProviderTranscript(record.providerTranscript)) &&
     typeof record.updatedAt === "number";
@@ -172,37 +173,6 @@ function isPermissionSnapshot(value: unknown): value is PermissionSnapshot {
     typeof snapshot.workspaceTrusted === "boolean" &&
     typeof snapshot.fingerprint === "string" &&
     (snapshot.permissionMode === "default" || snapshot.permissionMode === "full-access" || snapshot.permissionMode === "auto-approve");
-}
-
-function migrateLegacyPermissionMode(value: unknown): unknown {
-  if (!value || typeof value !== "object") {return value;}
-  const checkpoint = value as {
-    config?: { permissionMode?: unknown; toolExecutionModes?: unknown };
-    permissionSnapshot?: { permissionMode?: unknown; toolExecutionModes?: unknown };
-  };
-  if (checkpoint.config?.permissionMode === "workspace") {
-    checkpoint.config.permissionMode = "full-access";
-  } else if (
-    checkpoint.config?.permissionMode === "chat" ||
-    checkpoint.config?.permissionMode === "enabled" ||
-    checkpoint.config?.permissionMode === "read-only" ||
-    checkpoint.config?.permissionMode === "custom"
-  ) {
-    checkpoint.config.permissionMode = "default";
-  }
-  if (checkpoint.permissionSnapshot?.permissionMode === "workspace") {
-    checkpoint.permissionSnapshot.permissionMode = "full-access";
-  } else if (
-    checkpoint.permissionSnapshot?.permissionMode === "chat" ||
-    checkpoint.permissionSnapshot?.permissionMode === "enabled" ||
-    checkpoint.permissionSnapshot?.permissionMode === "read-only" ||
-    checkpoint.permissionSnapshot?.permissionMode === "custom"
-  ) {
-    checkpoint.permissionSnapshot.permissionMode = "default";
-  }
-  if (checkpoint.config) {delete checkpoint.config.toolExecutionModes;}
-  if (checkpoint.permissionSnapshot) {delete checkpoint.permissionSnapshot.toolExecutionModes;}
-  return value;
 }
 
 function safeFileName(value: string): string {

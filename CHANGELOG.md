@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+## [0.1.11] - 2026-08-27
+
+- Replaced Chromium-driven search with an extension-managed local SearXNG runtime that starts on demand, exposes the available engine catalog, supports custom engine selection, and requires no system Python, Docker, Podman, or browser installation.
 - Reject DeepSeek DSML serialized inside assistant text, suppress protocol markup across streaming chunk boundaries, and retry once through the native tool-call path instead of accepting malformed assistant content.
 - Run agent terminal commands in a visible, per-command VS Code integrated terminal through shell integration, closing it after completion while retaining captured output, exit codes, timeouts, and cancellation.
 - Reject detached process launchers and disable .NET build-server/node reuse inside agent terminals so synthetic-test workspaces are not left locked by orphaned `dotnet` processes.
@@ -11,6 +14,7 @@
 - Added a progress review every 20 completed tool rounds. Its decision guides the next normal round without disabling tools or forcing a separate final response; uncertain or unavailable reviews fail open.
 - Progress reviews now receive a compact cumulative activity history and explicitly stop self-initiated test/debug loops once the requested deliverables already build, instead of treating optional verification failures as unfinished product work.
 - Moved usage observability out of individual messages into a compact conversation-level popover beside the chat permission selector, including per-model totals when a conversation switches models. When DeepSeek omits usage for some requests, the popover shows the calculable reported-request cost as a lower bound instead of hiding all cost data.
+- Removed legacy conversation and checkpoint compatibility tracked by [issue #61](https://github.com/YCraSyStudio/deepseek-copilot/issues/61). History now accepts only schema-v2 conversations, checkpoints require schema 3, and incompatible files are deleted during activation instead of migrated or quarantined.
 
 ## [0.1.10] - 2026-08-22
 
@@ -81,7 +85,7 @@
 - Added enforced architecture boundaries, recursive unit-test discovery, dedicated integration tests, and coverage for credential redaction, API origins, command review, activity grouping, and file-tool presentation.
 
 ## [0.1.3] - 2026-07-27
-- Improved history storage with automatic legacy-conversation migration during the compatibility period tracked by [issue #61](https://github.com/YarCrasy/deepseek-copilot/issues/61).
+- Improved history storage with automatic legacy-conversation migration during the compatibility period tracked by [issue #61](https://github.com/YCraSyStudio/deepseek-copilot/issues/61).
 - Added concurrent generations across conversations, per-conversation queues, targeted interruption, and atomic checkpoint recovery after restart.
 - Bound conversations and tool execution to immutable logical workspaces, with safe multi-root paths, external read-only attachments, and hardened content search.
 - Redesigned permissions around `default`, `read-only`, `auto-approve`, `full-access`, and editable `custom` profiles, with revisioned host-authoritative updates.

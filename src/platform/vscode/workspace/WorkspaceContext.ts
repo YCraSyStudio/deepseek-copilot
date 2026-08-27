@@ -40,20 +40,6 @@ export function captureCurrentWorkspaceBinding(): WorkspaceBinding {
   return createBinding(uri, name, folders);
 }
 
-export function createLegacyWorkspaceBinding(workspaceUri: string): WorkspaceBinding {
-  if (!workspaceUri || workspaceUri === "workspace:unknown") {
-    return createBinding("yrs-workspace:empty", "No workspace", []);
-  }
-  const uri = vscode.Uri.parse(workspaceUri);
-  const name = getUriName(uri) || "Workspace";
-  return createBinding(workspaceUri, name, [{
-    uri: workspaceUri,
-    name,
-    alias: createUniqueAliases([name])[0]!,
-    scheme: uri.scheme,
-  }]);
-}
-
 export function resolveWorkspaceContext(binding: WorkspaceBinding): WorkspaceContextStatus {
   const current = captureCurrentWorkspaceBinding();
   let state: WorkspaceConnectionState;
@@ -245,11 +231,6 @@ function readDocumentPreview(document: vscode.TextDocument, startOffset: number,
   const head = document.getText(new vscode.Range(document.positionAt(startOffset), document.positionAt(startOffset + side)));
   const tail = document.getText(new vscode.Range(document.positionAt(endOffset - side), document.positionAt(endOffset)));
   return `${head}\n...[active editor middle omitted]...\n${tail}`;
-}
-
-function getUriName(uri: vscode.Uri): string {
-  const value = uri.path.replace(/\/+$/, "").split("/").pop() || uri.fsPath.replace(/[\\/]+$/, "").split(/[\\/]/).pop();
-  return value || "";
 }
 
 function hash(value: string): string {

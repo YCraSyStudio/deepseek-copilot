@@ -5,7 +5,6 @@ import { createVsCodeToolWorkspace } from "@/platform/vscode/tools/VsCodeToolWor
 import {
   captureCurrentWorkspaceBinding,
   captureWorkspaceRunSnapshot,
-  createLegacyWorkspaceBinding,
   resolveWorkspaceContext,
 } from "@/platform/vscode/workspace";
 
@@ -45,17 +44,11 @@ export class ConversationWorkspaceReferences {
     if (conversationId) {
       const selected = this.dependencies.conversationState.getConversation();
       if (selected?.id === conversationId) {
-        return (
-          selected.workspaceBinding ??
-          createLegacyWorkspaceBinding(selected.workspaceUri)
-        );
+        return selected.workspaceBinding;
       }
       const stored = await this.dependencies.historyManager.getById(conversationId);
       if (stored) {
-        return (
-          stored.workspaceBinding ??
-          createLegacyWorkspaceBinding(stored.workspaceUri)
-        );
+        return stored.workspaceBinding;
       }
     }
     return captureCurrentWorkspaceBinding();

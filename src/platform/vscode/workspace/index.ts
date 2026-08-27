@@ -1,7 +1,6 @@
 export {
   captureCurrentWorkspaceBinding,
   captureWorkspaceRunSnapshot,
-  createLegacyWorkspaceBinding,
   findSnapshotFolderForUri,
   formatWorkspacePath,
   getWorkspaceUnavailableMessage,

@@ -4,8 +4,21 @@ export const changelog: PageContent = {
   navTitle: "Changelog",
   title: "Changelog",
   description: "Relevant changes and preview status.",
-  lead: "Preview 0.1.10 adds DeepSeek vision, a unified attachment flow, three simplified permission modes, protocol v5, and stable terminal cancellation semantics.",
+  lead: "Preview 0.1.11 moves web search to a managed local SearXNG runtime, makes agent terminals visible, removes arbitrary tool-cycle stops, and adds model-backed completion and progress reviews.",
   sections: [
+    {
+      title: "0.1.11 managed search and sustained agent execution",
+      items: [
+        "Replaced Chromium-driven search with an extension-managed local SearXNG runtime. It starts on demand, exposes its engine catalog, supports custom engine selection, and requires no system Python, Docker, Podman, or browser installation.",
+        "Agent commands now run visibly in a dedicated VS Code integrated terminal, retain bounded structured results, and close after completion. Detached launchers are rejected and .NET build-server reuse is disabled to prevent orphaned processes.",
+        "Removed configurable round checkpoints and per-block call budgets. Tool cycles continue until a real terminal condition, with independent progress reviews every 20 rounds and then every five rounds when long-running work continues.",
+        "Duplicate-call suppression now resets after a workspace mutation, allowing legitimate rebuilds while still blocking unproductive repeats.",
+        "Malformed DeepSeek DSML embedded in assistant text is suppressed across stream boundaries and retried once through native tool calling. A separate completion review catches premature text-only stops without turning a second incomplete result into a false success.",
+        "Progress reviews receive compact cumulative activity and can stop self-initiated verification loops once requested deliverables already build, while uncertain reviewer failures remain non-blocking.",
+        "Usage moved to a conversation-level popover with per-model totals and lower-bound cost reporting when DeepSeek omits usage for some requests.",
+        "Removed legacy history and checkpoint compatibility under issue #61. Activation now deletes incompatible conversations and checkpoints instead of migrating or quarantining them.",
+      ],
+    },
     {
       title: "0.1.10 vision, permissions, composer, and cancellation",
       items: [

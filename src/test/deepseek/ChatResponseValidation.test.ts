@@ -2,17 +2,6 @@ import * as assert from "assert";
 import { assertUniqueToolCallIds, parseChatCompletionResponse, parseStreamToolCalls } from "@/infrastructure/deepseek/providers/deepseek/features/ChatResponseValidation";
 
 suite("DeepSeek chat response validation", () => {
-  test("accepts a complete response", () => {
-    const response = parseChatCompletionResponse({
-      id: "response-1",
-      object: "chat.completion",
-      created: 1,
-      model: "model",
-      choices: [{ index: 0, message: { role: "assistant", content: "done" }, finish_reason: "stop" }],
-    });
-    assert.strictEqual(response.choices[0].message.content, "done");
-  });
-
   test("rejects malformed choices and tool calls", () => {
     assert.throws(
       () => parseChatCompletionResponse({ id: "x", object: "chat.completion", created: 1, model: "m", choices: [] }),

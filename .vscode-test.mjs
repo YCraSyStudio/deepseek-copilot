@@ -7,6 +7,8 @@ const workspaceFolder = dirname(fileURLToPath(import.meta.url));
 const testDataDirectory = join(workspaceFolder, '.tmp', 'integration-user-data');
 const historyDirectory = join(testDataDirectory, 'history');
 const invalidConversationPath = join(historyDirectory, 'unversioned-integration.json');
+const unsupportedConversationPath = join(historyDirectory, 'unsupported-integration.json');
+const malformedConversationPath = join(historyDirectory, 'malformed-integration.json');
 
 rmSync(testDataDirectory, { recursive: true, force: true });
 mkdirSync(historyDirectory, { recursive: true });
@@ -21,6 +23,8 @@ writeFileSync(invalidConversationPath, JSON.stringify({
 		{ id: 'user', role: 'user', content: 'old data' },
 	],
 }), 'utf8');
+writeFileSync(unsupportedConversationPath, JSON.stringify({ schemaVersion: 3 }), 'utf8');
+writeFileSync(malformedConversationPath, '{invalid json', 'utf8');
 
 export default defineConfig({
 	files: 'out/test/Extension.test.js',

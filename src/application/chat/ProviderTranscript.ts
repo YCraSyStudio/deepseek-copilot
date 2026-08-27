@@ -12,7 +12,7 @@ export interface ProviderTranscript {
 }
 
 export interface ConversationContextSummary {
-  schemaVersion: 1 | 2;
+  schemaVersion: 2;
   provider: "deepseek" | "local";
   content: string;
   coveredGenerationIds: string[];
@@ -107,7 +107,7 @@ export function isConversationContextSummary(value: unknown): value is Conversat
   if (!isRecord(value)) {
     return false;
   }
-  return (value.schemaVersion === 1 || value.schemaVersion === 2) &&
+  return value.schemaVersion === 2 &&
     (value.provider === "deepseek" || value.provider === "local") &&
     isBoundedString(value.content, MAX_TRANSCRIPT_FIELD_CHARACTERS) &&
     Array.isArray(value.coveredGenerationIds) &&
@@ -115,7 +115,6 @@ export function isConversationContextSummary(value: unknown): value is Conversat
     value.coveredGenerationIds.every((id) => isBoundedString(id, 512)) &&
     isBoundedString(value.sourceDigest, 256) &&
     (value.boundaries === undefined || (
-      value.schemaVersion === 2 &&
       Array.isArray(value.boundaries) &&
       value.boundaries.length <= 1_000 &&
       value.boundaries.every(isCompactionBoundary)

@@ -7,7 +7,6 @@ import {
 } from "@/platform/vscode/storage";
 import type { SettingsRepository } from "@/application/ports";
 import type { QueuedGenerationMessage } from "@/contracts";
-import { createLegacyWorkspaceBinding } from "@/platform/vscode/workspace";
 
 export async function recoverGenerationCheckpoints(
   checkpointStore: GenerationCheckpointStore,
@@ -43,9 +42,7 @@ export async function recoverGenerationCheckpoints(
           messages: [],
           model: checkpoint.config?.model ?? settings.load().model,
           workspaceUri: checkpoint.workspaceUri,
-          workspaceBinding:
-            checkpoint.workspaceBinding ??
-            createLegacyWorkspaceBinding(checkpoint.workspaceUri),
+          workspaceBinding: checkpoint.workspaceBinding,
         });
       }
 

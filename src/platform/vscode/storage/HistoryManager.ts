@@ -1,20 +1,16 @@
-import { mkdir, readdir, readFile, rename, rm, stat } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, stat } from "node:fs/promises";
 import * as path from "node:path";
-import * as vscode from "vscode";
 import type { Conversation, ConversationSummary } from "@/contracts";
 import { createConversationTitle } from "@/application/chat/ConversationTitle";
 import { findDuplicateConversationIds } from "@/application/chat/ConversationDeduplication";
 import { isConversation } from "@/application/chat/ConversationValidation";
 import {
   getFinalAssistantContent,
-  isConversationContextSummary,
   sanitizeStoredTranscript,
 } from "@/application/chat/ProviderTranscript";
 import { withFileLock, writeJsonFileAtomic } from "@/infrastructure/persistence/JsonFileStorage";
-import { getCorruptHistoryDirectory, getHistoryDirectory } from "@/infrastructure/persistence/UserDataPaths";
+import { getHistoryDirectory } from "@/infrastructure/persistence/UserDataPaths";
 import { captureCurrentWorkspaceBinding } from "@/platform/vscode/workspace";
-import { createLegacyWorkspaceBinding } from "@/platform/vscode/workspace";
-import { migrateLegacyConversations } from "@/infrastructure/persistence/LegacyConversationMigration";
 import type { SettingsRepository } from "@/application/ports";
 
 const MAX_CONVERSATIONS = 100;
@@ -40,23 +36,13 @@ type StoredConversationData = import("@/application/chat/ProviderTranscript").St
 export class HistoryManager {
   private mutationQueue: Promise<void> = Promise.resolve();
 
-  constructor(
-    private readonly context: vscode.ExtensionContext,
-    private readonly settings: SettingsRepository,
-  ) {}
+  constructor(private readonly settings: SettingsRepository) {}
 
   async initialize(): Promise<void> {
     await withFileLock(getHistoryMutationTarget(), async () => {
-      await migrateLegacyConversations({
-        historyDirectory: getHistoryDirectory(),
-        workspaceState: this.context.workspaceState,
-        createWorkspaceBinding: createLegacyWorkspaceBinding,
-      });
+      await rm(path.join(getHistoryDirectory(), "corrupt"), { recursive: true, force: true });
+      await this.readAll();
     });
-  }
-
-  getWorkspaceUri(): string {
-    return this.getWorkspaceBinding().uri;
   }
 
   getWorkspaceBinding() {
@@ -75,6 +61,9 @@ export class HistoryManager {
 
   async save(conversation: StoredConversationData): Promise<void> {
     if (!this.settings.load().historyEnabled) {return;}
+    if (!isConversation(conversation)) {
+      throw new Error("Refusing to persist an incompatible conversation");
+    }
     const normalized = normalizeConversation(conversation);
     if (Buffer.byteLength(JSON.stringify(normalized), "utf8") > MAX_CONVERSATION_BYTES) {
       throw new Error("Conversation is too large to save safely. Reduce its retained context before continuing.");
@@ -119,10 +108,17 @@ export class HistoryManager {
 
   async saveIfAbsent(conversation: StoredConversationData): Promise<boolean> {
     if (!this.settings.load().historyEnabled) {return false;}
+    if (!isConversation(conversation)) {
+      throw new Error("Refusing to persist an incompatible conversation");
+    }
+    const normalized = normalizeConversation(conversation);
+    if (Buffer.byteLength(JSON.stringify(normalized), "utf8") > MAX_CONVERSATION_BYTES) {
+      throw new Error("Conversation is too large to save safely. Reduce its retained context before continuing.");
+    }
     let saved = false;
     await this.enqueueMutation(async () => {
       if (await readConversationFile(conversation.id)) {return;}
-      await writeConversationStorage(normalizeConversation(conversation));
+      await writeConversationStorage(normalized);
       saved = true;
     });
     return saved;
@@ -135,18 +131,18 @@ export class HistoryManager {
     try {
       const metadata = await stat(filePath);
       if (metadata.size > MAX_CONVERSATION_BYTES) {
-        await isolateCorruptHistoryFile(filePath);
+        await deleteIncompatibleHistoryFile(filePath);
         return undefined;
       }
       const parsed = await readConversationStorage(filePath);
       if (!parsed || parsed.id !== id) {
-        await isolateCorruptHistoryFile(filePath);
+        await deleteIncompatibleHistoryFile(filePath);
         return undefined;
       }
       return normalizeConversation(parsed);
     } catch (error) {
       if (isFileNotFoundError(error)) {return undefined;}
-      await isolateCorruptHistoryFile(filePath);
+      await deleteIncompatibleHistoryFile(filePath);
       return undefined;
     }
   }
@@ -166,17 +162,17 @@ export class HistoryManager {
     try {
       const metadata = await stat(filePath);
       if (metadata.size > MAX_CONVERSATION_BYTES) {
-        await isolateCorruptHistoryFile(filePath);
+        await deleteIncompatibleHistoryFile(filePath);
         return undefined;
       }
       const parsed = await readConversationStorage(filePath);
-      if (!parsed) {
-        await isolateCorruptHistoryFile(filePath);
+      if (!parsed || path.resolve(filePath) !== path.resolve(getConversationPath(parsed.id))) {
+        await deleteIncompatibleHistoryFile(filePath);
         return undefined;
       }
       return { conversation: normalizeConversation(parsed), filePath, sizeBytes: Buffer.byteLength(JSON.stringify(parsed), "utf8") };
     } catch {
-      await isolateCorruptHistoryFile(filePath);
+      await deleteIncompatibleHistoryFile(filePath);
       return undefined;
     }
   }
@@ -228,12 +224,22 @@ function getHistoryMutationTarget(): string {
 }
 
 async function readConversationFile(id: string): Promise<StoredConversationData | undefined> {
+  const filePath = getConversationPath(id);
   try {
-    const filePath = getConversationPath(id);
-    if ((await stat(filePath)).size > MAX_CONVERSATION_BYTES) {return undefined;}
+    if ((await stat(filePath)).size > MAX_CONVERSATION_BYTES) {
+      await deleteIncompatibleHistoryFile(filePath);
+      return undefined;
+    }
     const parsed = await readConversationStorage(filePath);
-    return parsed?.id === id ? normalizeConversation(parsed) : undefined;
-  } catch {
+    if (!parsed || parsed.id !== id) {
+      await deleteIncompatibleHistoryFile(filePath);
+      return undefined;
+    }
+    return normalizeConversation(parsed);
+  } catch (error) {
+    if (!isFileNotFoundError(error)) {
+      await deleteIncompatibleHistoryFile(filePath);
+    }
     return undefined;
   }
 }
@@ -320,8 +326,12 @@ async function deleteConversationStorage(id: string): Promise<void> {
 }
 
 async function removeConversationSegments(id: string, keepGeneration?: string): Promise<void> {
+  await removeConversationSegmentsByEncodedId(encodeURIComponent(id), keepGeneration);
+}
+
+async function removeConversationSegmentsByEncodedId(encodedId: string, keepGeneration?: string): Promise<void> {
   const root = path.join(getHistoryDirectory(), ".segments");
-  const prefix = `${encodeURIComponent(id)}-`;
+  const prefix = `${encodedId}-`;
   const entries = await readdir(root, { withFileTypes: true }).catch(() => []);
   await Promise.all(entries
     .filter((entry) => entry.isDirectory() && entry.name.startsWith(prefix) && entry.name !== keepGeneration)
@@ -346,14 +356,10 @@ function toSummary(record: StoredConversationRecord): ConversationSummary {
   };
 }
 
-async function isolateCorruptHistoryFile(filePath: string): Promise<void> {
-  try {
-    await mkdir(getCorruptHistoryDirectory(), { recursive: true });
-    const target = path.join(getCorruptHistoryDirectory(), `${Date.now()}-${path.basename(filePath)}`);
-    await rename(filePath, target);
-  } catch {
-    await rm(filePath, { force: true }).catch(() => undefined);
-  }
+async function deleteIncompatibleHistoryFile(filePath: string): Promise<void> {
+  const encodedId = path.basename(filePath, path.extname(filePath));
+  await rm(filePath, { force: true }).catch(() => undefined);
+  await removeConversationSegmentsByEncodedId(encodedId);
 }
 
 function isFileNotFoundError(error: unknown): boolean {
@@ -368,7 +374,7 @@ function normalizeConversation(conversation: StoredConversationData): StoredConv
       : message.contextContent;
     return {
       ...message,
-      content: message.content ?? "",
+      content: message.content,
       toolCalls: message.toolCalls?.map(normalizeToolCall),
       timeline: message.timeline ?? undefined,
       contextContent: completedContext,
@@ -381,7 +387,7 @@ function normalizeConversation(conversation: StoredConversationData): StoredConv
     workspaceUri: conversation.workspaceBinding.uri,
     title: createConversationTitle(messages, conversation.title),
     messages,
-    contextSummary: isConversationContextSummary(conversation.contextSummary)
+    contextSummary: conversation.contextSummary
       ? structuredClone(conversation.contextSummary)
       : undefined,
   };

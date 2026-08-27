@@ -1,6 +1,6 @@
 import * as assert from "node:assert";
 import { randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { access } from "node:fs/promises";
 import * as path from "node:path";
 import * as vscode from "vscode";
 import type { ChatCompletionRequest, ChatCompletionResponse, StreamChunk } from "@/contracts";
@@ -28,22 +28,21 @@ suite("Extension integration", () => {
     const testDataDirectory = process.env.DEEPSEEK_COPILOT_USER_DATA_DIR;
     assert.ok(testDataDirectory);
     const historyDirectory = path.join(testDataDirectory, "history");
-    const unversionedPath = path.join(historyDirectory, "unversioned-integration.json");
+    const incompatiblePaths = [
+      path.join(historyDirectory, "unversioned-integration.json"),
+      path.join(historyDirectory, "unsupported-integration.json"),
+      path.join(historyDirectory, "malformed-integration.json"),
+    ];
 
     await extension.activate();
 
     assert.strictEqual(extension.isActive, true);
-    const manager = new HistoryManager(extension.exports?.context ?? createHistoryTestContext(), settingsRepository);
+    const manager = new HistoryManager(settingsRepository);
     await manager.initialize();
     await manager.getSummaries();
-    const migrated = JSON.parse(await readFile(unversionedPath, "utf8")) as {
-      schemaVersion?: number;
-      workspaceBinding?: { revision?: string };
-      messages?: Array<{ generationId?: string }>;
-    };
-    assert.strictEqual(migrated.schemaVersion, 2);
-    assert.ok(migrated.workspaceBinding?.revision);
-    assert.match(migrated.messages?.[0]?.generationId ?? "", /^legacy-/);
+    for (const incompatiblePath of incompatiblePaths) {
+      await assert.rejects(access(incompatiblePath), (error: NodeJS.ErrnoException) => error.code === "ENOENT");
+    }
     const commands = await vscode.commands.getCommands(true);
     assert.ok(commands.includes("yrs-dpsk-copilot.openChat"));
     assert.ok(commands.includes("yrs-dpsk-copilot.startSearxng"));
@@ -148,8 +147,8 @@ suite("Extension integration", () => {
   test("rejects a stale conversation save from another manager instance", async () => {
     const extension = vscode.extensions.getExtension("yarcrasy.yrs-dpsk-copilot");
     assert.ok(extension);
-    const first = new HistoryManager(extension.exports?.context ?? createHistoryTestContext(), settingsRepository);
-    const second = new HistoryManager(extension.exports?.context ?? createHistoryTestContext(), settingsRepository);
+    const first = new HistoryManager(settingsRepository);
+    const second = new HistoryManager(settingsRepository);
     await Promise.all([first.initialize(), second.initialize()]);
     const binding = captureCurrentWorkspaceBinding();
     const id = `concurrent-${randomUUID()}`;
@@ -294,8 +293,4 @@ class SummaryProvider implements ModelProvider {
   async chatCompletionStream(_request: ChatCompletionRequest, _onChunk: (chunk: StreamChunk) => void): Promise<void> {}
   async testConnection(): Promise<{ success: boolean }> {return { success: true };}
   async listModels(): Promise<Array<{ id: string; name: string }>> {return [];}
-}
-
-function createHistoryTestContext(): vscode.ExtensionContext {
-  return { workspaceState: { keys: () => [], get: () => undefined, update: async () => undefined } } as unknown as vscode.ExtensionContext;
 }

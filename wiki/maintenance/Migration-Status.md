@@ -14,7 +14,8 @@
 - Marketplace metadata, README, MIT license, and VSIX packaging track the version declared in `package.json`.
 - Legacy single-origin API credentials migrate to a versioned per-origin Secret
   Storage bundle without exposing the stored value to the webview.
-- Conversations require `schemaVersion: 2` and a complete workspace binding. Until the compatibility release after 25 August 2026, structurally valid unversioned conversations are migrated atomically; invalid files are isolated without being interpreted.
+- Conversations require `schemaVersion: 2`, a complete workspace binding, and current context-summary data. The compatibility window tracked by [issue #61](https://github.com/YCraSyStudio/deepseek-copilot/issues/61) ended in `0.1.11`: activation deletes every incompatible JSON conversation and its segments without interpreting or migrating it.
+- Generation checkpoints require schema 3 and a complete workspace binding. Unsupported or malformed checkpoint files are deleted instead of migrated or quarantined.
 
 ## Watch list
 
@@ -34,5 +35,7 @@ Remove a legacy piece when:
 - it has no references in UI or handlers.
 - it does not provide required compatibility with supported settings or credentials.
 - compile and lint pass after removal.
+
+Conversation compatibility met these criteria and was removed in `0.1.11`. Do not reintroduce the unversioned parser, workspace-state importer, legacy workspace binding, permission-mode checkpoint rewrite, or corrupt-record quarantine.
 
 [Back](INDEX.md)

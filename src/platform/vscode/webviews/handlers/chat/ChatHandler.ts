@@ -6,7 +6,6 @@ import type { ConversationMessage, QueuedGenerationMessage, ReferencedFile, Webv
 import type { ToolRegistry } from "@/application/tools";
 import {
   captureCurrentWorkspaceBinding,
-  createLegacyWorkspaceBinding,
   resolveWorkspaceContext,
 } from "@/platform/vscode/workspace";
 import { ConversationState } from "@/application/chat/ConversationState";
@@ -254,9 +253,7 @@ export class ChatHandler {
     }
     this.conversationState.load(conversation);
     this.selectedConversationId = conversation.id;
-    this.workspaceReferences.postContext(
-      conversation.workspaceBinding ?? createLegacyWorkspaceBinding(conversation.workspaceUri),
-    );
+    this.workspaceReferences.postContext(conversation.workspaceBinding);
   }
 
   async getWorkspaceContext(conversationId?: string): Promise<WorkspaceContextStatus> {
@@ -279,7 +276,7 @@ export class ChatHandler {
     if (!conversation) {
       throw new Error("Conversation not found.");
     }
-    const previous = conversation.workspaceBinding ?? createLegacyWorkspaceBinding(conversation.workspaceUri);
+    const previous = conversation.workspaceBinding;
     const queued = this.coordinator.clearQueue(conversationId);
     if (queued.length > 0) {
       this.recoveredDrafts.set(conversationId, queued.map((task) => ({
@@ -358,7 +355,7 @@ export class ChatHandler {
       const selected = this.conversationState.getConversation();
       const conversation = await this.historyManager.getById(conversationId) ??
         (selected?.id === conversationId ? selected : undefined);
-      const binding = conversation?.workspaceBinding ?? (conversation ? createLegacyWorkspaceBinding(conversation.workspaceUri) : undefined);
+      const binding = conversation?.workspaceBinding;
       if (binding && resolveWorkspaceContext(binding).state !== "connected") {
         affected.add(conversationId);
         const active = this.coordinator.getActiveForConversation(conversationId);

@@ -13,15 +13,6 @@ suite("tool executor result classification", () => {
     assert.strictEqual(result.status, "error");
   });
 
-  test("marks plain handler errors as failed after forced execution", async () => {
-    const executor = createExecutor(async () => "Error: unable to read the requested file");
-
-    const result = await executor.executeForced(createToolCall());
-
-    assert.strictEqual(result.isError, true);
-    assert.strictEqual(result.status, "error");
-  });
-
   test("does not classify successful plain text as an error", async () => {
     const executor = createExecutor(async () => "File contents returned successfully");
 

@@ -109,7 +109,7 @@ export const settings = {
     },
     language: {
       label: "Interface language",
-      auto: "Use VS Code language"
+      auto: "Auto"
     },
     model: {
       label: "Model"

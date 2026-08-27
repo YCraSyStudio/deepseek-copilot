@@ -10,7 +10,7 @@ export const userManual: PageContent = {
       title: "Getting started",
       items: [
         "Open Yar's DeepSeek Copilot from the Activity Bar and enter the API key in Settings. Credentials are stored per normalized API origin in VS Code Secret Storage; reopening Settings shows only a masked placeholder preview.",
-        "Choose V4 Vision (Flash) or V4 Pro, thinking mode, reasoning effort, output allowance, default-mode tool checkpoint interval, and concurrent generation limit. Registered V4 capabilities use a 1M-token total context and 384K maximum output; the extension reserves 8,192 output tokens by default. Concurrency defaults to 8 and accepts values from 1 to 16.",
+        "Choose V4 Vision (Flash) or V4 Pro, thinking mode, reasoning effort, output allowance, and concurrent generation limit. Registered V4 capabilities use a 1M-token total context and 384K maximum output; the extension reserves 8,192 output tokens by default. Concurrency defaults to 8 and accepts values from 1 to 16.",
         "Type ./ to autocomplete safe workspace paths. Parent traversal with ../ is never accepted. In multi-root workspaces, paths begin with a stable alias such as ./frontend/src/App.tsx.",
         "Use the single + attachment action or Explorer/editor commands for explicit context. Ordinary external files become bounded, read-only snapshots; images are uploaded to DeepSeek after their binary signature is verified.",
         "Use Stop generation to cancel the current request and any running terminal process tree. The submitted prompt, partial assistant timeline, and completed tool results remain in history as a terminal cancelled turn; completed side effects are not rolled back.",
@@ -43,7 +43,7 @@ export const userManual: PageContent = {
         "There is no per-tool permission matrix. The Web search switch removes search_web and read_web from model requests when disabled. Workspace binding and VS Code Workspace Trust remain enforced.",
         "Tool calls move through awaiting confirmation, running, and one terminal state: completed, rejected, cancelled, or error.",
         "The extension host acknowledges execute and reject actions before the webview commits the visible state.",
-        "Tool calls in a round run sequentially and identical repeated calls are skipped. The configured round checkpoint applies only to default mode, which asks the user whether to continue; auto-approve and full-access have no round or per-block tool-call limit.",
+        "Tool calls in a round run sequentially. Identical calls are skipped until a workspace mutation makes a legitimate repeat useful. Tool cycles have no configurable round or per-block call limit; an independent reviewer checks progress after 20 completed rounds and every five rounds thereafter without disabling tools.",
         "Read-only tools may run across concurrent conversations, while file and terminal mutations are serialized within the same workspace.",
       ],
     },
@@ -51,6 +51,7 @@ export const userManual: PageContent = {
       title: "Activity and file results",
       items: [
         "Adjacent reasoning and tool calls are collapsed into an Activity panel by default. Expand it to inspect individual reasoning steps, tool states, arguments, and relevant results.",
+        "Conversation usage appears in a compact popover beside the permission selector, including per-model totals after model switches. If some DeepSeek requests omit usage, available reported requests still produce an explicitly marked lower-bound cost.",
         "A successful read_file call does not duplicate the file body in Chat. Use Open file to inspect it in the editor; failed reads still show their diagnostic result.",
         "Completed create_file, edit_file, and apply_patch calls expose View change when a complete diff is available. It opens the before and after content recorded for that specific tool execution, independent of later working-tree changes.",
       ],
@@ -66,11 +67,21 @@ export const userManual: PageContent = {
       ],
     },
     {
+      title: "Web search",
+      items: [
+        "When Web search is enabled, the default http://127.0.0.1:8888 endpoint is managed by the extension. The first start downloads the pinned SearXNG runtime for the current platform, verifies its expected size and SHA-256 digest, and runs it only on loopback without requiring system Python, Docker, Podman, or Chromium.",
+        "Settings loads the configured instance's engine catalog. Leaving the selection automatic uses the instance defaults; selecting engines sends their validated shortcuts with each search.",
+        "A compatible custom SearXNG endpoint can be configured. Non-loopback endpoints must use HTTPS, and URLs containing credentials are rejected.",
+        "search_web returns up to ten normalized HTTPS results. read_web accepts only a URL registered by that search or explicitly supplied by the user, then extracts bounded inert page sections.",
+      ],
+    },
+    {
       title: "Terminal execution",
       items: [
-        "Terminal commands are non-interactive: they cannot answer prompts or provide a TTY.",
-        "The result records stdout, stderr, exit code, signal, timeout, cancellation, effective working directory, and shell.",
+        "Each agent command runs non-interactively and visibly in a dedicated VS Code integrated terminal through Shell Integration. The terminal closes after the command completes while the captured result remains in Chat.",
+        "The result records bounded stdout/stderr, exit code, signal, timeout, cancellation, effective working directory, and shell.",
         "Output is bounded; when truncated, the beginning and end are retained and the omitted middle is marked.",
+        "Detached and background process launchers are rejected. Agent terminals disable .NET build-server and node reuse so completed builds do not leave orphaned workers or locked project files.",
         "In automatic modes, terminal commands and file mutations are classified by a separate DeepSeek instance as routine, elevated, or critical; there is no local danger analyzer.",
         "The reviewer receives the initial user request, a content-free action description, mechanical scope facts, and bounded non-sensitive context from explicitly named workspace files.",
         "The reviewer may approve, return constraints for safer replanning, or request manual confirmation. Auto-approve confirms elevated and critical actions; full-access confirms critical actions. Automatic decisions require medium-high confidence or above.",
@@ -85,8 +96,8 @@ export const userManual: PageContent = {
         "Disabling history enters Incognito mode. Active generations and queued prompts require confirmation before they are stopped and cleared. Incognito chats stay only in memory, survive navigation between Chat, History, and Settings, and are discarded when the extension or VS Code reloads. When leaving, the current chat can be explicitly saved as a new conversation or discarded.",
         "The history list is rebuilt directly from validated conversation files. Storage is capped at 100 conversations and 24 MiB.",
         "Deleting one conversation or all visible conversations uses a native VS Code confirmation and offers Undo. Deletion first cancels active work and clears its queue/checkpoint; image cleanup waits until Undo expires so restoration remains complete.",
-        "Conversation files use schema version 2 and associate messages with generation outcomes. On activation, valid older or partially migrated files are atomically upgraded with deterministic generation ownership. Compatibility has no runtime expiry and remains until its scheduled cleanup is released.",
-        "Active work is checkpointed without the API key under ~/.yrs-dpsk-copilot/generation-checkpoints/. Interrupted pending or running tools are restored as cancelled; corrupt history and checkpoint records are isolated in their respective corrupt directories.",
+        "Conversation files must use schema version 2 with a complete workspace binding and current context summaries. On activation, every incompatible, malformed, oversized, or mismatched history file is permanently deleted together with its message segments; no legacy migration is attempted.",
+        "Active work is checkpointed without the API key under ~/.yrs-dpsk-copilot/generation-checkpoints/. Interrupted pending or running tools are restored as cancelled; only schema-3 checkpoints with a complete workspace binding are recovered, and incompatible records are deleted.",
       ],
     },
     {

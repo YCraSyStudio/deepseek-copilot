@@ -10,7 +10,7 @@ export const userManual: PageContent = {
       title: "Primeros pasos",
       items: [
         "Abre Yar's DeepSeek Copilot desde la Activity Bar e introduce la API key en Settings. Las credenciales se guardan por origen de API normalizado en Secret Storage de VS Code; al reabrir Settings solo se muestra una preview enmascarada como placeholder.",
-        "Elige V4 Vision (Flash) o V4 Pro, thinking mode, reasoning effort, reserva de salida, control de rondas de default y límite de generaciones concurrentes. Las capacidades V4 registradas usan 1M tokens de contexto total y 384K de salida máxima; la extensión reserva 8.192 tokens de salida por defecto. La concurrencia predeterminada es 8 y admite valores entre 1 y 16.",
+        "Elige V4 Vision (Flash) o V4 Pro, thinking mode, reasoning effort, reserva de salida y límite de generaciones concurrentes. Las capacidades V4 registradas usan 1M tokens de contexto total y 384K de salida máxima; la extensión reserva 8.192 tokens de salida por defecto. La concurrencia predeterminada es 8 y admite valores entre 1 y 16.",
         "Escribe ./ para autocompletar rutas seguras del workspace. El recorrido a padres con ../ nunca se acepta. En multi-root, las rutas comienzan por un alias estable como ./frontend/src/App.tsx.",
         "Usa la única acción + o los comandos del explorador/editor para aportar contexto. Los archivos externos ordinarios se convierten en snapshots acotados y de solo lectura; las imágenes se suben a DeepSeek tras verificar su firma binaria.",
         "Usa Stop generation para cancelar la petición actual y su árbol de procesos. El prompt enviado, el timeline parcial y los resultados de tools completadas permanecen como turno cancelled; los efectos ya realizados no se revierten.",
@@ -43,7 +43,7 @@ export const userManual: PageContent = {
         "No existe una matriz de permisos por herramienta. El interruptor de búsqueda web elimina search_web y read_web de las peticiones al modelo cuando está desactivado. El binding y Workspace Trust de VS Code siguen aplicándose.",
         "Las tool calls pasan por awaiting confirmation, running y un único estado final: completed, rejected, cancelled o error.",
         "El host de la extensión confirma las acciones de ejecutar y rechazar antes de que la webview fije el estado visible.",
-        "Las tool calls de una ronda se ejecutan secuencialmente y los duplicados se omiten. El control de rondas solo se aplica a default, que pregunta al usuario si continúa; auto-approve y full-access no tienen límite de rondas ni de llamadas por bloque.",
+        "Las tool calls de una ronda se ejecutan secuencialmente. Las llamadas idénticas se omiten hasta que una mutación del workspace hace útil repetirlas. Los ciclos no tienen límites configurables de rondas ni de llamadas por bloque; un revisor independiente comprueba el progreso tras 20 rondas completadas y cada cinco rondas posteriores sin desactivar herramientas.",
         "Las herramientas de solo lectura pueden ejecutarse entre conversaciones concurrentes, mientras que las mutaciones de archivos y terminal se serializan dentro del mismo workspace.",
       ],
     },
@@ -51,6 +51,7 @@ export const userManual: PageContent = {
       title: "Actividad y resultados de archivos",
       items: [
         "El razonamiento y las tool calls adyacentes aparecen contraídos en un panel Activity de forma predeterminada. Despliégalo para revisar pasos de razonamiento, estados, argumentos y resultados relevantes.",
+        "El uso de la conversación aparece en un popover compacto junto al selector de permisos, incluidos totales por modelo tras cambiar de modelo. Si algunas peticiones de DeepSeek omiten el uso, las peticiones informadas aún producen un coste mínimo marcado explícitamente.",
         "Un read_file correcto no duplica el contenido del archivo en Chat. Usa Open file para inspeccionarlo en el editor; las lecturas fallidas sí muestran su diagnóstico.",
         "Las llamadas completadas de create_file, edit_file y apply_patch ofrecen View change cuando existe un diff completo. Abre el contenido anterior y posterior registrado para esa ejecución concreta, independientemente de cambios posteriores en el working tree.",
       ],
@@ -66,11 +67,21 @@ export const userManual: PageContent = {
       ],
     },
     {
+      title: "Búsqueda web",
+      items: [
+        "Con la búsqueda web activa, la extensión administra el endpoint predeterminado http://127.0.0.1:8888. El primer inicio descarga el runtime SearXNG fijado para la plataforma actual, verifica su tamaño y digest SHA-256 esperados y lo ejecuta solo en loopback, sin requerir Python del sistema, Docker, Podman ni Chromium.",
+        "Settings carga el catálogo de motores de la instancia configurada. La selección automática usa los valores predeterminados de la instancia; al elegir motores se envían sus shortcuts validados con cada búsqueda.",
+        "Se puede configurar un endpoint SearXNG compatible. Los endpoints fuera de loopback deben usar HTTPS y se rechazan las URL con credenciales.",
+        "search_web devuelve hasta diez resultados HTTPS normalizados. read_web solo acepta una URL registrada por esa búsqueda o proporcionada explícitamente por el usuario y extrae secciones inertes y acotadas de la página.",
+      ],
+    },
+    {
       title: "Ejecución de terminal",
       items: [
-        "Los comandos de terminal son no interactivos: no pueden responder a prompts ni disponer de una TTY.",
-        "El resultado registra stdout, stderr, código de salida, señal, timeout, cancelación, directorio efectivo y shell.",
+        "Cada comando del agente se ejecuta de forma no interactiva y visible en un terminal integrado dedicado de VS Code mediante Shell Integration. El terminal se cierra al finalizar y el resultado capturado permanece en el chat.",
+        "El resultado registra stdout/stderr acotados, código de salida, señal, timeout, cancelación, directorio efectivo y shell.",
         "La salida está limitada; si se trunca, se conservan el principio y el final y se marca la parte central omitida.",
+        "Se rechazan los launchers de procesos desacoplados o en segundo plano. Los terminales del agente desactivan la reutilización de servidores de compilación y nodos de .NET para no dejar workers huérfanos ni archivos del proyecto bloqueados.",
         "En los modos automáticos, una instancia DeepSeek separada clasifica los comandos de terminal y las mutaciones de archivos como rutinarios, elevados o críticos; no existe un analizador local de peligro.",
         "El revisor recibe la petición inicial, una descripción de la acción sin contenido, hechos mecánicos de alcance y contexto acotado y no sensible de archivos del workspace nombrados explícitamente.",
         "El revisor puede aprobar, devolver restricciones para replanificar o pedir confirmación manual. Auto-approve confirma acciones elevadas y críticas; full-access confirma las críticas. Las decisiones automáticas exigen confianza medium-high o superior.",
@@ -85,8 +96,8 @@ export const userManual: PageContent = {
         "Desactivar el historial activa el modo incógnito. Si hay generaciones activas o mensajes en cola, se pide confirmación antes de detenerlos y vaciarlos. Los chats incógnitos solo viven en memoria, sobreviven al cambio entre Chat, Historial y Ajustes, y se descartan al recargar la extensión o VS Code. Al salir, el chat puede guardarse explícitamente como una conversación nueva o descartarse.",
         "La lista se reconstruye directamente desde archivos de conversación validados. El almacenamiento está limitado a 100 conversaciones y 24 MiB.",
         "Borrar una conversación o todas las visibles usa confirmación nativa y ofrece Deshacer. Primero cancela el trabajo activo y limpia cola/checkpoint; las imágenes no se eliminan hasta que vence Deshacer para que la restauración sea completa.",
-        "Los archivos de conversación usan el esquema versión 2 y asocian los mensajes con el resultado de su generación. Al activar, los archivos antiguos válidos o migrados parcialmente se actualizan atómicamente con una propiedad de generación determinista. La compatibilidad no caduca en runtime y permanece hasta que se publique su limpieza programada.",
-        "El trabajo activo se guarda sin la API key en checkpoints bajo ~/.yrs-dpsk-copilot/generation-checkpoints/. Las herramientas pending o running interrumpidas se restauran como cancelled; los historiales y checkpoints corruptos se aíslan en sus respectivos directorios corrupt.",
+        "Los archivos de conversación deben usar el esquema versión 2 con un binding de workspace completo y resúmenes de contexto actuales. Al activar, cada archivo de historial incompatible, mal formado, demasiado grande o con nombre discordante se elimina permanentemente junto con sus segmentos; no se intenta ninguna migración heredada.",
+        "El trabajo activo se guarda sin la API key en checkpoints bajo ~/.yrs-dpsk-copilot/generation-checkpoints/. Las herramientas pending o running interrumpidas se restauran como cancelled; solo se recuperan checkpoints de esquema 3 con un binding de workspace completo y los registros incompatibles se eliminan.",
       ],
     },
     {

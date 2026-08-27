@@ -115,6 +115,7 @@ suite("transactional settings", () => {
       toolCalls: [],
       queue: [],
       workspaceUri: "file:///workspace",
+      workspaceBinding: testWorkspaceBinding(),
       updatedAt: Date.now(),
     };
 
@@ -132,7 +133,7 @@ suite("transactional settings", () => {
     assert.strictEqual(readdirSync(directory).filter((name) => name.endsWith(".json")).length, 0);
   });
 
-  test("recovers schema-2 checkpoints that still contain retired budget metadata", async () => {
+  test("deletes checkpoints from unsupported schemas", async () => {
     await SettingsManager.save({ historyEnabled: true });
     const store = new GenerationCheckpointStore(new VsCodeSettingsRepository());
     await store.clearAll();
@@ -144,6 +145,7 @@ suite("transactional settings", () => {
       toolCalls: [],
       queue: [],
       workspaceUri: "file:///workspace",
+      workspaceBinding: testWorkspaceBinding(),
       updatedAt: Date.now(),
     });
     const directory = getGenerationCheckpointDirectory();
@@ -151,14 +153,26 @@ suite("transactional settings", () => {
     const persisted = JSON.parse(readFileSync(filePath, "utf8")) as Record<string, unknown>;
     writeFileSync(filePath, JSON.stringify({
       ...persisted,
+      schemaVersion: 2,
       budget: { model: "legacy", effectiveMaxTokens: 1, automaticCompactions: 1, conciseRecoveries: 0 },
       conciseRecoveryUsed: false,
       compactionBoundary: { id: "legacy" },
     }));
 
     const recovered = await new GenerationCheckpointStore(new VsCodeSettingsRepository()).recover();
-    assert.strictEqual(recovered.length, 1);
-    assert.strictEqual(recovered[0].conversationId, "legacy-budget-checkpoint");
+    assert.strictEqual(recovered.length, 0);
+    assert.strictEqual(existsSync(filePath), false);
     await store.clearAll();
   });
 });
+
+function testWorkspaceBinding() {
+  return {
+    schemaVersion: 1 as const,
+    uri: "file:///workspace",
+    name: "workspace",
+    revision: "test",
+    folders: [],
+    capabilities: { files: true, search: true, git: true, terminal: true },
+  };
+}

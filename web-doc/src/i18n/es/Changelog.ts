@@ -4,8 +4,21 @@ export const changelog: PageContent = {
   navTitle: "Changelog",
   title: "Changelog",
   description: "Cambios relevantes y estado preview.",
-  lead: "La preview 0.1.10 añade visión DeepSeek, adjuntos unificados, tres modos de permisos, protocolo v5 y semántica terminal estable para la cancelación.",
+  lead: "La preview 0.1.11 migra la búsqueda web a un runtime SearXNG local administrado, hace visibles los terminales del agente, elimina paradas arbitrarias de ciclos y añade revisiones de finalización y progreso mediante el modelo.",
   sections: [
+    {
+      title: "0.1.11 búsqueda administrada y ejecución sostenida del agente",
+      items: [
+        "Sustituida la búsqueda controlada mediante Chromium por un runtime SearXNG local administrado por la extensión. Se inicia bajo demanda, expone su catálogo de motores, admite selección personalizada y no requiere Python del sistema, Docker, Podman ni un navegador instalado.",
+        "Los comandos del agente se ejecutan de forma visible en un terminal integrado dedicado de VS Code, conservan resultados estructurados y acotados y se cierran al finalizar. Se rechazan launchers desacoplados y se desactiva la reutilización del servidor de compilación de .NET para evitar procesos huérfanos.",
+        "Eliminados los checkpoints configurables de rondas y los presupuestos de llamadas por bloque. Los ciclos continúan hasta un estado terminal real, con revisiones independientes de progreso cada 20 rondas y después cada cinco cuando el trabajo prolongado continúa.",
+        "La supresión de llamadas duplicadas se reinicia tras una mutación del workspace, permitiendo reconstrucciones legítimas sin aceptar repeticiones improductivas.",
+        "El DSML de DeepSeek mal formado dentro del texto del asistente se suprime incluso entre fragmentos del stream y se reintenta una vez mediante tool calling nativo. Una revisión separada detecta finalizaciones textuales prematuras sin convertir un segundo resultado incompleto en un éxito falso.",
+        "Las revisiones de progreso reciben un historial acumulado compacto y pueden detener bucles de verificación iniciados por el agente cuando los entregables ya compilan; los fallos inciertos del revisor no bloquean el trabajo.",
+        "El uso se trasladó a un popover por conversación con totales por modelo y costes mínimos calculables cuando DeepSeek omite el uso de algunas peticiones.",
+        "Eliminada la compatibilidad heredada de historial y checkpoints indicada en la issue #61. La activación ahora borra conversaciones y checkpoints incompatibles en lugar de migrarlos o aislarlos.",
+      ],
+    },
     {
       title: "0.1.10 visión, permisos, composer y cancelación",
       items: [

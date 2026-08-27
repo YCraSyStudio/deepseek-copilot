@@ -27,7 +27,7 @@ API keys are never part of settings.
 
 Terminal generation statuses are `completed`, `cancelled`, `interrupted`, and `error`. Explicit Stop persists a `cancelled` turn with its user message, partial assistant timeline, and completed tool results. Only complete provider protocol sequences are eligible for future replay.
 
-History is limited by retention and quota, excludes the active conversation from silent cleanup, and isolates malformed files. Disabling history enters Incognito mode: active data stays in memory and reaches history only through an explicit save transition.
+History is limited by retention and quota and excludes the active conversation from silent cleanup. Activation accepts only schema-v2 conversations; incompatible files and their segments are permanently deleted rather than migrated or quarantined. Disabling history enters Incognito mode: active data stays in memory and reaches history only through an explicit save transition.
 
 ## Image attachments
 
@@ -48,6 +48,6 @@ History is limited by retention and quota, excludes the active conversation from
 - A checkpoint is limited to 16 MiB and is compacted before failing visibly.
 - Host shutdown restores partial work as `interrupted`, unfinished tools as `cancelled`, and queued prompts as recoverable drafts.
 - Explicit user cancellation is a persisted conversation outcome, not a recoverable cancelled draft.
-- Completing or deleting a conversation removes its checkpoint; malformed records are isolated.
+- Completing or deleting a conversation removes its checkpoint; anything other than a valid schema-3 record is deleted during recovery.
 
 [Back](INDEX.md)

@@ -1,5 +1,5 @@
 import type { AssistantTimelineEvent, ConversationMessage, DangerConfirmationData, StoredToolCall, WorkspaceBinding } from "@/contracts";
-import { isProviderTranscript, type StoredConversation } from "./ProviderTranscript";
+import { isConversationContextSummary, isProviderTranscript, type StoredConversation } from "./ProviderTranscript";
 import { isUsageAggregate } from "@/shared/usage/Usage";
 
 export function isConversation(value: unknown): value is StoredConversation {
@@ -10,6 +10,12 @@ export function isConversation(value: unknown): value is StoredConversation {
     return false;
   }
   if (!isWorkspaceBinding(value.workspaceBinding)) {
+    return false;
+  }
+  if (value.workspaceUri !== value.workspaceBinding.uri) {
+    return false;
+  }
+  if (value.contextSummary !== undefined && !isConversationContextSummary(value.contextSummary)) {
     return false;
   }
   if (value.workspaceRebindings !== undefined && (

@@ -44,6 +44,7 @@ export async function checkpointGeneration(
   }
   const config = dependencies.settings.load();
   const { apiKey: _apiKey, ...safeConfig } = config;
+  const binding = record.state.getConversation()?.workspaceBinding ?? dependencies.historyManager.getWorkspaceBinding();
   await dependencies.checkpointStore.save({
     conversationId: record.conversationId,
     generationId: record.generationId,
@@ -60,8 +61,8 @@ export async function checkpointGeneration(
     config: safeConfig,
     permissionSnapshot: record.permissionSnapshot,
     providerTranscript: record.providerTranscript ? structuredClone(record.providerTranscript) : undefined,
-    workspaceUri: record.state.getConversation()?.workspaceUri ?? dependencies.historyManager.getWorkspaceUri(),
-    workspaceBinding: record.state.getConversation()?.workspaceBinding,
+    workspaceUri: binding.uri,
+    workspaceBinding: binding,
     updatedAt: Date.now(),
   });
 }
@@ -88,6 +89,7 @@ export async function checkpointQueuedGeneration(
     return;
   }
   const conversation = await dependencies.historyManager.getById(conversationId);
+  const binding = conversation?.workspaceBinding ?? dependencies.historyManager.getWorkspaceBinding();
   await dependencies.checkpointStore.save({
     conversationId,
     status: "queued",
@@ -98,8 +100,8 @@ export async function checkpointQueuedGeneration(
       ...queue.map((task) => ({ clientRequestId: task.clientRequestId, text: task.payload.text, queuedAt: task.queuedAt, reason: "queued" as const })),
       ...drafts.map(toPersistedDraft),
     ],
-    workspaceUri: conversation?.workspaceUri ?? "workspace:unknown",
-    workspaceBinding: conversation?.workspaceBinding,
+    workspaceUri: binding.uri,
+    workspaceBinding: binding,
     updatedAt: Date.now(),
   });
 }

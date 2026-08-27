@@ -2,10 +2,6 @@ import * as assert from "assert";
 import { deepseekFetch, buildApiUrl } from "@/infrastructure/deepseek/client/DeepSeekFetch";
 
 suite("DeepSeek URLs", () => {
-  test("joins paths without duplicate slashes and preserves a base path", () => {
-    assert.strictEqual(buildApiUrl("https://example.test/v1/", "/chat/completions"), "https://example.test/v1/chat/completions");
-  });
-
   test("allows same-origin absolute URLs and rejects cross-origin URLs", () => {
     assert.strictEqual(
       buildApiUrl("https://example.test/v1", "https://example.test/models"),

@@ -19,14 +19,6 @@ export function getHistoryDirectory(): string {
   return path.join(getUserDataDirectory(), "history");
 }
 
-export function getCorruptHistoryDirectory(): string {
-  return path.join(getHistoryDirectory(), "corrupt");
-}
-
 export function getGenerationCheckpointDirectory(): string {
   return path.join(getUserDataDirectory(), "generation-checkpoints");
-}
-
-export function getCorruptGenerationCheckpointDirectory(): string {
-  return path.join(getGenerationCheckpointDirectory(), "corrupt");
 }

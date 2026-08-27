@@ -1,10 +1,10 @@
-# ADR 002: Persistence versioning and migration
+# ADR 002: Persistence versioning and strict validation
 
 Status: accepted
 
-Stored conversations use `schemaVersion: 2`. Writes are atomic and guarded by the existing locks. Invalid data is isolated rather than partially interpreted.
+Stored conversations use `schemaVersion: 2`; generation checkpoints use schema 3. Both require a complete workspace binding whose URI matches the persisted workspace URI. Writes remain atomic and guarded by filesystem locks.
 
-For the compatibility window tracked by [issue #61](https://github.com/YCraSyStudio/deepseek-copilot/issues/61), valid unversioned conversations are migrated atomically before normal validation. The migrated file is reread and validated before legacy state is removed. This compatibility is a release property, not a runtime date check.
+The compatibility window tracked by [issue #61](https://github.com/YCraSyStudio/deepseek-copilot/issues/61) ended in `0.1.11`. There is no legacy conversation parser, activation-time migration, workspace-state import, legacy workspace fallback, or checkpoint permission-mode rewrite.
 
-The migrator must remain in every release published on or before 25 August 2026. Its removal, fixtures, and obsolete re-exports form an isolated release change after that date; phase 7 must not be combined with functional work.
+At activation, every JSON file in the conversation directory is validated before use. Unversioned, unsupported, malformed, oversized, mismatched-name, or incomplete records are permanently deleted together with their segments. Unsupported checkpoints and obsolete quarantine directories are also deleted. Current-format records are never repaired silently; invalid in-memory values are rejected before save.
 

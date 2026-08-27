@@ -81,7 +81,7 @@ suite("canonical provider transcript", () => {
         capabilities: { files: true, search: true, git: true, terminal: true },
       },
       contextSummary: {
-        schemaVersion: 1,
+        schemaVersion: 2,
         provider: "local",
         content: "private summary",
         coveredGenerationIds: ["generation"],

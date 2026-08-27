@@ -10,7 +10,7 @@ export const userManual: PageContent = {
       title: "开始使用",
       items: [
         "从 Activity Bar 打开 Yar's DeepSeek Copilot，并在 Settings 中输入 API key。凭据按规范化 API 来源存储在 VS Code Secret Storage 中；重新打开 Settings 时只会显示遮罩占位符预览。",
-        "选择 V4 Vision (Flash) 或 V4 Pro、thinking mode、reasoning effort、输出预留、default 模式工具检查间隔和并发上限。已注册的 V4 能力使用 1M Token 总上下文和 384K 最大输出；扩展默认预留 8,192 个输出 Token。默认并发数为 8，可设置为 1 到 16。",
+        "选择 V4 Vision (Flash) 或 V4 Pro、thinking mode、reasoning effort、输出预留和并发上限。已注册的 V4 能力使用 1M Token 总上下文和 384K 最大输出；扩展默认预留 8,192 个输出 Token。默认并发数为 8，可设置为 1 到 16。",
         "输入 ./ 可自动补全安全的工作区路径；始终拒绝 ../ 父目录遍历。多根工作区路径以稳定别名开头，例如 ./frontend/src/App.tsx。",
         "使用统一的 + 操作或资源管理器/编辑器命令添加上下文。普通外部文件会成为受限只读快照；图像会在验证二进制签名后上传到 DeepSeek。",
         "使用 Stop generation 可取消当前请求和终端进程树。已提交提示、部分 timeline 和已完成工具结果会作为 cancelled 轮次保留；已发生的外部副作用不会回滚。",
@@ -43,7 +43,7 @@ export const userManual: PageContent = {
         "不再提供逐工具权限矩阵。关闭 Web 搜索开关后，模型请求中不会包含 search_web 和 read_web。工作区绑定和 VS Code Workspace Trust 仍然生效。",
         "工具调用依次经过 awaiting confirmation、running，并最终进入 completed、rejected、cancelled 或 error 中的一种状态。",
         "扩展宿主会先确认执行或拒绝操作，然后 webview 才会提交可见状态。",
-        "同一轮内的工具调用按顺序执行，重复调用会被跳过。配置的轮次检查点仅适用于 default，并询问用户是否继续；auto-approve 和 full-access 没有轮次或每块调用数量限制。",
+        "同一轮内的工具调用按顺序执行。相同调用会被跳过，直到工作区修改使合理的重复调用变得有用。工具循环没有可配置的轮次或每块调用上限；独立审查器会在完成 20 轮后检查进度，此后每五轮再次检查，且不会禁用工具。",
         "只读工具可以跨并发会话运行，而文件和终端变更在同一工作区内按顺序执行。",
       ],
     },
@@ -51,6 +51,7 @@ export const userManual: PageContent = {
       title: "活动和文件结果",
       items: [
         "相邻的推理和工具调用默认折叠在 Activity 面板中。展开后可检查各个推理步骤、工具状态、参数和相关结果。",
+        "会话用量会显示在权限选择器旁的紧凑弹出面板中；切换模型后还会按模型汇总。如果部分 DeepSeek 请求省略用量，已报告的请求仍会生成明确标记的最低费用。",
         "成功的 read_file 不会在聊天中重复文件正文。可使用 Open file 在编辑器中查看；读取失败时仍会显示诊断结果。",
         "完成的 create_file、edit_file 和 apply_patch 在拥有完整 diff 时会提供 View change。它会打开该次工具执行记录的前后内容，不受之后工作树变更影响。",
       ],
@@ -66,11 +67,21 @@ export const userManual: PageContent = {
       ],
     },
     {
+      title: "网页搜索",
+      items: [
+        "启用网页搜索时，扩展会管理默认的 http://127.0.0.1:8888 端点。首次启动会下载当前平台对应的固定 SearXNG 运行时，验证预期大小和 SHA-256 摘要，并且只在 loopback 上运行；无需系统 Python、Docker、Podman 或 Chromium。",
+        "Settings 会加载已配置实例的引擎目录。保持自动选择时使用实例默认值；手动选择引擎后，每次搜索都会发送经过验证的快捷名称。",
+        "也可以配置兼容的自定义 SearXNG 端点。非 loopback 端点必须使用 HTTPS，并且拒绝包含凭据的 URL。",
+        "search_web 最多返回十个规范化 HTTPS 结果。read_web 只接受该搜索已登记或用户明确提供的 URL，然后提取有界、惰性的页面分段。",
+      ],
+    },
+    {
       title: "终端执行",
       items: [
-        "终端命令以非交互方式运行，无法回答提示，也不提供 TTY。",
-        "结果会记录 stdout、stderr、退出码、信号、超时、取消状态、实际工作目录和 shell。",
+        "每个代理命令都会通过 Shell Integration 在专用 VS Code 集成终端中以非交互、可见方式运行。命令完成后终端会关闭，捕获的结果仍保留在聊天中。",
+        "结果会记录有界 stdout/stderr、退出码、信号、超时、取消状态、实际工作目录和 shell。",
         "输出有大小限制；发生截断时会保留开头和结尾，并标记被省略的中间部分。",
+        "系统会拒绝分离式或后台进程启动器。代理终端会禁用 .NET 构建服务器与节点复用，避免在构建完成后留下孤儿 worker 或锁定项目文件。",
         "在自动模式下，独立的 DeepSeek 实例会将终端命令和文件修改分类为常规、提权或关键；不再使用本地危险分析器。",
         "审查器接收初始用户请求、不含内容的操作说明、机械范围事实，以及显式命名且非敏感工作区文件的受限上下文。",
         "审查器可以批准、返回重新规划约束或要求手动确认。auto-approve 确认提权和关键操作；full-access 确认关键操作。自动决策至少需要 medium-high 置信度。",
@@ -85,8 +96,8 @@ export const userManual: PageContent = {
         "禁用历史记录会进入无痕模式。如果存在活动生成或排队消息，停止并清空前会要求确认。无痕聊天仅保留在内存中，在聊天、历史记录和设置之间切换时不会丢失，但重新加载扩展或 VS Code 时会被丢弃。退出时可以明确保存为新会话或直接丢弃。",
         "历史列表直接从经过验证的会话文件重建。存储上限为 100 个会话和 24 MiB。",
         "删除单个会话或所有可见会话时会使用 VS Code 原生确认，并提供撤销。删除前先取消活动任务并清空队列和 checkpoint；图像资源会等撤销窗口结束后再清理，以便完整恢复。",
-        "会话文件使用 schema version 2，并将消息与生成结果关联。激活时，有效的旧文件或部分迁移文件会以原子方式升级，并获得确定性的生成任务归属。兼容逻辑没有运行时截止日期，会一直保留到计划的清理版本发布。",
-        "活动任务的 checkpoint 保存在 ~/.yrs-dpsk-copilot/generation-checkpoints/ 下，且不包含 API key。中断时处于 pending 或 running 的工具会恢复为 cancelled；损坏的历史和 checkpoint 记录会分别隔离到对应的 corrupt 目录。",
+        "会话文件必须使用 schema version 2，并包含完整的工作区绑定和当前格式的上下文摘要。激活时，所有不兼容、格式错误、过大或文件名不匹配的历史文件及其消息分段都会被永久删除，不再尝试旧版迁移。",
+        "活动任务的 checkpoint 保存在 ~/.yrs-dpsk-copilot/generation-checkpoints/ 下，且不包含 API key。中断时处于 pending 或 running 的工具会恢复为 cancelled；仅恢复包含完整工作区绑定的 schema-3 checkpoint，不兼容记录会被删除。",
       ],
     },
     {

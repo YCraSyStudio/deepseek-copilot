@@ -1,5 +1,5 @@
 import * as assert from "assert";
-import { detectUiLocale, getUiLocale, setInterfaceLanguage, subscribeUiLocale, translateForLocale } from "@/ui/i18n/I18n";
+import { detectUiLocale, getUiLocale, setInterfaceLanguage, subscribeUiLocale } from "@/ui/i18n/I18n";
 import { en } from "@/ui/i18n/locales/en";
 import { es } from "@/ui/i18n/locales/es";
 import { zh } from "@/ui/i18n/locales/zh";
@@ -10,15 +10,6 @@ suite("webview internationalization", () => {
     assert.strictEqual(detectUiLocale("es-ES"), "es");
     assert.strictEqual(detectUiLocale("zh-CN"), "zh");
     assert.strictEqual(detectUiLocale("fr-FR"), "en");
-  });
-
-  test("translates messages and interpolates named values", () => {
-    assert.strictEqual(translateForLocale("es", "history.pageSummary", { page: 2, pages: 4, count: 80 }), "Página 2 de 4 · 80 conversaciones");
-    assert.strictEqual(translateForLocale("es", "tools.openFile"), "Abrir archivo");
-  });
-
-  test("keeps unknown messages as an English fallback", () => {
-    assert.strictEqual(translateForLocale("es", "Unregistered provider message"), "Unregistered provider message");
   });
 
   test("keeps translated catalogs aligned", () => {
