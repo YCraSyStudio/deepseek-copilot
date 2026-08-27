@@ -27,6 +27,10 @@ const pinnedKeys = Object.keys(pinnedAssets).sort();
 assertEqual(JSON.stringify(requiredKeys), JSON.stringify(pinnedKeys), "workflow required runtime keys");
 
 const manifestFlag = process.argv.indexOf("--manifest");
+const metadataOnly = process.argv.includes("--metadata-only");
+if (metadataOnly && manifestFlag < 0) {
+  throw new Error("--metadata-only requires --manifest");
+}
 if (manifestFlag >= 0) {
   const manifestArgument = process.argv[manifestFlag + 1];
   if (!manifestArgument) {throw new Error("--manifest requires a path");}
@@ -36,11 +40,13 @@ if (manifestFlag >= 0) {
   assertEqual(JSON.stringify(Object.keys(manifest.assets ?? {}).sort()), JSON.stringify(pinnedKeys), "generated manifest asset keys");
   for (const [platformKey, pinned] of Object.entries(pinnedAssets)) {
     const generated = manifest.assets?.[platformKey];
-    if (
-      generated?.name !== pinned.name ||
-      generated?.sha256 !== pinned.sha256 ||
-      generated?.size !== pinned.size
-    ) {
+    if (generated?.name !== pinned.name) {
+      throw new Error(`Generated ${platformKey} runtime asset name is invalid`);
+    }
+    if (!/^[a-f0-9]{64}$/.test(generated?.sha256 ?? "") || !Number.isSafeInteger(generated?.size) || generated.size <= 0) {
+      throw new Error(`Generated ${platformKey} runtime metadata is invalid`);
+    }
+    if (!metadataOnly && (generated.sha256 !== pinned.sha256 || generated.size !== pinned.size)) {
       throw new Error(`Generated ${platformKey} runtime does not match the extension trust anchor`);
     }
   }
