@@ -5,12 +5,13 @@ import { chatCompletion } from "@/infrastructure/deepseek/providers/deepseek/fea
 import type { ProviderUsage } from "@/shared/usage/Usage";
 import { collectCommandFileContext } from "./CommandFileContext";
 import { getTextContent } from "@/contracts/deepseek/Chat";
+import { isRecord } from "@/shared/utils/TypeGuards";
 
 const REVIEW_TIMEOUT_MS = 20_000;
 const MAX_USER_INTENT_LENGTH = 4_000;
 const MAX_REASON_LENGTH = 1_000;
 
-export type CommandSafetyDecision = "approve" | "revise" | "manual_confirmation";
+type CommandSafetyDecision = "approve" | "revise" | "manual_confirmation";
 export type CommandSafetyRisk = "routine" | "elevated" | "critical";
 export type CommandSafetyConfidence =
   | "very_high"
@@ -187,10 +188,6 @@ export function isAutomaticConfidence(
 function isCommandSafetyConfidence(value: unknown): value is CommandSafetyConfidence {
   return value === "very_high" || value === "high" || value === "medium_high" || value === "medium" ||
     value === "medium_low" || value === "low" || value === "very_low";
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
 function hasOnlyKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {

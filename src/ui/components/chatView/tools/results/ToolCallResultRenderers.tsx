@@ -1,5 +1,6 @@
-import type { StructuredToolResult } from "@webview/views/chatView/utils/FilePreview";
-import { detectLanguage, extractFilename, formatSize } from "@webview/views/chatView/utils/FilePreview";
+import type { StructuredToolResult } from "@webview/views/chatView/utils/FilePreviewTypes";
+import { detectLanguage, extractFilename } from "@webview/views/chatView/utils/FileType";
+import { formatSize } from "@webview/views/chatView/utils/Format";
 import { t } from "@webview/i18n";
 import { isEditorFileTool } from "./FileToolPresentation";
 

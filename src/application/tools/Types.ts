@@ -53,9 +53,6 @@ export interface ExecutionResult {
   toolCallId: string;
   toolName: string;
   outcome: ToolExecutionOutcome;
-  /** Serialized compatibility view for the webview and provider boundary. */
-  result: string;
-  isError: boolean;
   status: "completed" | "error" | "confirmation_required" | "rejected" | "cancelled";
 }
 

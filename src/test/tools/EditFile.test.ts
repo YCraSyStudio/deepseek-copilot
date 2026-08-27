@@ -1,6 +1,6 @@
 import * as assert from "assert";
 import * as path from "path";
-import { editFileHandler, editFileHandlerForced } from "@/infrastructure/tools/definitions/EditFile";
+import { editFileHandler, editFileHandlerForced } from "@/infrastructure/tools/builtins/fileSystem/EditFile";
 import { setToolWorkspaceHost, type ToolWorkspaceEntryType, type ToolWorkspaceHost, type ToolWorkspaceStat } from "@/infrastructure/tools/ToolWorkspace";
 
 suite("edit_file tool", () => {

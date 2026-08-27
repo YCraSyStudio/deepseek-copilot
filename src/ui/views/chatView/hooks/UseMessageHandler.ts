@@ -9,7 +9,7 @@ import { acceptMessageForScope } from "./GenerationEventScope";
 /**
  * Additional streamDone event data.
  */
-export type StreamDoneInfo = {
+type StreamDoneInfo = {
   status: "completed" | "cancelled" | "interrupted";
   finish_reason?: string;
   generationStopReason?: ConversationMessage["generationStopReason"];

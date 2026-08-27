@@ -2,7 +2,6 @@ import type { WebviewConfig } from "@/contracts";
 
 export type SettingsConfig = WebviewConfig;
 
-export type ApiKeyStatus = "missing" | "configured" | "testing";
 export type ApiCredentialState = { status: "configured" | "missing"; keyPreview?: string };
 
 export type UpdateConfigFn = <K extends keyof SettingsConfig>(

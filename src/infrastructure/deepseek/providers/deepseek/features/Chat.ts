@@ -1,8 +1,6 @@
-import { deepseekFetch } from "@/infrastructure/deepseek/client/DeepSeekFetch";
-import { buildChatUrl } from "@/infrastructure/deepseek/endpoints/DeepSeekEndpoints";
+import { buildApiUrl, deepseekFetch } from "@/infrastructure/deepseek/client/DeepSeekFetch";
 import { readSSEStream } from "@/infrastructure/deepseek/streaming/ReadSSEStream";
-import type { AppConfig, ChatCompletionRequest, ChatCompletionResponse, StreamChunk } from "@/contracts";
-import { DEEPSEEK_DEFAULTS } from "../DeepSeekConfig";
+import { DEFAULT_CONFIG, type AppConfig, type ChatCompletionRequest, type ChatCompletionResponse, type StreamChunk } from "@/contracts";
 import { parseChatCompletionResponse, parseStreamToolCalls } from "./ChatResponseValidation";
 import type { ProviderUsage } from "@/shared/usage/Usage";
 import { isOfficialDeepSeekEndpoint, parseProviderUsage } from "@/shared/usage/Usage";
@@ -14,17 +12,17 @@ interface DeepSeekChatRequest extends ChatCompletionRequest {
 
 export type ChatRequest = DeepSeekChatRequest;
 export type ChatResponse = ChatCompletionResponse;
-export type ChatStreamChunk = StreamChunk;
+type ChatStreamChunk = StreamChunk;
 const MAX_STREAM_CONTENT_BYTES = 8 * 1024 * 1024;
 const MAX_STREAM_REASONING_BYTES = 8 * 1024 * 1024;
 
 export function buildChatBody(request: Partial<ChatRequest>, config: AppConfig): Partial<ChatRequest> {
   const body: Partial<ChatRequest> = {
-    model: request.model || config.model || DEEPSEEK_DEFAULTS.model,
+    model: request.model || config.model || DEFAULT_CONFIG.model,
     stream: request.stream ?? true,
   };
 
-  const thinkingEnabled = config.thinkingMode ?? DEEPSEEK_DEFAULTS.thinkingMode;
+  const thinkingEnabled = config.thinkingMode ?? DEFAULT_CONFIG.thinkingMode;
   if (thinkingEnabled) {
     body.thinking = { type: "enabled" };
     const reasoningEffort = request.reasoning_effort ?? config.reasoningEffort;
@@ -36,19 +34,19 @@ export function buildChatBody(request: Partial<ChatRequest>, config: AppConfig):
     if (request.temperature !== undefined) {
       body.temperature = request.temperature;
     } else {
-      body.temperature = config.temperature ?? DEEPSEEK_DEFAULTS.temperature;
+      body.temperature = config.temperature ?? DEFAULT_CONFIG.temperature;
     }
     if (request.top_p !== undefined) {
       body.top_p = request.top_p;
     } else {
-      body.top_p = config.topP ?? DEEPSEEK_DEFAULTS.topP;
+      body.top_p = config.topP ?? DEFAULT_CONFIG.topP;
     }
   }
 
   if (request.max_tokens !== undefined) {
     body.max_tokens = request.max_tokens;
   } else {
-    body.max_tokens = config.maxTokens ?? DEEPSEEK_DEFAULTS.maxTokens;
+    body.max_tokens = config.maxTokens ?? DEFAULT_CONFIG.maxTokens;
   }
   if (request.stop) {
     body.stop = request.stop;
@@ -75,7 +73,7 @@ export function buildChatBody(request: Partial<ChatRequest>, config: AppConfig):
 }
 
 export async function chatCompletion(request: ChatRequest, apiKey: string, baseUrl: string, signal?: AbortSignal): Promise<ChatResponse> {
-  const url = buildChatUrl(baseUrl);
+  const url = buildApiUrl(baseUrl, "chat/completions");
   const response = await deepseekFetch({
     pathOrUrl: url,
     apiKey,
@@ -99,7 +97,7 @@ interface ChatCompletionStreamOptions {
 
 export async function chatCompletionStream(options: ChatCompletionStreamOptions): Promise<void> {
   const { request, apiKey, baseUrl, onChunk, signal } = options;
-  const url = buildChatUrl(baseUrl);
+  const url = buildApiUrl(baseUrl, "chat/completions");
   let finishReason = "stop";
   let emittedDone = false;
   let contentBytes = 0;

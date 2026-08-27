@@ -1,5 +1,6 @@
 import type { ToolDefinition } from "@/contracts";
 import { logWarning } from "@/shared/logging/Logger";
+import { isRecord } from "@/shared/utils/TypeGuards";
 import type { RegisteredTool, ValidationResult } from "./Types";
 
 /**
@@ -20,11 +21,6 @@ export class ToolRegistry {
   /** Get a registered tool by name. */
   get(name: string): RegisteredTool | undefined {
     return this.tools.get(name);
-  }
-
-  /** Check whether a tool is registered. */
-  has(name: string): boolean {
-    return this.tools.has(name);
   }
 
   /** Get all API-ready tool definitions. */
@@ -93,10 +89,6 @@ function validateAgainstToolSchema(args: unknown, schema: Record<string, unknown
   }
 
   return { valid: true };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
 function matchesJsonSchemaType(value: unknown, expectedType: string): boolean {

@@ -26,12 +26,12 @@
 ## User message
 
 1. The UI sends `sendMessage` with a unique `clientRequestId`, text, references, image attachments, and the displayed workspace revision.
-2. `ChatHandler` resolves the conversation and enqueues the request.
+2. `MessageAdmissionService` restores or creates the conversation, validates the captured workspace revision and file references, and only then enqueues the normalized request.
 3. `GenerationCoordinator` permits one active run per conversation and up to `maxConcurrentGenerations` across conversations.
 4. The run captures an immutable workspace binding, permission snapshot, model configuration, and `AbortController`.
 5. `GenerationContext` builds and, when necessary, compacts the provider request. The default output allowance is 8,192 tokens.
 6. Streaming timeline, tool state, and canonical provider transcript are checkpointed without secrets.
-7. `GenerationExecutor` reconciles persistence and publishes exactly one terminal outcome.
+7. `GenerationRunFinalizer` reconciles persistence, usage, checkpoints, and exactly one terminal outcome; `GenerationExecutor` remains the orchestration boundary.
 
 ## Queue, steering, and cancellation
 

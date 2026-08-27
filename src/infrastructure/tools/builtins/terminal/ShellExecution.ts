@@ -2,12 +2,12 @@ import { spawn, type ChildProcess } from "child_process";
 import { realpath } from "fs/promises";
 import { getToolWorkspaceHost, resolveWorkspacePathSecure } from "@/infrastructure/tools/ToolWorkspace";
 
-export const DEFAULT_COMMAND_TIMEOUT_MS = 30_000;
-export const DEFAULT_MAX_OUTPUT_BYTES = 1024 * 1024;
-export const MIN_COMMAND_TIMEOUT_MS = 1_000;
-export const MAX_COMMAND_TIMEOUT_MS = 120_000;
-export const MIN_OUTPUT_BYTES = 4 * 1024;
-export const MAX_OUTPUT_BYTES = 4 * 1024 * 1024;
+const DEFAULT_COMMAND_TIMEOUT_MS = 30_000;
+const DEFAULT_MAX_OUTPUT_BYTES = 1024 * 1024;
+const MIN_COMMAND_TIMEOUT_MS = 1_000;
+const MAX_COMMAND_TIMEOUT_MS = 120_000;
+const MIN_OUTPUT_BYTES = 4 * 1024;
+const MAX_OUTPUT_BYTES = 4 * 1024 * 1024;
 const OUTPUT_DRAIN_GRACE_MS = 500;
 const TERMINATION_GRACE_MS = 1_500;
 const activeChildren = new Set<ChildProcess>();

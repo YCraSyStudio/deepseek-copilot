@@ -1,6 +1,6 @@
 import * as assert from "node:assert";
 import { createSystemMessage, SYSTEM_PROMPT_COPILOT } from "@/contracts/deepseek/Chat";
-import { REVIEW_SYSTEM_PROMPT } from "@/infrastructure/deepseek/security/CommandSafetyReviewer";
+import { REVIEW_SYSTEM_PROMPT } from "@/infrastructure/deepseek/security/commandReview/CommandSafetyReviewer";
 
 suite("system tool guidance", () => {
   test("keeps the coding prompt compact and principle-based", () => {

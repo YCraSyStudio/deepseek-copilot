@@ -4,7 +4,6 @@ import type { ProviderUsage } from "@/shared/usage/Usage";
 import { buildToolCallRequest } from "./ToolCallRequest";
 import { assertUniqueToolCallIds } from "../ChatResponseValidation";
 import type { ToolCallCycleOptions } from "@/application/chat/toolCall/ToolCallTypes";
-import { SerializedToolProtocolStreamGuard } from "@/application/chat/toolCall/SerializedToolProtocol";
 
 interface StreamToolCallRoundOptions {
   messages: ChatMessage[];
@@ -43,7 +42,6 @@ async function streamToolCallRoundAttempt(options: StreamToolCallRoundOptions, c
   let finishReason: string | null = null;
   let usage: ProviderUsage | undefined;
   let stoppedForExcessiveReasoning = false;
-  const contentGuard = new SerializedToolProtocolStreamGuard();
   const internalController = new AbortController();
   const combinedSignal = cycleOptions.signal
     ? AbortSignal.any([cycleOptions.signal, internalController.signal])
@@ -58,7 +56,7 @@ async function streamToolCallRoundAttempt(options: StreamToolCallRoundOptions, c
         if (chunk.type === "usage" && chunk.usage) {
           usage = chunk.usage;
         }
-        const state = { finalContent, finalReasoning, hasToolCallsInStream, streamingToolCalls, finishReason, contentGuard };
+        const state = { finalContent, finalReasoning, hasToolCallsInStream, streamingToolCalls, finishReason };
         const nextState = applyStreamChunk({ chunk, state, cycleOptions, emitStreamEvents });
         finalContent = nextState.finalContent;
         finalReasoning = nextState.finalReasoning;
@@ -128,7 +126,6 @@ interface StreamState {
   hasToolCallsInStream: boolean;
   streamingToolCalls: Map<number, ToolCall>;
   finishReason: string | null;
-  contentGuard: SerializedToolProtocolStreamGuard;
 }
 
 function applyStreamChunk(options: { chunk: StreamChunk; state: StreamState; cycleOptions: ToolCallCycleOptions; emitStreamEvents: boolean }): StreamState {
@@ -137,11 +134,10 @@ function applyStreamChunk(options: { chunk: StreamChunk; state: StreamState; cyc
   switch (chunk.type) {
     case "content": {
       const content = chunk.content ?? "";
-      const visibleContent = state.contentGuard.push(content);
-      if (emitStreamEvents && visibleContent) {
-        cycleOptions.onStreamChunk?.(visibleContent);
+      if (emitStreamEvents && content) {
+        cycleOptions.onStreamChunk?.(content);
       }
-      return { ...state, finalContent: state.finalContent + (chunk.content ?? "") };
+      return { ...state, finalContent: state.finalContent + content };
     }
     case "reasoning": {
       const reasoning = chunk.reasoning_content ?? "";
@@ -156,12 +152,6 @@ function applyStreamChunk(options: { chunk: StreamChunk; state: StreamState; cyc
     case "usage":
       return state;
     case "done":
-      if (emitStreamEvents) {
-        const visibleContent = state.contentGuard.finish();
-        if (visibleContent) {cycleOptions.onStreamChunk?.(visibleContent);}
-      } else {
-        state.contentGuard.finish();
-      }
       return {
         ...state,
         finishReason: chunk.finish_reason ?? state.finishReason,

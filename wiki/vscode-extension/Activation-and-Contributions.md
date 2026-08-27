@@ -23,7 +23,7 @@ VS Code automatically generates activation events from those contributions. Do n
 - register commands.
 - add disposables to `context.subscriptions`.
 
-`ChatHandler` creates one immutable `VsCodeToolWorkspace` from the conversation binding when each generation starts and scopes it through `AsyncLocalStorage`; activation does not install a mutable process-wide workspace root.
+`GenerationExecutor` creates one immutable `VsCodeToolWorkspace` from the conversation binding when each generation starts and scopes it through `AsyncLocalStorage`; activation does not install a mutable process-wide workspace root.
 
 ## `deactivate()`
 

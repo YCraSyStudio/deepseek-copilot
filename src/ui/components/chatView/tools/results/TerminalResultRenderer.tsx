@@ -1,4 +1,4 @@
-import type { TerminalCommandResult } from "@webview/views/chatView/utils/FilePreview";
+import type { TerminalCommandResult } from "@webview/views/chatView/utils/FilePreviewTypes";
 import { t } from "@webview/i18n";
 
 export function renderTerminalResult(result: TerminalCommandResult) {

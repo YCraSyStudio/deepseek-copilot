@@ -1,6 +1,5 @@
 import * as vscode from "vscode";
 import { randomUUID } from "node:crypto";
-import * as path from "node:path";
 import { ChatHandler } from "./handlers/chat/ChatHandler";
 import { SettingsHandler } from "./handlers/SettingsHandler";
 import { HistoryHandler } from "./handlers/HistoryHandler";
@@ -10,15 +9,15 @@ import { HistoryManager } from "@/platform/vscode/storage";
 import { getPathCompletionItems, insertCodeIntoActiveEditor, openWorkspaceFile } from "@/platform/vscode/editor/EditorActions";
 import { CHAT_VIEW_TYPE, SIDEBAR_VIEW_ID } from "@/shared/constants";
 import { logWarning } from "@/shared/logging/Logger";
-import { WEBVIEW_PROTOCOL_VERSION, type ReferencedFile, type ReferencedFilePayload, type WebviewToHandlerMessage } from "@/contracts";
-import { isWebviewToHandlerMessage } from "./WebviewMessageValidation";
-import { isUriInsideRoot } from "@/platform/vscode/workspace";
+import type { ReferencedFile, ReferencedFilePayload, WebviewToHandlerMessage } from "@/contracts";
 import { ChangeDiffViewer } from "@/platform/vscode/editor/diff/ChangeDiffViewer";
 import type { ToolRegistry } from "@/application/tools";
 import type { HeadlessWebRuntime } from "@/infrastructure/browser/HeadlessWebRuntime";
 import { WebviewCommandDispatcher } from "./WebviewCommandDispatcher";
 import type { ModelProviderFactory, SecretStore, SettingsRepository } from "@/application/ports";
 import { ImageAttachmentController } from "./ImageAttachmentController";
+import { AttachmentSelectionController } from "./AttachmentSelectionController";
+import { registerWebviewProtocol } from "./WebviewProtocolSession";
 
 type ChatCommandMessage = { type: "addReferencedFiles"; files: ReferencedFilePayload[] } | { type: "setDraft"; text: string };
 const MAX_PENDING_WEBVIEW_MESSAGES = 128;
@@ -43,6 +42,7 @@ export class WebviewProvider implements vscode.WebviewViewProvider, vscode.Dispo
   private readonly settings: SettingsRepository;
   private readonly changeDiffViewer: ChangeDiffViewer;
   private readonly imageAttachments: ImageAttachmentController;
+  private readonly attachmentSelection: AttachmentSelectionController;
   private readonly commandDispatcher = new WebviewCommandDispatcher();
   private readonly disposables: vscode.Disposable[] = [];
   private readonly pendingMessages: ChatCommandMessage[] = [];
@@ -75,6 +75,10 @@ export class WebviewProvider implements vscode.WebviewViewProvider, vscode.Dispo
       dependencies.secrets,
       dependencies.modelProviderFactory,
     );
+    this.attachmentSelection = new AttachmentSelectionController({
+      chatHandler: this.chatHandler,
+      imageAttachments: this.imageAttachments,
+    });
     this.historyHandler = new HistoryHandler(
       this.historyManager,
       (conversation) => this.chatHandler.loadConversation(conversation),
@@ -126,36 +130,7 @@ export class WebviewProvider implements vscode.WebviewViewProvider, vscode.Dispo
         ? getDevViewContent({ webview: webviewView.webview, devServerUrl, codiconFontUri })
         : getHtmlContent(webviewView.webview, webviewDistUri);
 
-    let protocolReady = false;
-    this.viewDisposables.push(webviewView.webview.onDidReceiveMessage((message: unknown) => {
-      if (isWebviewToHandlerMessage(message)) {
-        if (message.type === "initializeProtocol") {
-          protocolReady = message.protocolVersion === WEBVIEW_PROTOCOL_VERSION;
-          void webviewView.webview.postMessage(protocolReady
-            ? { type: "protocolReady", protocolVersion: WEBVIEW_PROTOCOL_VERSION }
-            : { type: "protocolError", supportedVersion: WEBVIEW_PROTOCOL_VERSION, error: "Unsupported webview protocol version." });
-          return;
-        }
-        if (!protocolReady) {
-          void webviewView.webview.postMessage({
-            type: "requestRejected",
-            requestId: getMessageRequestId(message),
-            action: message.type,
-            error: "The webview protocol has not been initialized. Reload the view and try again.",
-          });
-          return;
-        }
-        this._routeMessage(message, webviewView);
-      } else {
-        logWarning("[WebviewProvider] Ignoring malformed webview message");
-        void webviewView.webview.postMessage({
-          type: "requestRejected",
-          requestId: getUnknownRequestId(message),
-          action: getUnknownMessageType(message),
-          error: "The request was rejected because its payload is invalid or exceeds a supported limit.",
-        });
-      }
-    }));
+    this.viewDisposables.push(registerWebviewProtocol(webviewView, (message) => this._routeMessage(message, webviewView)));
     this.viewDisposables.push(webviewView.onDidDispose(() => {
       if (this.webviewView === webviewView) {
         this.webviewView = undefined;
@@ -215,11 +190,11 @@ export class WebviewProvider implements vscode.WebviewViewProvider, vscode.Dispo
 
   public async startNewChat(): Promise<void> {
     await this.revealChat();
-      if (this.webviewView) {
-        this.chatHandler.handle({ type: "newConversation", requestId: randomUUID() }, this.webviewView);
-        await this.webviewView.webview.postMessage({ type: "clearChat" });
-        await this.webviewView.webview.postMessage({ type: "setDraft", text: "" });
-      }
+    if (this.webviewView) {
+      this.chatHandler.handle({ type: "newConversation", requestId: randomUUID() }, this.webviewView);
+      await this.webviewView.webview.postMessage({ type: "clearChat" });
+      await this.webviewView.webview.postMessage({ type: "setDraft", text: "" });
+    }
   }
 
   private async postToChat(message: ChatCommandMessage): Promise<void> {
@@ -292,7 +267,7 @@ export class WebviewProvider implements vscode.WebviewViewProvider, vscode.Dispo
     ] as const, (message, view) => this.historyHandler.handle(message, view));
 
     this.commandDispatcher.register("selectAttachments", (message, view) => {
-      void this.handleSelectAttachments(message.requestId, message.conversationId, view);
+      void this.attachmentSelection.select(message.requestId, message.conversationId, view);
     });
     this.commandDispatcher.register("uploadClipboardImage", (message, view) => {
       void this.imageAttachments.uploadClipboard(view.webview, message).then(
@@ -359,131 +334,6 @@ export class WebviewProvider implements vscode.WebviewViewProvider, vscode.Dispo
     await operation(context.binding);
   }
 
-  private async handleSelectAttachments(
-    requestId: string,
-    conversationId: string | undefined,
-    webviewView: vscode.WebviewView,
-  ): Promise<void> {
-    const selected = await vscode.window.showOpenDialog({
-      canSelectFiles: true,
-      canSelectFolders: false,
-      canSelectMany: true,
-      title: "Attach files",
-      openLabel: "Attach to chat",
-    });
-    if (!selected?.length) {return;}
-    try {
-      const { attachments, contextUris } = await this.imageAttachments.classifyAndUpload(webviewView.webview, selected);
-      await webviewView.webview.postMessage({ type: "imageAttachmentsSelected", requestId, attachments });
-      await this.handleSelectedContextFiles(contextUris, conversationId, webviewView);
-    } catch (error: unknown) {
-      await webviewView.webview.postMessage({
-        type: "imageAttachmentsSelected",
-        requestId,
-        attachments: [],
-        error: getErrorMessage(error),
-      });
-    }
-  }
-
-  private async handleSelectedContextFiles(
-    selected: readonly vscode.Uri[],
-    conversationId: string | undefined,
-    webviewView: vscode.WebviewView,
-  ): Promise<void> {
-    if (!selected.length) {return;}
-    const context = await this.chatHandler.getWorkspaceContext(conversationId);
-    const files: ReferencedFilePayload[] = [];
-    for (const uri of selected.slice(0, 10)) {
-      try {
-        const stat = await vscode.workspace.fs.stat(uri);
-        if (stat.type !== vscode.FileType.File || stat.size > 1024 * 1024) {
-          continue;
-        }
-        const bytes = vscode.workspace.fs.readFile(uri);
-        const contentBytes = await bytes;
-        if (looksBinary(contentBytes)) {
-          continue;
-        }
-        const internalFolder = context.binding.folders.find((folder) => isUriInsideRoot(uri, vscode.Uri.parse(folder.uri)));
-        const name = uri.path.split("/").pop() || "context-file";
-        const sensitive = isSensitiveUri(uri);
-        if (sensitive) {
-          const choice = await vscode.window.showWarningMessage(
-            `Add potentially sensitive file "${name}" as a read-only context snapshot?`,
-            { modal: true },
-            "Add snapshot",
-          );
-          if (choice !== "Add snapshot") {
-            continue;
-          }
-        }
-        const snapshotOnly = !internalFolder || sensitive;
-        const relative = internalFolder ? relativeUriPath(vscode.Uri.parse(internalFolder.uri), uri) : undefined;
-        files.push({
-          referenceId: randomUUID(),
-          path: snapshotOnly ? name : `./${context.binding.folders.length > 1 ? `${internalFolder!.alias}/` : ""}${relative}`,
-          name,
-          content: Buffer.from(contentBytes).toString("utf8"),
-          language: name.includes(".") ? name.split(".").pop() : undefined,
-          type: "file",
-          size: stat.size,
-          scope: snapshotOnly ? "external-snapshot" : "workspace",
-          rootUri: snapshotOnly ? undefined : internalFolder!.uri,
-          bindingRevision: snapshotOnly ? undefined : context.binding.revision,
-        });
-      } catch {
-        // Ignore entries that disappear or become unreadable while the picker is open.
-      }
-    }
-    this.chatHandler.registerExternalContextFiles(files as ReferencedFile[]);
-    await webviewView.webview.postMessage({ type: "contextFilesSelected", files });
-  }
-}
-
-function getMessageRequestId(message: WebviewToHandlerMessage): string | undefined {
-  if ("clientRequestId" in message) {
-    return message.clientRequestId;
-  }
-  if ("requestId" in message) {
-    return String(message.requestId);
-  }
-  return undefined;
-}
-
-function getUnknownRequestId(value: unknown): string | undefined {
-  if (!value || typeof value !== "object") {
-    return undefined;
-  }
-  const candidate = value as { requestId?: unknown; clientRequestId?: unknown };
-  const id = candidate.requestId ?? candidate.clientRequestId;
-  return typeof id === "string" || typeof id === "number" ? String(id).slice(0, 512) : undefined;
-}
-
-function getUnknownMessageType(value: unknown): string | undefined {
-  if (!value || typeof value !== "object") {
-    return undefined;
-  }
-  const type = (value as { type?: unknown }).type;
-  return typeof type === "string" ? type.slice(0, 128) : undefined;
-}
-
-function looksBinary(bytes: Uint8Array): boolean {
-  return bytes.subarray(0, 8_192).some((value) => value === 0);
-}
-
-function isSensitiveUri(uri: vscode.Uri): boolean {
-  return /(^|[/\\.])(env(?:\.[^/\\]+)?|pem|key|p12|pfx|\.ssh|credentials?|secrets?|tokens?)([/\\.]|$)/i.test(uri.path);
-}
-
-function relativeUriPath(root: vscode.Uri, candidate: vscode.Uri): string | undefined {
-  const relative = root.scheme === "file"
-    ? path.relative(root.fsPath, candidate.fsPath)
-    : path.posix.relative(root.path, candidate.path);
-  if (relative === ".." || relative.startsWith("../") || relative.startsWith("..\\") || path.isAbsolute(relative)) {
-    return undefined;
-  }
-  return relative.replace(/\\/g, "/");
 }
 
 function getErrorMessage(error: unknown): string {

@@ -4,9 +4,6 @@ import type {
   RealPathResolver,
   ResolvedWorkspacePath,
   ResolveWorkspacePathOptions,
-  ToolHostCommandOptions,
-  ToolHostCommandResult,
-  ToolWorkspaceEntryType,
   ToolWorkspaceFindOptions,
   ToolWorkspaceHost,
 } from "@/application/ports";
@@ -14,8 +11,6 @@ export type {
   RealPathResolver,
   ResolvedWorkspacePath,
   ResolveWorkspacePathOptions,
-  ToolHostCommandOptions,
-  ToolHostCommandResult,
   ToolWorkspaceEntryType,
   ToolWorkspaceFilePreview,
   ToolWorkspaceFindOptions,
@@ -118,8 +113,6 @@ function createValidatingWorkspaceHost(host: ToolWorkspaceHost): ToolWorkspaceHo
   return {
     getRootPath: host.getRootPath.bind(host),
     getWorkspaceId: host.getWorkspaceId?.bind(host),
-    getAvailableRootAliases: host.getAvailableRootAliases?.bind(host),
-    getDefaultRootAlias: host.getDefaultRootAlias?.bind(host),
     isPathInsideWorkspace: host.isPathInsideWorkspace?.bind(host),
     resolvePath: host.resolvePath?.bind(host),
     resolveLocalPath: host.resolveLocalPath?.bind(host),

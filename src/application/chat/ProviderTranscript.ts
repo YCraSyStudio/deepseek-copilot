@@ -1,4 +1,5 @@
 import type { ChatMessage, Conversation, ConversationMessage, ToolCall } from "@/contracts";
+import { isRecord } from "@/shared/utils/TypeGuards";
 
 const MAX_TRANSCRIPT_MESSAGES = 10_000;
 const MAX_TRANSCRIPT_FIELD_CHARACTERS = 5 * 1024 * 1024;
@@ -21,7 +22,7 @@ export interface ConversationContextSummary {
   boundaries?: CompactionBoundary[];
 }
 
-export interface CompactionBoundary {
+interface CompactionBoundary {
   id: string;
   createdAt: number;
   reason: "input_soft_limit" | "tool_cycle_rollover" | "manual_recovery";
@@ -220,10 +221,6 @@ function isProtocolOrdered(messages: ChatMessage[], requireFinalAssistant: boole
 
 function isMessageRole(value: unknown): value is ChatMessage["role"] {
   return value === "assistant" || value === "tool";
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
 function isBoundedString(value: unknown, maxLength: number): value is string {

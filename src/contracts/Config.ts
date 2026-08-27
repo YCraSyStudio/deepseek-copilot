@@ -2,8 +2,6 @@ import { DEEPSEEK_VISION_MODEL_ID } from "./deepseek/Models";
 
 export type PermissionMode = "default" | "auto-approve" | "full-access";
 export type InterfaceLanguage = "auto" | "en" | "es" | "zh";
-/** @deprecated SearXNG is now the only web-search provider. */
-export type WebSearchEngine = "searxng";
 
 export interface SearxngEngineOption {
   name: string;
@@ -36,7 +34,7 @@ export interface AppConfig {
   usageBreakdown: boolean;
   webSearchEnabled: boolean;
   /** @deprecated Preserved for persisted-config compatibility. */
-  webSearchEngine: WebSearchEngine;
+  webSearchEngine: "searxng";
   searxngUrl: string;
   /** SearXNG engine shortcuts. Empty means use the instance defaults. */
   searxngEngines: string[];

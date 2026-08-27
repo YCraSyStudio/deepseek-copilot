@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 import "@vscode/codicons/dist/codicon.css";
 import "./SettingsView.css";
-import { ApiTab, GeneralTab, ToolsTab } from "./tabs";
+import { ApiTab } from "./tabs";
+import { GeneralSection, ToolsSection } from "./sections";
 import { getVsCodeApi } from "../../VsCodeApi";
 import { DEFAULT_CONFIG, MODEL_OPTIONS, REASONING_EFFORT_OPTIONS, type ApiCredentialState, type SaveOnBlurFn, type SettingsConfig } from "./model";
 import type { HandlerToWebviewMessage } from "@/contracts";
@@ -195,7 +196,7 @@ function SettingsView() {
           </div>
         ) : null}
         {hasLoadedConfig && activeTab === "general" ? (
-          <GeneralTab config={config} updateConfig={updateConfig} saveOnBlur={saveOnBlur} />
+          <GeneralSection config={config} updateConfig={updateConfig} saveOnBlur={saveOnBlur} />
         ) : null}
         {hasLoadedConfig && activeTab === "api" ? (
           <ApiTab
@@ -218,7 +219,7 @@ function SettingsView() {
           />
         ) : null}
         {hasLoadedConfig && activeTab === "tools" ? (
-          <ToolsTab
+          <ToolsSection
             config={config}
             updateConfig={updateConfig}
             saveOnBlur={saveOnBlur}

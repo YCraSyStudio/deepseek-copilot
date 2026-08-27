@@ -5,11 +5,11 @@ const UNKNOWN_MODEL_CONTEXT_TOKENS = 128_000;
 const UNKNOWN_MODEL_MAX_OUTPUT_TOKENS = 8_192;
 const MINIMUM_SAFETY_MARGIN_TOKENS = 16_000;
 const SAFETY_MARGIN_RATIO = 0.05;
-export const INPUT_COMPACTION_RATIO = 0.8;
-export const INPUT_HARD_LIMIT_RATIO = 0.95;
+const INPUT_COMPACTION_RATIO = 0.8;
+const INPUT_HARD_LIMIT_RATIO = 0.95;
 export const OUTPUT_REASONING_LIMIT_RATIO = 0.8;
 
-export interface ModelCapabilities {
+interface ModelCapabilities {
   contextTokens: number;
   maxOutputTokens: number;
   supportsThinking: boolean;
@@ -17,7 +17,7 @@ export interface ModelCapabilities {
   known: boolean;
 }
 
-export type BudgetStatus =
+type BudgetStatus =
   | "within_budget"
   | "compaction_required"
   | "hard_limit"
@@ -39,7 +39,7 @@ export interface ContextBudget {
   inputTokens: number;
 }
 
-export function getModelCapabilities(model: string): ModelCapabilities {
+function getModelCapabilities(model: string): ModelCapabilities {
   const modelInfo = MODEL_REGISTRY.find((entry) => entry.id === model);
   return modelInfo
     ? {
@@ -112,15 +112,6 @@ export function estimateRequestTokens(
   tools: ToolDefinition[] = [],
 ): number {
   return Math.ceil(Buffer.byteLength(JSON.stringify({ messages, tools }), "utf8") / 3);
-}
-
-export function requestFitsContext(
-  messages: ChatMessage[],
-  tools: ToolDefinition[],
-  model: string,
-  requestedOutputTokens: number,
-): boolean {
-  return assessRequestBudget(messages, tools, model, requestedOutputTokens).status !== "hard_limit";
 }
 
 export function assertRequestFitsContext(

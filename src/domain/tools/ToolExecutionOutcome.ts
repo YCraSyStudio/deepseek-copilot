@@ -9,11 +9,3 @@ export type ToolExecutionOutcome =
       content: string;
       dangerLevel: "safe" | "caution" | "dangerous" | "destructive";
     };
-
-export function serializeToolExecutionOutcome(outcome: ToolExecutionOutcome): string {
-  return outcome.content;
-}
-
-export function isFailedToolExecutionOutcome(outcome: ToolExecutionOutcome): boolean {
-  return outcome.kind === "error";
-}

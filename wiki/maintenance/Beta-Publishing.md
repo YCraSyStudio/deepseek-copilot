@@ -4,21 +4,21 @@
 
 ## Versioning policy
 
-`0.1.11` is the final **Public Preview** release. It keeps `preview: true` and is published through the normal Marketplace release channel, matching the historical `0.1.x` behavior.
+`0.1.12` is the final **Public Preview** release. It keeps `preview: true` and is published through the normal Marketplace release channel, matching the historical `0.1.x` behavior.
 
-Starting after `0.1.11`, the extension uses VS Code's two Marketplace channels instead of the `preview` gallery flag:
+Starting after `0.1.12`, the extension uses VS Code's two Marketplace channels instead of the `preview` gallery flag:
 
 - **Stable channel:** even minor versions (`0.2.x`, `0.4.x`, `0.6.x`, ...).
 - **Pre-release channel:** odd minor versions (`0.3.x`, `0.5.x`, `0.7.x`, ...), published with `vsce --pre-release`.
 - New release lines start at patch `.0`. Patch increments are reserved for fixes or incremental builds within the same line.
-- `preview` must be `false` for both stable and pre-release builds after `0.1.11`; channel selection is handled by the Marketplace pre-release flag.
+- `preview` must be `false` for both stable and pre-release builds after `0.1.12`; channel selection is handled by the Marketplace pre-release flag.
 
 The first stable release is therefore `0.2.0`. The next development line is `0.3.0` on the pre-release channel. When the `0.3.x` work is ready for stable users, it is promoted as `0.4.0`, not as `0.2.x`. This keeps the stable release numerically newer than every pre-release build that preceded it.
 
 Example lifecycle:
 
 ```text
-0.1.11  Public Preview, final legacy preview release
+0.1.12  Public Preview, final legacy preview release
    ↓
 0.2.0   Stable
 0.2.1   Stable hotfix
@@ -39,9 +39,9 @@ Do not use SemVer suffixes such as `-beta.1` or `-preview.1` for Marketplace pac
 
 ## Target release
 
-For the current branch, `0.1.11` remains the final preview target. Keep `package.json` and the root lockfile aligned to `0.1.11` until that release is cut.
+For the current branch, `0.1.12` is the final preview target. Keep `package.json` and the root lockfile aligned to `0.1.12` until that release is cut.
 
-After `0.1.11`:
+After `0.1.12`:
 
 - stable releases use an even minor version and the normal Marketplace channel;
 - pre-release builds use the following odd minor version and the Marketplace pre-release channel;
@@ -86,9 +86,9 @@ Do not use the deprecated `vsce` package. Older versions still require explicit 
 
 ## Marketplace publishing
 
-### Final Public Preview: 0.1.11
+### Final Public Preview: 0.1.12
 
-`0.1.11` is published through the normal release channel while retaining `preview: true` in `package.json`.
+`0.1.12` is published through the normal release channel while retaining `preview: true` in `package.json`.
 
 ```bash
 npx @vscode/vsce publish
@@ -116,11 +116,22 @@ A pre-release build must never be republished as stable with the same version nu
 
 ## GitHub release
 
+Before creating the extension tag, publish the immutable SearXNG sidecar release from the exact `main` commit intended for `0.1.12`:
+
+```bash
+gh workflow run searxng-runtime.yml --ref main
+gh run list --workflow searxng-runtime.yml --limit 1
+gh run watch <run-id> --exit-status
+npm run verify:searxng-runtime
+```
+
+The runtime workflow reads the `v2` metadata pinned in the extension, builds and smoke-tests all five supported binaries, verifies their sizes and SHA-256 digests against the VSIX trust anchor, and creates the prerelease atomically. It refuses to modify an existing runtime release.
+
 Push a `vX.Y.Z` tag after `main` points at the release commit:
 
 ```bash
-git tag v0.2.0
-git push origin v0.2.0
+git tag v0.1.12
+git push origin v0.1.12
 ```
 
 The production workflow must validate the tag against `package.json`, extract the matching section from `CHANGELOG.md`, wait for quality, extension-host, and packaged-VSIX smoke gates, verify `sha256.txt`, and publish the verified VSIX and checksum.
@@ -129,7 +140,7 @@ GitHub release status mirrors the Marketplace channel:
 
 - even-minor stable releases are normal GitHub releases;
 - odd-minor Marketplace pre-releases are GitHub prereleases;
-- `0.1.11` remains a GitHub prerelease because it is the final Public Preview build.
+- `0.1.12` remains a GitHub prerelease because it is the final Public Preview build.
 
 Publish only after installing the packaged VSIX in a clean profile and testing an upgrade from the previous Marketplace release.
 

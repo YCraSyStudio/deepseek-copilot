@@ -1,6 +1,6 @@
 import * as assert from "assert";
 import * as path from "path";
-import { searchContentHandler } from "@/infrastructure/tools/definitions/SearchContent";
+import { searchContentHandler } from "@/infrastructure/tools/builtins/fileSystem/SearchContent";
 import {
   setToolWorkspaceHost,
   type ToolWorkspaceEntryType,
@@ -149,7 +149,7 @@ suite("search content", () => {
     try {
       setToolWorkspaceHost({
         ...createBaseHost(path.resolve("C:/workspace")),
-        findFiles: async (options) => new Promise<string[]>((resolve, reject) => {
+        findFiles: async (options) => new Promise<string[]>((_resolve, reject) => {
           if (options.signal?.aborted) {reject(createAbortError()); return;}
           options.signal?.addEventListener("abort", () => reject(createAbortError()), { once: true });
         }),

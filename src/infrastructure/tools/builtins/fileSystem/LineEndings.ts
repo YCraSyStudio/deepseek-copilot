@@ -37,7 +37,7 @@ export function normalizeReplacementLineEndings(value: string, content: string):
   return normalizeLineEndings(value).replace(/\n/g, ending);
 }
 
-export function normalizeLineEndings(value: string): string {
+function normalizeLineEndings(value: string): string {
   return value.replace(/\r\n|\r/g, "\n");
 }
 

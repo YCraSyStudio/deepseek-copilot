@@ -1,4 +1,4 @@
-import { createSystemMessage, ensureSingleSystemPrompt, getTextContent } from "@/contracts/deepseek/Chat";
+import { createSystemMessage, ensureSingleSystemPrompt } from "@/contracts/deepseek/Chat";
 import type { ChatMessage } from "@/contracts";
 import { createToolResultMessage, validateToolCall } from "./ToolCallMessages";
 import type {
@@ -8,7 +8,6 @@ import type {
   ToolCallCycleResult,
 } from "./ToolCallTypes";
 import { fitToolResultForModel } from "./ToolResultBudget";
-import { containsSerializedToolProtocol } from "./SerializedToolProtocol";
 
 const DEFAULT_PROGRESS_REVIEW_INTERVAL = 20;
 const DEFAULT_PROGRESS_REVIEW_FOLLOW_UP_INTERVAL = 5;
@@ -53,15 +52,6 @@ export async function runToolCallCycle(options: RunToolCallCycleOptions): Promis
       );
     }
     if (!message.tool_calls || message.tool_calls.length === 0) {
-      if (containsSerializedToolProtocol(getTextContent(message.content))) {
-        if (completionRecoveryUsed) {
-          throw new Error("DeepSeek serialized a tool call in assistant content again instead of using the native tool-call protocol.");
-        }
-        completionRecoveryUsed = true;
-        messages[0] = withSerializedToolProtocolRecoveryInstruction(messages[0]);
-        cycleOptions.onStreamChunk?.("\n\n");
-        continue;
-      }
       if (finishReason === "stop" && cycleOptions.reviewCompletion) {
         const decision = await cycleOptions.reviewCompletion({
           messages: structuredClone(messages),
@@ -200,14 +190,6 @@ function withCompletionRecoveryInstruction(systemMessage: ChatMessage): ChatMess
   return {
     ...systemMessage,
     content: `${systemMessage.content ?? ""}\n\n<completion_recovery>The previous response stopped after announcing an action without performing it. Continue the same turn now. Either issue the necessary tool call or provide the complete final answer in the language of the user's latest message. Do not announce another future action.</completion_recovery>`,
-  };
-}
-
-function withSerializedToolProtocolRecoveryInstruction(systemMessage: ChatMessage): ChatMessage {
-  const instruction = "The previous response incorrectly serialized an internal tool invocation as assistant text. Never output DSML or any tool protocol markup. If a tool is necessary, invoke it only through the native API tool-call mechanism; otherwise provide the complete final answer.";
-  return {
-    ...systemMessage,
-    content: `${systemMessage.content ?? ""}\n\n<tool_protocol_recovery>${instruction}</tool_protocol_recovery>`,
   };
 }
 

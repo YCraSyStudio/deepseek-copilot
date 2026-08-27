@@ -13,7 +13,6 @@ import {
   type AssistantTimelineBlock,
 } from "../tools/timeline/AssistantTimelineGrouping";
 import { MarkdownMessage } from "./MarkdownMessage";
-import { shouldShowGenerationTerminalStatus } from "./GenerationTerminalPresentation";
 
 export function AssistantActivity({
   timeline,
@@ -48,7 +47,7 @@ export function AssistantActivity({
           <MarkdownMessage key={block.id} content={block.content} role="assistant" />
         ),
       )}
-      {shouldShowGenerationTerminalStatus(generationStatus, generationStopReason) ? (
+      {(generationStatus === "cancelled" || generationStatus === "interrupted") && generationStopReason !== "steered" ? (
         <div className={`generationTerminalStatus ${generationStatus}`} role="status">
           <span className={`codicon codicon-${generationStatus === "cancelled" ? "debug-stop" : "warning"}`} aria-hidden="true" />
           {t(generationStatus === "cancelled" ? "chat.responseCancelled" : "chat.responseInterrupted")}

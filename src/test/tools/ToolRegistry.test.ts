@@ -1,6 +1,6 @@
 import * as assert from "assert";
 import type { ToolCall } from "@/contracts";
-import { readFileDefinition, readFileHandler, readFileMetadata } from "@/infrastructure/tools/definitions/ReadFile";
+import { readFileDefinition, readFileHandler, readFileMetadata } from "@/infrastructure/tools/builtins/fileSystem/ReadFile";
 import { ToolRegistry } from "@/application/tools/ToolRegistry";
 
 suite("tool registry validation", () => {

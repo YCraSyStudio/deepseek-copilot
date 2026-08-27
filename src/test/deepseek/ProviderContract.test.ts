@@ -1,7 +1,7 @@
 import * as assert from "assert";
 import type { ToolDefinition } from "@/contracts";
 import { DEFAULT_CONFIG } from "@/contracts/Config";
-import { DeepSeekProvider, assertCompatibleModel } from "@/infrastructure/deepseek/providers/deepseek/DeepSeekProvider";
+import { DeepSeekModelProvider, assertCompatibleModel } from "@/infrastructure/deepseek/providers/deepseek/DeepSeekProvider";
 import { buildChatBody } from "@/infrastructure/deepseek/providers/deepseek/features/Chat";
 import { buildToolCallRequest } from "@/infrastructure/deepseek/providers/deepseek/features/toolCall/ToolCallRequest";
 
@@ -59,7 +59,7 @@ suite("DeepSeek provider contract", () => {
   });
 
   test("connection checks use the same official-model compatibility policy", async () => {
-    const provider = new DeepSeekProvider({ ...DEFAULT_CONFIG, apiKey: "unused", model: "custom-model", baseUrl: "https://api.deepseek.com" });
+    const provider = new DeepSeekModelProvider({ ...DEFAULT_CONFIG, apiKey: "unused", model: "custom-model", baseUrl: "https://api.deepseek.com" });
     assert.deepStrictEqual(await provider.testConnection(), {
       success: false,
       error: 'Model "custom-model" is not supported by the official DeepSeek API configuration.',
@@ -83,7 +83,7 @@ suite("DeepSeek provider contract", () => {
           choices: [{ index: 0, message: { role: "assistant", content: "ok" }, finish_reason: "stop" }],
         });
       };
-      const provider = new DeepSeekProvider({ ...DEFAULT_CONFIG, apiKey: "test-key" });
+      const provider = new DeepSeekModelProvider({ ...DEFAULT_CONFIG, apiKey: "test-key" });
       const response = await provider.chatCompletion({
         model: "deepseek-v4-flash-vision-exp",
         messages: [{ role: "user", content: "hello" }],
@@ -112,7 +112,7 @@ suite("DeepSeek provider contract", () => {
           "",
         ].join("\n"), { status: 200, headers: { "content-type": "text/event-stream" } });
       };
-      const provider = new DeepSeekProvider({ ...DEFAULT_CONFIG, apiKey: "test-key" });
+      const provider = new DeepSeekModelProvider({ ...DEFAULT_CONFIG, apiKey: "test-key" });
       await provider.chatCompletionStream({
         model: "deepseek-v4-flash-vision-exp",
         messages: [{ role: "user", content: [{ type: "text", text: "describe" }, { type: "file", file_id: "file-test123" }] }],
@@ -137,7 +137,7 @@ suite("DeepSeek provider contract", () => {
         calls += 1;
         return Response.json({ error: { message: "model removed" } }, { status: 410 });
       };
-      const provider = new DeepSeekProvider({ ...DEFAULT_CONFIG, apiKey: "test-key" });
+      const provider = new DeepSeekModelProvider({ ...DEFAULT_CONFIG, apiKey: "test-key" });
       await assert.rejects(provider.chatCompletion({
         model: "deepseek-v4-flash-vision-exp",
         messages: [{ role: "user", content: [{ type: "text", text: "describe" }, { type: "file", file_id: "file-test123" }] }],
@@ -156,7 +156,7 @@ suite("DeepSeek provider contract", () => {
         calls += 1;
         return Response.json({ error: { code: "invalid_api_key" } }, { status: 401 });
       };
-      const provider = new DeepSeekProvider({ ...DEFAULT_CONFIG, apiKey: "bad-key" });
+      const provider = new DeepSeekModelProvider({ ...DEFAULT_CONFIG, apiKey: "bad-key" });
       await assert.rejects(provider.chatCompletion({
         model: "deepseek-v4-flash-vision-exp",
         messages: [{ role: "user", content: "hello" }],
@@ -175,7 +175,7 @@ suite("DeepSeek provider contract", () => {
         models.push((JSON.parse(String(init?.body)) as { model: string }).model);
         return Response.json({ error: { code: "model_not_found", param: "model", message: "Model is not available" } }, { status: 400 });
       };
-      const provider = new DeepSeekProvider({
+      const provider = new DeepSeekModelProvider({
         ...DEFAULT_CONFIG,
         apiKey: "test-key",
         baseUrl: "http://127.0.0.1:11434/v1",

@@ -3,7 +3,7 @@ import type { AppConfig, ChatCompletionResponse, ToolCall } from "@/contracts";
 import {
   parseCommandSafetyReview,
   reviewCommandSafety,
-} from "@/infrastructure/deepseek/security/CommandSafetyReviewer";
+} from "@/infrastructure/deepseek/security/commandReview/CommandSafetyReviewer";
 
 suite("DeepSeek command safety reviewer", () => {
   test("accepts the strict decision and risk schema", () => {

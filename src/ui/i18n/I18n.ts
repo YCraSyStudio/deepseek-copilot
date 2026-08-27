@@ -10,13 +10,13 @@ export type TranslationKey = CatalogKey<typeof en>;
 
 const localeListeners = new Set<() => void>();
 
-export let uiLocale: UiLocale = detectUiLocale(getSystemLanguage());
+let uiLocale: UiLocale = detectUiLocale(getSystemLanguage());
 
 export function t(source: TranslationKey, values: Values = {}): string {
   return translateForLocale(uiLocale, source, values);
 }
 
-export function translateForLocale(locale: UiLocale, source: string, values: Values = {}): string {
+function translateForLocale(locale: UiLocale, source: string, values: Values = {}): string {
   const template = findTranslation(localeCatalogs[locale], source) ?? findTranslation(localeCatalogs.en, source) ?? source;
   return template.replace(/\{([a-zA-Z][a-zA-Z0-9]*)\}/g, (match, key: string) =>
     Object.prototype.hasOwnProperty.call(values, key) ? String(values[key]) : match,

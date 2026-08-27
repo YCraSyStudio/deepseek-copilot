@@ -1,13 +1,13 @@
 import { logWarning } from "@/shared/logging/Logger";
 import type { ProviderUsage } from "@/shared/usage/Usage";
 
-export type MessageRole = "system" | "user" | "assistant" | "tool";
-export type ImageDetail = "low" | "high" | "original" | "auto";
-export type ChatContentPart =
+type MessageRole = "system" | "user" | "assistant" | "tool";
+type ImageDetail = "low" | "high" | "original" | "auto";
+type ChatContentPart =
   | { type: "text"; text: string }
   | { type: "image_url"; image_url: { url: string; detail?: ImageDetail } }
   | { type: "file"; file_id: string };
-export type ChatMessageContent = string | ChatContentPart[];
+type ChatMessageContent = string | ChatContentPart[];
 
 export function getTextContent(content: ChatMessageContent | null | undefined): string {
   if (typeof content === "string") {return content;}
@@ -63,7 +63,7 @@ export interface ToolDefinition {
   };
 }
 
-export type ToolChoice = "none" | "auto" | "required" | { type: "function"; function: { name: string } };
+type ToolChoice = "none" | "auto" | "required" | { type: "function"; function: { name: string } };
 
 export interface ChatMessage {
   role: MessageRole;

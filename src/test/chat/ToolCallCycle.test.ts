@@ -319,99 +319,30 @@ suite("tool call cycle completion", () => {
     assert.strictEqual(requests, 2);
   });
 
-  test("recovers when DeepSeek serializes DSML instead of returning a native tool call", async () => {
-    const responses = [serializedToolProtocolResponse, finalResponse];
-    const requests: ChatMessage[][] = [];
-    let completionReviews = 0;
-
-    const result = await runToolCallCycle({
-      initialMessages: [{ role: "user", content: "read the file" }],
-      tools: [toolDefinition],
-      model: "model",
-      modelClient: {
-        completeRound: async ({ messages }) => {
-          requests.push(messages);
-          return responses.shift()!;
-        },
-        streamRound: async () => {throw new Error("unexpected streaming round");},
-      },
-      executeToolCall: async () => "unused",
-      cycleOptions: {
-        reviewCompletion: async () => {
-          completionReviews++;
-          return "complete";
-        },
-      },
-    });
-
-    assert.strictEqual(requests.length, 2);
-    assert.match(String(requests[1][0]?.content), /tool_protocol_recovery/);
-    assert.strictEqual(completionReviews, 1);
-    assert.strictEqual(result.finalMessage.content, "done");
-    assert.ok(result.transcript.every((message) => !String(message.content).includes("DSML")));
-  });
-
-  test("fails closed when DeepSeek serializes DSML twice", async () => {
+  test("treats tool-shaped assistant text as ordinary content without executing or retrying", async () => {
     let requests = 0;
-    await assert.rejects(runToolCallCycle({
-      initialMessages: [{ role: "user", content: "read the file" }],
+    let executions = 0;
+    const result = await runToolCallCycle({
+      initialMessages: [{ role: "user", content: "answer without tools" }],
       tools: [toolDefinition],
       model: "model",
       modelClient: {
         completeRound: async () => {
           requests++;
-          return serializedToolProtocolResponse;
+          return toolShapedAssistantResponse;
         },
         streamRound: async () => {throw new Error("unexpected streaming round");},
       },
-      executeToolCall: async () => "unused",
-    }), /serialized a tool call.*again/);
-
-    assert.strictEqual(requests, 2);
-  });
-
-  test("recovers malformed DSML after progress guidance while keeping tools available", async () => {
-    const responses = [
-      toolResponse("call-1", "README.md"),
-      serializedToolProtocolResponse,
-      toolResponse("call-2", "CHANGELOG.md"),
-      finalResponse,
-    ];
-    const requestedToolCounts: number[] = [];
-
-    const result = await runToolCallCycle({
-      initialMessages: [{ role: "user", content: "finish the task" }],
-      tools: [toolDefinition],
-      model: "model",
-      modelClient: {
-        completeRound: async ({ messages, tools }) => {
-          requestedToolCounts.push(tools.length);
-          if (requestedToolCounts.length === 2) {
-            assert.match(String(messages[0]?.content), /progress_review_checkpoint/);
-          }
-          if (requestedToolCounts.length === 3) {
-            assert.match(String(messages[0]?.content), /tool_protocol_recovery/);
-          }
-          return responses.shift()!;
-        },
-        streamRound: async () => {throw new Error("unexpected streaming round");},
-      },
-      executeToolCall: async () => "created",
-      cycleOptions: {
-        progressReviewInterval: 1,
-        reviewProgress: async () => ({
-          decision: "finalize",
-          confidence: "high",
-          reason: "The requested result is complete.",
-        }),
+      executeToolCall: async () => {
+        executions++;
+        return "unexpected";
       },
     });
 
-    assert.deepStrictEqual(requestedToolCounts, [1, 1, 1, 1]);
-    assert.strictEqual(result.toolCallsExecuted, 2);
-    assert.strictEqual(result.rounds, 4);
-    assert.strictEqual(result.finalMessage.content, "done");
-    assert.ok(result.transcript.every((message) => !String(message.content).includes("DSML")));
+    assert.strictEqual(requests, 1);
+    assert.strictEqual(executions, 0);
+    assert.strictEqual(result.rounds, 1);
+    assert.strictEqual(result.finalMessage.content, toolShapedAssistantResponse.choices[0].message.content);
   });
 });
 
@@ -520,8 +451,8 @@ const stalledResponse: ChatCompletionResponse = {
   }],
 };
 
-const serializedToolProtocolResponse: ChatCompletionResponse = {
-  id: "response-serialized-tool",
+const toolShapedAssistantResponse: ChatCompletionResponse = {
+  id: "response-tool-shaped-text",
   object: "chat.completion",
   created: 1,
   model: "model",
@@ -530,7 +461,7 @@ const serializedToolProtocolResponse: ChatCompletionResponse = {
     finish_reason: "stop",
     message: {
       role: "assistant",
-      content: "Let me verify it. <｜DSML｜tool_calls><｜DSML｜invoke name=\"read_file\">",
+      content: "Example text only: <tool_calls><invoke name=\"read_file\">",
     },
   }],
 };

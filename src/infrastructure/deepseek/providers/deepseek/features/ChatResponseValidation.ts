@@ -1,5 +1,6 @@
 import type { ChatCompletionResponse, ChatMessage, ToolCall } from "@/contracts";
 import { parseProviderUsage } from "@/shared/usage/Usage";
+import { isRecord } from "@/shared/utils/TypeGuards";
 
 const FINISH_REASONS = new Set(["stop", "length", "tool_calls", "content_filter", "insufficient_system_resource", null]);
 
@@ -107,10 +108,6 @@ function hasUniqueNonEmptyToolCallIds(toolCalls: ToolCall[]): boolean {
   } catch {
     return false;
   }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
 function isString(value: unknown): value is string {

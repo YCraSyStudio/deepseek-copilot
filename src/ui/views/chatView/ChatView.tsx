@@ -6,26 +6,10 @@ import { useChatConfig } from "./hooks";
 import type { ApiKeyStatus, ChatMessage } from "./ChatViewTypes";
 import { getVsCodeApi } from "@webview/VsCodeApi";
 import type { Conversation, ImageAttachment, PermissionMode, QueuedGenerationMessage, ReferencedFile, WorkspaceContextStatus } from "@/contracts";
-import type { GenerationSnapshot } from "@/contracts";
 import { t } from "@webview/i18n";
 import { beginNavigationRequest } from "@webview/NavigationRequests";
 import { aggregateUsageAggregates, aggregateUsageByModel } from "@/shared/usage/Usage";
-
-type ChatCommandMessage =
-  | { type: "addReferencedFiles"; files: ReferencedFile[] }
-  | { type: "clearChat" }
-  | { type: "setDraft"; text: string }
-  | { type: "generationAccepted"; generationId: string; conversationId: string; clientRequestId: string }
-  | { type: "messageQueued"; conversationId: string; clientRequestId: string; position: number }
-  | { type: "requestRejected"; requestId?: string; action?: string; error: string }
-  | { type: "protocolError"; supportedVersion: number; error: string }
-  | { type: "streamDone"; generationId?: string; conversationId?: string; status: "completed" | "cancelled" | "interrupted" }
-  | { type: "streamError"; generationId?: string; conversationId?: string }
-  | { type: "workspaceContextChanged"; requestId?: string; conversationId?: string; context: WorkspaceContextStatus }
-  | { type: "contextFilesSelected"; files: ReferencedFile[] }
-  | { type: "imageAttachmentsSelected"; requestId: string; attachments: ImageAttachment[]; error?: string }
-  | { type: "imageAttachmentDeleted"; requestId: string; fileId: string; success: boolean; error?: string }
-  | { type: "generationSnapshot"; generations: GenerationSnapshot[]; recoveredDrafts: Array<{ conversationId: string; messages: QueuedGenerationMessage[] }> };
+import { useChatCommandMessages, type PendingChatRequest } from "./hooks/UseChatCommandMessages";
 
 interface PersistentChatViewState {
   schemaVersion: 5;
@@ -40,8 +24,6 @@ interface IncognitoChatViewState {
   schemaVersion: 3;
   mode: "incognito";
 }
-
-type ChatViewState = PersistentChatViewState | IncognitoChatViewState;
 
 interface ChatViewProps {
   loadedConversation?: Conversation | null;
@@ -62,7 +44,7 @@ function ChatView({ loadedConversation, navigationPending = false }: ChatViewPro
   const [workspaceContext, setWorkspaceContext] = useState<WorkspaceContextStatus>();
   const conversationIdRef = useRef(conversationId);
   const activeGenerationIdRef = useRef(activeGenerationId);
-  const pendingRequestsRef = useRef(new Map<string, { text: string; referenceIds: string[]; imageIds: string[] }>());
+  const pendingRequestsRef = useRef(new Map<string, PendingChatRequest>());
   const draftRef = useRef(draft);
   const referencedFilesRef = useRef(referencedFiles);
   const imageAttachmentsRef = useRef(imageAttachments);
@@ -131,9 +113,9 @@ function ChatView({ loadedConversation, navigationPending = false }: ChatViewPro
     [applySavedConfig],
   );
 
-  const focusInput = () => {
+  const focusInput = useCallback(() => {
     textareaRef.current?.focus();
-  };
+  }, []);
 
   const handleSend = (text: string, clientRequestId: string) => {
     pendingRequestsRef.current.set(clientRequestId, {
@@ -237,140 +219,31 @@ function ChatView({ loadedConversation, navigationPending = false }: ChatViewPro
     });
   }, [draft, referencedFiles, imageAttachments, conversationId, historyEnabled, stateHydrated]);
 
-  useEffect(() => {
-    const vscode = getVsCodeApi();
-    if (!vscode) {return;}
-
-    const handleMessage = (event: MessageEvent<ChatCommandMessage>) => {
-      const message = event.data;
-      if (message.type === "addReferencedFiles" || message.type === "contextFilesSelected") {
-        appendReferencedFiles(message.files);
-      }
-      if (message.type === "imageAttachmentsSelected") {
-        if (message.error) {setRequestError(message.error);}
-        if (message.attachments.length > 0) {
-          setImageAttachments((current) => [...current, ...message.attachments].slice(0, 8));
-          requestAnimationFrame(focusInput);
-        }
-      }
-      if (message.type === "imageAttachmentDeleted" && !message.success && message.error) {
-        setRequestError(message.error);
-      }
-      if (message.type === "setDraft") {
-        setDraft(message.text);
-        requestAnimationFrame(focusInput);
-      }
-      if (message.type === "clearChat") {
-        conversationIdRef.current = undefined;
-        activeGenerationIdRef.current = undefined;
-        pendingRequestsRef.current.clear();
-        setConversationId(undefined);
-        setActiveGenerationId(undefined);
-        setMessages([]);
-        setIsProcessing(false);
-        setReferencedFiles([]);
-        setImageAttachments([]);
-        setDraft("");
-        setRecoveredDrafts([]);
-      }
-      if (message.type === "workspaceContextChanged") {
-        if (message.requestId && message.requestId !== workspaceRequestIdRef.current) {
-          return;
-        }
-        if (message.conversationId !== undefined && message.conversationId !== conversationIdRef.current) {
-          return;
-        }
-        setWorkspaceContext((previous) => {
-          if (previous?.binding.revision && previous.binding.revision !== message.context.binding.revision) {
-            setReferencedFiles((files) => files.filter((file) => file.scope === "external-snapshot"));
-          }
-          return message.context;
-        });
-      }
-      if (message.type === "generationAccepted") {
-        const submitted = pendingRequestsRef.current.get(message.clientRequestId);
-        pendingRequestsRef.current.delete(message.clientRequestId);
-        if (submitted && draftRef.current.trim() === submitted.text) {
-          draftRef.current = "";
-          setDraft("");
-        }
-        if (submitted && sameReferenceSet(referencedFilesRef.current, submitted.referenceIds)) {
-          referencedFilesRef.current = [];
-          setReferencedFiles([]);
-        }
-        if (submitted && sameImageSet(imageAttachmentsRef.current, submitted.imageIds)) {
-          imageAttachmentsRef.current = [];
-          setImageAttachments([]);
-        }
-        if (submitted || message.conversationId === conversationIdRef.current) {
-          conversationIdRef.current = message.conversationId;
-          activeGenerationIdRef.current = message.generationId;
-          setConversationId(message.conversationId);
-          setActiveGenerationId(message.generationId);
-          setIsProcessing(true);
-        }
-      }
-      if (message.type === "messageQueued") {
-        const submitted = pendingRequestsRef.current.get(message.clientRequestId);
-        if (submitted && (!conversationIdRef.current || conversationIdRef.current === message.conversationId)) {
-          conversationIdRef.current = message.conversationId;
-          setConversationId(message.conversationId);
-        }
-      }
-      if (message.type === "requestRejected") {
-        if (message.requestId) {
-          pendingRequestsRef.current.delete(message.requestId);
-        }
-        setRequestError(message.error);
-      }
-      if (message.type === "protocolError") {
-        setRequestError(message.error);
-      }
-      if (
-        (message.type === "streamDone" || message.type === "streamError") &&
-        message.generationId === activeGenerationIdRef.current
-      ) {
-        activeGenerationIdRef.current = undefined;
-        setActiveGenerationId(undefined);
-      }
-      if (message.type === "generationSnapshot") {
-        const currentConversationId = conversationIdRef.current;
-        const active = currentConversationId
-          ? message.generations.find((generation) => generation.conversationId === currentConversationId)
-          : undefined;
-        if (active) {
-          activeGenerationIdRef.current = active.generationId;
-          setActiveGenerationId(active.generationId);
-          setIsProcessing(true);
-          setMessages((current) => {
-            const withoutPriorSnapshot = current.filter((item) => item.generationId !== active.generationId || item.role === "user");
-            if (!active.content && active.timeline.length === 0 && active.toolCalls.length === 0) {
-              return withoutPriorSnapshot;
-            }
-            return [...withoutPriorSnapshot, {
-              id: `active-${active.generationId}`,
-              role: "assistant",
-              content: active.content,
-              timeline: active.timeline,
-              toolCalls: active.toolCalls,
-              generationId: active.generationId,
-            }];
-          });
-        }
-        const recovered = currentConversationId
-          ? message.recoveredDrafts.find((entry) => entry.conversationId === currentConversationId)
-          : undefined;
-        if (recovered?.messages.length) {
-          setRecoveredDrafts(recovered.messages);
-        }
-      }
-    };
-
-    window.addEventListener("message", handleMessage);
-    return () => {
-      window.removeEventListener("message", handleMessage);
-    };
-  }, [appendReferencedFiles]);
+  useChatCommandMessages({
+    appendReferencedFiles,
+    focusInput,
+    refs: {
+      activeGenerationId: activeGenerationIdRef,
+      conversationId: conversationIdRef,
+      draft: draftRef,
+      imageAttachments: imageAttachmentsRef,
+      pendingRequests: pendingRequestsRef,
+      referencedFiles: referencedFilesRef,
+      workspaceRequestId: workspaceRequestIdRef,
+    },
+    setters: {
+      setActiveGenerationId,
+      setConversationId,
+      setDraft,
+      setImageAttachments,
+      setIsProcessing,
+      setMessages,
+      setRecoveredDrafts,
+      setReferencedFiles,
+      setRequestError,
+      setWorkspaceContext,
+    },
+  });
 
   return (
     <div className="chatView">
@@ -501,14 +374,6 @@ function getSavedChatState(): PersistentChatViewState | undefined {
 
 function referenceIdentity(file: ReferencedFile): string {
   return file.referenceId ?? `${file.scope ?? "workspace"}:${file.path}`;
-}
-
-function sameReferenceSet(files: ReferencedFile[], expected: string[]): boolean {
-  return files.length === expected.length && files.every((file, index) => referenceIdentity(file) === expected[index]);
-}
-
-function sameImageSet(images: ImageAttachment[], expected: string[]): boolean {
-  return images.length === expected.length && images.every((image, index) => image.id === expected[index]);
 }
 
 function isImageAttachment(value: unknown): value is ImageAttachment {

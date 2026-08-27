@@ -10,7 +10,7 @@ import { fitToolResultForModel } from "@/application/chat/toolCall/ToolResultBud
 
 const MAX_CHECKPOINT_BYTES = 16 * 1024 * 1024;
 
-export interface GenerationCheckpoint {
+interface GenerationCheckpoint {
   schemaVersion: 3;
   revision: number;
   conversationId: string;

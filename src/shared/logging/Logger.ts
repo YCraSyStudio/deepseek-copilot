@@ -37,10 +37,6 @@ export function initializeLogger(nextSink: DiagnosticSink, level: LogLevel = "wa
   };
 }
 
-export function logDebug(message: string, detail?: unknown, correlation?: DiagnosticCorrelation): void {
-  write("debug", message, detail, correlation);
-}
-
 export function logInfo(message: string, detail?: unknown, correlation?: DiagnosticCorrelation): void {
   write("info", message, detail, correlation);
 }

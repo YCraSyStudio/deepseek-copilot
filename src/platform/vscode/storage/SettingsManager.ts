@@ -1,13 +1,13 @@
 import { existsSync, readFileSync } from "node:fs";
 import { DEFAULT_CONFIG, type AppConfig, type PermissionSnapshot } from "@/contracts";
 import {
-  isConfigRecord,
   isStoredSettingKey,
   normalizeConfig,
   normalizeSettingValue,
   toStoredSettings,
   type StoredSettings,
 } from "@/application/settings/ConfigurationSchema";
+import { isRecord } from "@/shared/utils/TypeGuards";
 import { withFileLock, writeJsonFileAtomic } from "@/infrastructure/persistence/JsonFileStorage";
 import { getSettingsFilePath } from "@/infrastructure/persistence/UserDataPaths";
 
@@ -34,7 +34,7 @@ export class SettingsManager {
           const storedSettings = readStoredSettings();
           const normalizedConfig = normalizeConfig(storedSettings);
           if (
-            isConfigRecord(storedSettings) &&
+            isRecord(storedSettings) &&
             (Object.prototype.hasOwnProperty.call(storedSettings, "webSearchBrowserVisible") ||
               Object.prototype.hasOwnProperty.call(storedSettings, "usageBudgets") ||
               Object.prototype.hasOwnProperty.call(storedSettings, "toolExecutionModes") ||

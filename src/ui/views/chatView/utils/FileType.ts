@@ -1,54 +1,4 @@
-import type { FilePreviewType, StructuredToolResult, TerminalCommandResult } from "./FilePreviewTypes";
-
-const CODE_EXTENSIONS = new Set([
-  "ts",
-  "tsx",
-  "js",
-  "jsx",
-  "py",
-  "rb",
-  "go",
-  "rs",
-  "java",
-  "kt",
-  "swift",
-  "c",
-  "cpp",
-  "h",
-  "hpp",
-  "cs",
-  "php",
-  "vue",
-  "svelte",
-  "html",
-  "css",
-  "scss",
-  "less",
-  "json",
-  "yaml",
-  "yml",
-  "xml",
-  "md",
-  "sql",
-  "sh",
-  "bash",
-  "zsh",
-  "fish",
-  "dockerfile",
-]);
-
-const BINARY_EXTENSIONS = new Set(["png", "jpg", "jpeg", "gif", "bmp", "ico", "pdf", "zip", "tar", "gz", "rar", "exe", "dll", "eot", "ttf", "woff", "woff2"]);
-
-export function detectFileType(filename: string, content: string): FilePreviewType {
-  if (!content) {return "text";}
-  if (content.startsWith("Error:")) {return "error";}
-  if (content.startsWith("No results found")) {return "text";}
-
-  const ext = filename.split(".").pop()?.toLowerCase() || "";
-  if (BINARY_EXTENSIONS.has(ext)) {return "binary";}
-  if (CODE_EXTENSIONS.has(ext)) {return "code";}
-  return "text";
-}
+import type { StructuredToolResult, TerminalCommandResult } from "./FilePreviewTypes";
 
 export function parseStructuredToolResult(content: string): StructuredToolResult | null {
   try {
@@ -129,14 +79,4 @@ export function detectLanguage(filename: string): string | undefined {
 
 export function extractFilename(path: string): string {
   return path.split(/[/\\]/).pop() || path;
-}
-
-export function looksBinary(content: string): boolean {
-  if (!content) {return false;}
-  const checkLen = Math.min(content.length, 4096);
-  for (let i = 0; i < checkLen; i++) {
-    const code = content.charCodeAt(i);
-    if (code === 0 || code === 65533) {return true;}
-  }
-  return false;
 }

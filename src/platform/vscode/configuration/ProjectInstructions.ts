@@ -3,7 +3,6 @@ import * as vscode from "vscode";
 import {
   captureCurrentWorkspaceBinding,
   captureWorkspaceRunSnapshot,
-  type WorkspaceRunSnapshot,
 } from "@/platform/vscode/workspace";
 import { createAbortError, throwIfAborted } from "@/shared/utils/Cancellation";
 
@@ -12,7 +11,7 @@ const PROJECT_INSTRUCTIONS_HEADER = "## Project Instructions";
 const MAX_SOURCE_BYTES = 64 * 1024;
 const MAX_TOTAL_BYTES = 128 * 1024;
 
-export interface ProjectInstructionSource {
+interface ProjectInstructionSource {
   path: string;
   scope: "home" | "workspace" | "workspace-local";
   precedence: number;

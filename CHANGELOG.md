@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## [0.1.12] - 2026-08-28
+
+- Removed the provider-specific DSML text detector, streaming buffer, hidden retry, and recovery prompt. Tool execution now depends exclusively on native API `tool_calls`; tool-shaped assistant text remains ordinary content.
+- Split chat generation, history, settings, webview protocol, attachments, usage accounting, tool-call completion, and SearXNG installation into focused services while preserving their external behavior.
+- Removed obsolete compatibility shims, forwarding modules, unused provider and FIM paths, and redundant tool-result aliases. Restored and hardened the immutable SearXNG runtime publication workflow with pre-publish metadata and checksum gates.
+- Enabled TypeScript unused-code checks and a Knip production gate, then removed trivial implementation-detail tests while retaining 269 behavioral unit tests and nine VS Code integration tests.
+- Simplified the interface-language automatic option to `Auto` in every supported locale.
+
 ## [0.1.11] - 2026-08-27
 
 - Replaced Chromium-driven search with an extension-managed local SearXNG runtime that starts on demand, exposes the available engine catalog, supports custom engine selection, and requires no system Python, Docker, Podman, or browser installation.

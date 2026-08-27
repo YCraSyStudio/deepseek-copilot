@@ -20,7 +20,7 @@ const TEXTUAL_CONTENT_TYPES = [
   "text/xml",
 ] as const;
 
-export interface RenderedLink {
+interface RenderedLink {
   title: string;
   url: string;
   snippet?: string;
@@ -229,7 +229,7 @@ function parseResponse(url: URL, response: HttpResponsePayload): RenderedPage {
   const raw = response.body.toString("utf8");
   const html = contentType.includes("html") || contentType.includes("xhtml");
   const title = html ? extractTitle(raw) : "Web page";
-  const sections = html ? extractHtmlSections(raw) : extractTextSections(raw);
+  const sections = html ? extractHtmlSections(raw) : splitSections(raw);
   const content = sections.join("\n\n");
   return {
     title,
@@ -260,10 +260,6 @@ function extractHtmlSections(html: string): string[] {
     .replace(/<\/(?:p|div|section|article|main|header|footer|aside|nav|h[1-6]|li|blockquote|pre|tr|table|ul|ol)\s*>/gi, "\n\n")
     .replace(/<[^>]+>/g, " ");
   return splitSections(decodeHtmlEntities(value));
-}
-
-function extractTextSections(text: string): string[] {
-  return splitSections(text);
 }
 
 function splitSections(value: string): string[] {

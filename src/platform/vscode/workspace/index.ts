@@ -3,7 +3,6 @@ export {
   captureWorkspaceRunSnapshot,
   findSnapshotFolderForUri,
   formatWorkspacePath,
-  getWorkspaceUnavailableMessage,
   isUriInsideRoot,
   resolveWorkspaceContext,
   type WorkspaceFolderSnapshot,

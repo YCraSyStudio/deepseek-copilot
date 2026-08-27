@@ -22,7 +22,7 @@ export interface WorkspaceFolderSnapshot extends WorkspaceFolderBinding {
   localPath?: string;
 }
 
-export interface CapturedEditorSnapshot {
+interface CapturedEditorSnapshot {
   uri: string;
   workspacePath: string;
   content: string;
@@ -83,7 +83,7 @@ export function captureWorkspaceRunSnapshot(binding: WorkspaceBinding): Workspac
   return Object.freeze({ ...partialSnapshot, activeEditor });
 }
 
-export function getWorkspaceUnavailableMessage(state: WorkspaceConnectionState, name: string): string {
+function getWorkspaceUnavailableMessage(state: WorkspaceConnectionState, name: string): string {
   if (state === "changed") {
     return `Workspace "${name}" changed. Confirm the updated workspace before continuing.`;
   }

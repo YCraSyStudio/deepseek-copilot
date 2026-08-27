@@ -7,7 +7,7 @@ export class ApiOriginError extends Error {
   }
 }
 
-export function parseApiBaseUrl(value: string): URL {
+function parseApiBaseUrl(value: string): URL {
   let url: URL;
   try {
     url = new URL(value);
@@ -71,7 +71,7 @@ export function isLoopbackApiBaseUrl(value: string): boolean {
   }
 }
 
-export function isLoopbackHostname(hostname: string): boolean {
+function isLoopbackHostname(hostname: string): boolean {
   const normalized = hostname.toLowerCase().replace(/^\[|\]$/g, "");
   if (normalized === "localhost" || normalized === "::1") {
     return true;
@@ -93,7 +93,7 @@ export function assertSameApiOrigin(baseUrl: string, candidateUrl: string): URL 
   return candidate;
 }
 
-export function parseApiRequestUrl(value: string): URL {
+function parseApiRequestUrl(value: string): URL {
   let url: URL;
   try {
     url = new URL(value);

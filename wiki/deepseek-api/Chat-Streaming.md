@@ -15,6 +15,8 @@ Main path:
 - `src/infrastructure/deepseek/providers/deepseek/features/Chat.ts`
 - `src/platform/vscode/webviews/handlers/chat/Streaming.ts`
 - `src/platform/vscode/webviews/handlers/chat/generation/GenerationExecutor.ts`
+- `src/platform/vscode/webviews/handlers/chat/generation/GenerationRunFactory.ts`
+- `src/platform/vscode/webviews/handlers/chat/generation/GenerationRunFinalizer.ts`
 
 ## Flow
 
@@ -24,7 +26,7 @@ Main path:
 4. Content and `reasoning_content` deltas are normalized, correlated to conversation and generation, and rendered progressively.
 5. Tool rounds append complete assistant/tool protocol messages to the host-only canonical transcript.
 6. Progress is checkpointed. Persistence records `completed`, `cancelled`, `interrupted`, or `error`.
-7. `GenerationExecutor` emits one terminal event after persistence reconciliation.
+7. `GenerationRunFinalizer` reconciles persistence, usage, and checkpoints before publishing one terminal event.
 
 If the official API reports that experimental Vision is unavailable, the provider owns one bounded retry with stable V4 Flash. It does not mutate the selected UI model or persisted transcript. Image blocks are removed before the retry, and the injected fallback instruction requires the response to state that it could not inspect them. Non-stream image analysis used by V4 Pro fails closed instead.
 

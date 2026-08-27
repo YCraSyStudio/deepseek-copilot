@@ -54,10 +54,20 @@ function createHarness(risk: CommandSafetyRisk, fullAccessMode: boolean) {
     reasonCode: "remote-review-required",
   });
   const toolExecutor = {
-    execute: async () => ({ toolCallId: "call", toolName: "run_terminal_command", result: confirmation, isError: false }),
+    execute: async () => ({
+      toolCallId: "call",
+      toolName: "run_terminal_command",
+      outcome: { kind: "confirmation_required", content: confirmation, dangerLevel: "caution" },
+      status: "confirmation_required",
+    }),
     executeForced: async () => {
       forced += 1;
-      return { toolCallId: "call", toolName: "tool", result: "completed", isError: false };
+      return {
+        toolCallId: "call",
+        toolName: "tool",
+        outcome: { kind: "completed", content: "completed" },
+        status: "completed",
+      };
     },
     getMetadata: (toolName: string) => toolName === "read_file"
       ? { dangerLevel: "safe", requiresConfirmation: false, effect: "read-only" }

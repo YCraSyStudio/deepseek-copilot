@@ -8,7 +8,7 @@ import { DEFAULT_CONFIG } from "@/contracts/Config";
 import { ConversationState } from "@/application/chat/ConversationState";
 import { GenerationBudgetManager } from "@/application/chat/context/GenerationBudgetManager";
 import type { ModelProvider } from "@/application/ports";
-import { searchContentHandler } from "@/infrastructure/tools/definitions/SearchContent";
+import { searchContentHandler } from "@/infrastructure/tools/builtins/fileSystem/SearchContent";
 import { runWithToolWorkspaceHost } from "@/infrastructure/tools/ToolWorkspace";
 import { createVsCodeToolWorkspace } from "@/platform/vscode/tools/VsCodeToolWorkspace";
 import { captureCurrentWorkspaceBinding, captureWorkspaceRunSnapshot, type WorkspaceRunSnapshot } from "@/platform/vscode/workspace";

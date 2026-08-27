@@ -9,7 +9,7 @@ suite("tool executor result classification", () => {
 
     const result = await executor.execute(createToolCall());
 
-    assert.strictEqual(result.isError, true);
+    assert.strictEqual(result.outcome.kind, "error");
     assert.strictEqual(result.status, "error");
   });
 
@@ -18,7 +18,7 @@ suite("tool executor result classification", () => {
 
     const result = await executor.execute(createToolCall());
 
-    assert.strictEqual(result.isError, false);
+    assert.strictEqual(result.outcome.kind, "completed");
     assert.strictEqual(result.status, "completed");
   });
 
@@ -32,7 +32,7 @@ suite("tool executor result classification", () => {
     }));
 
     const result = await executor.execute(createToolCall());
-    const confirmation = ToolExecutor.isConfirmationRequired(result.result);
+    const confirmation = ToolExecutor.isConfirmationRequired(result.outcome.content);
 
     assert.strictEqual(result.status, "confirmation_required");
     assert.strictEqual(confirmation?.workspaceRoot, "C:\\workspace");

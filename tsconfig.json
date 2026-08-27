@@ -16,6 +16,8 @@
     "allowImportingTsExtensions": true,
     "moduleDetection": "force",
     "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "noEmit": true
   },
   "include": [

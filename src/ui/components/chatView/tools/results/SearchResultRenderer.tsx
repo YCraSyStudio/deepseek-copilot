@@ -1,5 +1,5 @@
 import type { VsCodeApi } from "@webview/VsCodeApi";
-import { parseSearchResults } from "@webview/views/chatView/utils/FilePreview";
+import { parseSearchResults } from "@webview/views/chatView/utils/SearchResults";
 import { t } from "@webview/i18n";
 
 type SearchResult = { file: string; line: number; text: string };

@@ -1,12 +1,3 @@
-export type FilePreviewType = "code" | "search_results" | "diff" | "binary" | "text" | "error";
-
-export interface FilePreview {
-  type: FilePreviewType;
-  language?: string;
-  content: string;
-  metadata?: Record<string, string>;
-}
-
 export interface TerminalCommandResult {
   kind: "command_result";
   command: string;

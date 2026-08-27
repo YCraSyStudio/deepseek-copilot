@@ -27,11 +27,9 @@ export interface ToolHostCommandResult {
   shell?: string;
 }
 
-export interface ToolHost {
+export interface ToolWorkspaceHost {
   getRootPath(): string | undefined;
   getWorkspaceId?(): string;
-  getAvailableRootAliases?(): string[];
-  getDefaultRootAlias?(): string | undefined;
   isPathInsideWorkspace?(path: string): Promise<boolean>;
   resolvePath?(path: string, allowSensitive: boolean): Promise<string>;
   resolveLocalPath?(path?: string): Promise<ResolvedWorkspacePath>;
@@ -48,6 +46,3 @@ export interface ToolHost {
   prepareFileDiff?(path: string, before: string, after: string): Promise<void>;
   clearFileDiffPreview?(): void;
 }
-
-/** Compatibility name while tool adapters migrate to the shorter port name. */
-export type ToolWorkspaceHost = ToolHost;

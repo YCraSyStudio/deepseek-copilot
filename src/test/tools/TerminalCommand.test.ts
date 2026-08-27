@@ -5,7 +5,7 @@ import {
   getTerminalRoutingError,
   normalizeLeadingDirectoryChange,
   terminalCommandHandler,
-} from "@/infrastructure/tools/definitions/TerminalCommand";
+} from "@/infrastructure/tools/builtins/terminal/TerminalCommand";
 import { setToolWorkspaceHost } from "@/infrastructure/tools/ToolWorkspace";
 
 suite("terminal command confirmation", () => {

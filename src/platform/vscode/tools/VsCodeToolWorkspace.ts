@@ -15,7 +15,7 @@ import {
   type WorkspaceRunSnapshot,
 } from "@/platform/vscode/workspace";
 import { createInlineDiffPreview } from "./InlineDiffPreview";
-import { describeVsCodeTerminalShell, executeInVsCodeTerminal } from "./VsCodeTerminalExecution";
+import { executeInVsCodeTerminal, VSCODE_TERMINAL_SHELL_DESCRIPTION } from "./VsCodeTerminalExecution";
 import {
   createAbortError,
   findFilesInRoot,
@@ -50,16 +50,8 @@ export function createVsCodeToolWorkspace(
       return options.unrestricted === true ? "computer:unrestricted" : snapshot.binding.uri;
     },
 
-    getAvailableRootAliases(): string[] {
-      return snapshot.folders.map((folder) => folder.alias);
-    },
-
-    getDefaultRootAlias(): string | undefined {
-      return defaultFolder?.alias;
-    },
-
     getCommandShell(): string {
-      return describeVsCodeTerminalShell();
+      return VSCODE_TERMINAL_SHELL_DESCRIPTION;
     },
 
     executeCommand: executeInVsCodeTerminal,

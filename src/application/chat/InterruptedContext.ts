@@ -1,5 +1,6 @@
 import type { StoredToolCall } from "@/contracts";
 import { redactSensitiveText } from "@/shared/security/Redaction";
+import { isRecord } from "@/shared/utils/TypeGuards";
 
 const MAX_CONTEXT_CHARACTERS = 8 * 1024;
 const MAX_PARTIAL_CONTENT_CHARACTERS = 2_000;
@@ -94,10 +95,6 @@ function parseRecord(value: unknown): Record<string, unknown> | undefined {
   } catch {
     return undefined;
   }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
 function render(header: readonly string[], lines: readonly LedgerLine[], footer: string): string {

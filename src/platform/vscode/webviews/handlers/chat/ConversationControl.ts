@@ -2,29 +2,11 @@ import type * as vscode from "vscode";
 import type { ConversationState } from "@/application/chat/ConversationState";
 import type { GenerationCoordinator, GenerationStopReason } from "@/application/chat/GenerationCoordinator";
 import type { ToolRegistry } from "@/application/tools";
-import type { HistoryManager } from "@/platform/vscode/storage";
 import type { WebviewToHandlerMessage } from "@/contracts";
 import type { SendMessagePayload } from "./Types";
 import { transitionGenerationRun, type GenerationRunRecord } from "./generation/GenerationRun";
 import { getAvailableToolMetadata } from "./ToolMetadata";
 import { isTerminalGenerationState } from "@/domain/generation/GenerationState";
-
-export async function restoreRequestedConversation(
-  conversationId: string | undefined,
-  state: ConversationState,
-  historyManager: HistoryManager,
-  loadConversation: (conversation: NonNullable<ReturnType<ConversationState["getConversation"]>>) => void,
-): Promise<void> {
-  if (!conversationId || state.getActiveConversationId() === conversationId) {
-    return;
-  }
-  const conversation = await historyManager.getById(conversationId);
-  if (conversation) {
-    loadConversation(conversation);
-  } else {
-    state.reset();
-  }
-}
 
 export function cancelGeneration(
   generationId: string,

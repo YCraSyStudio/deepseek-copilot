@@ -137,11 +137,6 @@ export class ToolExecutor {
     }
   }
 
-  /** Execute multiple tool calls from the same turn in parallel. */
-  async executeAll(toolCalls: ToolCall[]): Promise<ExecutionResult[]> {
-    return Promise.all(toolCalls.map((tc) => this.execute(tc)));
-  }
-
   /**
    * Check whether an execution result requests confirmation.
    */
@@ -175,8 +170,6 @@ export function createExecutionResult(
     toolCallId: toolCall.id,
     toolName: toolCall.function.name,
     outcome,
-    result: outcome.content,
-    isError: outcome.kind === "error",
     status,
   };
 }

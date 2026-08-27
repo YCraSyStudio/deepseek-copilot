@@ -6,6 +6,8 @@
 
 `src/platform/vscode/storage/SettingsManager.ts` atomically stores normalized settings in `~/.yrs-dpsk-copilot/settings.json`. Runtime reads use the confirmed in-memory revision.
 
+`HistoryTransitionController` owns the two-phase persistent/incognito transition so configuration writes, pending-generation decisions, and save/discard outcomes remain ordered.
+
 Current defaults and limits:
 
 - models: `deepseek-v4-flash-vision-exp` (default) and `deepseek-v4-pro`.
@@ -23,7 +25,7 @@ API keys are never part of settings.
 
 ## Conversation history
 
-`HistoryManager` stores one validated schema-v2 conversation per JSON manifest under `~/.yrs-dpsk-copilot/history/`; large message sets use bounded internal segments. Conversations include immutable workspace binding, generation ownership, terminal status, timeline, tool presentation, and image attachment metadata.
+`HistoryManager` coordinates retention and mutation locking. `ConversationStorage` owns manifests and bounded segments, while `ConversationNormalization` produces the canonical schema-v2 representation. Data lives under `~/.yrs-dpsk-copilot/history/`. Conversations include immutable workspace binding, generation ownership, terminal status, timeline, tool presentation, and image attachment metadata.
 
 Terminal generation statuses are `completed`, `cancelled`, `interrupted`, and `error`. Explicit Stop persists a `cancelled` turn with its user message, partial assistant timeline, and completed tool results. Only complete provider protocol sequences are eligible for future replay.
 

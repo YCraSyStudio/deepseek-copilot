@@ -3,7 +3,6 @@ import type { GenerationEventSink } from "@/application/ports";
 import { runToolCallCycle } from "@/application/chat/toolCall";
 import { createDeepSeekToolCallModelClient } from "@/infrastructure/deepseek/providers/deepseek/features/toolCall/DeepSeekToolCallModelClient";
 import { logWarning } from "@/shared/logging/Logger";
-import { redactSensitiveText } from "@/shared/security/Redaction";
 import type { ToolExecutor } from "@/application/tools/ToolExecutor";
 import type { ConfirmationRequiredResult } from "@/application/tools/Types";
 import { requestDangerConfirmation } from "./DangerConfirmation";
@@ -12,10 +11,8 @@ import { StreamEventEmitter } from "../StreamEventEmitter";
 import { executeToolCall, recordSyntheticToolError } from "./ToolExecution";
 import { MutationFailureGuard } from "./MutationFailureGuard";
 import type {
-  HandleRunErrorOptions,
   PendingDangerConfirmation,
   PendingToolCallCycle,
-  PostFinalMessageOptions,
   StoredExecution,
   ToolCallActionPayload,
   ToolCallRunOptions,
@@ -25,10 +22,9 @@ import { createProviderTranscript } from "@/application/chat/ProviderTranscript"
 import { getToolWorkspaceHost } from "@/infrastructure/tools/ToolWorkspace";
 import { reviewCommandSafety } from "@/infrastructure/deepseek/security/commandReview";
 import { compactToolCycleContext } from "@/application/chat/context/ToolCycleCompaction";
-import { isCancellationError } from "@/shared/utils/Cancellation";
-import { getTextContent } from "@/contracts/deepseek/Chat";
 import { reviewCompletion } from "@/infrastructure/deepseek/providers/deepseek/features/CompletionReviewer";
 import { reviewProgress } from "@/infrastructure/deepseek/providers/deepseek/features/ProgressReviewer";
+import { handleToolCallRunError, postFinalToolCallMessage } from "./ToolCallOutcome";
 
 export class ToolCallSession {
   private pendingToolCallCycle: PendingToolCallCycle | null = null;
@@ -155,9 +151,9 @@ export class ToolCallSession {
         },
       });
 
-      return this.postFinalMessage({ options, stream, result, executedToolCalls, streamedContent });
+      return postFinalToolCallMessage({ options, stream, result, executedToolCalls, streamedContent });
     } catch (err: unknown) {
-      return this.handleRunError({ err, options, stream, executedToolCalls, streamedContent });
+      return handleToolCallRunError({ err, options, stream, executedToolCalls, streamedContent });
     } finally {
       this.pendingToolCallCycle = null;
       this.pendingDangerConfirmation = null;
@@ -298,129 +294,6 @@ export class ToolCallSession {
 
   }
 
-  private postFinalMessage({ options, stream, result, executedToolCalls, streamedContent }: PostFinalMessageOptions): ToolCallRunResult {
-    const toolCallResults = Array.from(executedToolCalls.values());
-    const timeline = stream.getTimeline();
-    const hasStreamedContent = timeline.length > 0;
-
-    if (getTextContent(result.finalMessage.content) || toolCallResults.length > 0) {
-      options.eventSink.publish({
-        type: "addMessage",
-        message: {
-          role: "assistant",
-          content: hasStreamedContent ? "" : getTextContent(result.finalMessage.content),
-          wasStreamed: hasStreamedContent,
-          toolCalls: toolCallResults.length > 0 ? toolCallResults : undefined,
-          timeline,
-        },
-      });
-    }
-
-    const finishReason = result.response.choices[0]?.finish_reason;
-    const complete = finishReason === "stop";
-    stream.done({ finish_reason: finishReason ?? undefined });
-
-    return {
-      content: hasStreamedContent ? streamedContent : getTextContent(result.finalMessage.content),
-      timeline,
-      toolCalls: toolCallResults.length > 0 ? toolCallResults : undefined,
-      partial: !complete,
-      providerTranscript: createProviderTranscript(result.transcript, complete ? "complete" : "incomplete", finishReason),
-    };
-  }
-
-  private handleRunError({ err, options, stream, executedToolCalls, streamedContent }: HandleRunErrorOptions): ToolCallRunResult | undefined {
-    if (isCancellationError(err, options.signal)) {
-      for (const execution of executedToolCalls.values()) {
-        if (execution.status === "pending" || execution.status === "awaiting_confirmation" || execution.status === "running") {
-          execution.status = "cancelled";
-          execution.isError = false;
-          execution.requiresConfirmation = false;
-          execution.result ??= "Cancelled with the active generation.";
-          void options.eventSink.publish({
-            type: "toolCallResult",
-            toolCallId: execution.toolCallId,
-            toolName: execution.toolName,
-            result: execution.result,
-            isError: false,
-            status: "cancelled",
-          });
-        }
-      }
-      const partialToolCalls = Array.from(executedToolCalls.values());
-      const timeline = stream.getTimeline();
-      const hasPartial = timeline.length > 0 || partialToolCalls.length > 0;
-
-      if (!options.isCancelling()) {
-        if (partialToolCalls.length > 0) {
-          options.eventSink.publish({
-            type: "addMessage",
-            message: {
-              role: "assistant",
-              content: streamedContent || "",
-              wasStreamed: timeline.length > 0,
-              toolCalls: partialToolCalls,
-              timeline,
-            },
-          });
-        }
-        stream.done({ status: "interrupted" });
-      }
-
-      return hasPartial
-        ? {
-            content: streamedContent,
-            timeline,
-            toolCalls: partialToolCalls.length > 0 ? partialToolCalls : undefined,
-            partial: true,
-          }
-        : undefined;
-    }
-
-    for (const execution of executedToolCalls.values()) {
-      if (execution.status === "pending" || execution.status === "awaiting_confirmation" || execution.status === "running") {
-        execution.status = "error";
-        execution.isError = true;
-        execution.requiresConfirmation = false;
-        execution.result ??= "Tool execution ended because the generation failed.";
-        void options.eventSink.publish({
-          type: "toolCallResult",
-          toolCallId: execution.toolCallId,
-          toolName: execution.toolName,
-          result: execution.result,
-          isError: true,
-          status: "error",
-        });
-      }
-    }
-    const partialToolCalls = Array.from(executedToolCalls.values());
-    const timeline = stream.getTimeline();
-    if (partialToolCalls.length > 0) {
-      options.eventSink.publish({
-        type: "addMessage",
-        message: {
-          role: "assistant",
-          content: streamedContent,
-          wasStreamed: timeline.length > 0,
-          toolCalls: partialToolCalls,
-          timeline,
-        },
-      });
-    }
-    stream.error(`Error en tool calls: ${getErrorMessage(err)}`);
-    return partialToolCalls.length > 0 || timeline.length > 0
-      ? {
-          content: streamedContent,
-          timeline,
-          toolCalls: partialToolCalls.length > 0 ? partialToolCalls : undefined,
-          partial: true,
-        }
-      : undefined;
-  }
-}
-
-function getErrorMessage(err: unknown): string {
-  return redactSensitiveText(err);
 }
 
 function hasAutomaticPermissionMode(options: ToolCallRunOptions): boolean {

@@ -3,7 +3,7 @@ import { existsSync } from "fs";
 import { mkdtemp, rm } from "fs/promises";
 import { tmpdir } from "os";
 import * as path from "path";
-import { executeWorkspaceCommand, shutdownOwnedProcesses } from "@/infrastructure/tools/definitions/ShellExecution";
+import { executeWorkspaceCommand, shutdownOwnedProcesses } from "@/infrastructure/tools/builtins/terminal/ShellExecution";
 import { setToolWorkspaceHost, type ToolWorkspaceHost } from "@/infrastructure/tools/ToolWorkspace";
 
 suite("shell execution", () => {

@@ -1,5 +1,5 @@
 /** Ordered policy boundary for a single tool execution. */
-export const TOOL_EXECUTION_STAGE_ORDER = [
+const TOOL_EXECUTION_STAGE_ORDER = [
   "argument_validation",
   "workspace_trust",
   "prepare_remote_review",
@@ -9,7 +9,7 @@ export const TOOL_EXECUTION_STAGE_ORDER = [
   "record_and_publish",
 ] as const;
 
-export type ToolExecutionStageName = typeof TOOL_EXECUTION_STAGE_ORDER[number];
+type ToolExecutionStageName = typeof TOOL_EXECUTION_STAGE_ORDER[number];
 
 export type ToolPipelineDecision<TContext, TResult> =
   | { kind: "continue"; context?: TContext }

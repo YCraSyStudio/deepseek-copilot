@@ -5,7 +5,6 @@ import { isAutomaticConfidence } from "@/infrastructure/deepseek/security/comman
 import type { ExecutionResult } from "@/application/tools/Types";
 import type { ToolHandlerContext } from "@/application/tools/Types";
 import type { HandleExecutionResultOptions, StoredExecution, ToolExecutionContext } from "./Types";
-import { serializeToolExecutionOutcome } from "@/domain/tools/ToolExecutionOutcome";
 import { ToolExecutionPipeline } from "@/application/tools/ToolExecutionPipeline";
 
 const DANGER_CANCELLED = "Tool call cancelled by user (dangerous operation)";
@@ -59,11 +58,11 @@ function createToolExecutionPipeline(): ToolExecutionPipeline<ToolPipelineContex
         if (!requiresWorkspaceMutationPolicy(context)) {
           const result = await context.ctx.toolExecutor.executeForced(context.toolCall, handlerContext(context.ctx));
           postToolCallResult(context.ctx, result);
-          context.resultText = serializeExecutionResult(result);
+          context.resultText = result.outcome.content;
           return { kind: "continue", context };
         }
         context.executionResult = await context.ctx.toolExecutor.execute(context.toolCall, handlerContext(context.ctx));
-        const confirmation = ToolExecutor.isConfirmationRequired(context.executionResult.result) ?? undefined;
+        const confirmation = ToolExecutor.isConfirmationRequired(context.executionResult.outcome.content) ?? undefined;
         context.confirmation = confirmation ? await addProvenFileScope(context.toolCall, confirmation) : undefined;
         if (!context.confirmation) {
           context.resultText = await handleExecutionResult({
@@ -220,16 +219,17 @@ async function handleExecutionResult(
   dangerOverride?: import("@/application/tools/Types").ConfirmationRequiredResult,
 ): Promise<string> {
   const { toolCall, result, ctx, announceStarted, round } = options;
-  const dangerInfo = dangerOverride ?? ToolExecutor.isConfirmationRequired(result.result);
+  const dangerInfo = dangerOverride ?? ToolExecutor.isConfirmationRequired(result.outcome.content);
+  const isError = result.outcome.kind === "error";
   updateStoredToolCall(ctx, toolCall.id, {
-    result: result.result,
-    isError: result.isError,
+    result: result.outcome.content,
+    isError,
     dangerLevel: dangerInfo?.dangerLevel,
   });
 
   if (!dangerInfo) {
     postToolCallResult(ctx, result);
-    return serializeExecutionResult(result);
+    return result.outcome.content;
   }
 
   updateStoredToolCall(ctx, toolCall.id, { status: "awaiting_confirmation" });
@@ -284,7 +284,7 @@ async function executeForcedAfterTrust(toolCall: ToolCall, ctx: ToolExecutionCon
   const forcedResult = await ctx.toolExecutor.executeForced(forcedToolCall, handlerContext(ctx));
   postToolCallResult(ctx, forcedResult);
   updateStoredToolCall(ctx, toolCall.id, { dangerConfirmed: true });
-  return serializeExecutionResult(forcedResult);
+  return forcedResult.outcome.content;
 }
 
 function withExpectedBeforeHash(toolCall: ToolCall, beforeHash: string): ToolCall {
@@ -306,7 +306,8 @@ function postToolCallResult(
   ctx: ToolExecutionContext,
   result: ExecutionResult & { rejected?: boolean },
 ): void {
-  if (!result.isError && (result.toolName === "search_web" || result.toolName === "read_web")) {
+  const isError = result.outcome.kind === "error";
+  if (!isError && (result.toolName === "search_web" || result.toolName === "read_web")) {
     ctx.markWebTainted?.();
   }
   const status: StoredExecution["status"] = result.status === "confirmation_required"
@@ -316,14 +317,14 @@ function postToolCallResult(
     type: "toolCallResult",
     toolCallId: result.toolCallId,
     toolName: result.toolName,
-    result: result.result,
-    isError: result.isError,
+    result: result.outcome.content,
+    isError,
     rejected: result.rejected,
     status,
   });
   updateStoredToolCall(ctx, result.toolCallId, {
-    result: result.result,
-    isError: result.isError,
+    result: result.outcome.content,
+    isError,
     rejected: result.rejected,
     requiresConfirmation: false,
     status,
@@ -357,11 +358,6 @@ async function addProvenFileScope(
     workspaceContained: contained,
     ...(contained ? {} : { reasonCode: "outside-workspace" }),
   };
-}
-
-function serializeExecutionResult(result: ExecutionResult): string {
-  const outcome = (result as Partial<ExecutionResult>).outcome;
-  return outcome ? serializeToolExecutionOutcome(outcome) : result.result;
 }
 
 function updateStoredToolCall(ctx: ToolExecutionContext, toolCallId: string, patch: Partial<StoredExecution>): void {

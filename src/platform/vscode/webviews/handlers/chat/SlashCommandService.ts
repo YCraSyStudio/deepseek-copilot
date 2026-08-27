@@ -11,7 +11,6 @@ import type { SendMessagePayload } from "./Types";
 import type { ToolRegistry } from "@/application/tools";
 import {
   isPermissionMode,
-  normalizePermissionMode,
   parseSlashCommand,
 } from "./ChatHandlerSupport";
 
@@ -100,9 +99,9 @@ export class SlashCommandService {
   }
 
   private async handleMode(args: string[], rawText: string, webviewView: vscode.WebviewView): Promise<void> {
-    const mode = normalizePermissionMode(args[0]);
+    const mode = args[0];
     if (!isPermissionMode(mode)) {
-      this.postTurn(webviewView, rawText, "Usage: /mode default|auto-approve|full|full-access");
+      this.postTurn(webviewView, rawText, "Usage: /mode default|auto-approve|full-access");
       return;
     }
     if (mode === "full-access") {

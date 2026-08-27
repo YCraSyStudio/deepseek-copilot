@@ -2,21 +2,18 @@ name: SearXNG runtime
 
 on:
   workflow_dispatch:
-  push:
-    branches: [feature/searxng]
-    paths:
-      - "scripts/build-searxng-runtime.py"
-      - "scripts/create-searxng-runtime-manifest.mjs"
-      - "scripts/fetch-searxng-build-source.py"
-      - "scripts/searxng-runtime-entry.py"
+
+concurrency:
+  group: searxng-runtime-2026.08.22-9fea41204-v2
+  cancel-in-progress: false
 
 permissions:
-  contents: write
+  contents: read
 
 env:
   SEARXNG_COMMIT: 9fea41204fdfa7a5cfa15b0ebd12904c520478ce
-  SEARXNG_RUNTIME_VERSION: 2026.08.22-9fea41204-v3
-  SEARXNG_RUNTIME_TAG: searxng-runtime-2026.08.22-9fea41204-v3
+  SEARXNG_RUNTIME_VERSION: 2026.08.22-9fea41204-v2
+  SEARXNG_RUNTIME_TAG: searxng-runtime-2026.08.22-9fea41204-v2
   REQUIRED_RUNTIME_KEYS: linux-x64,linux-arm64,win32-x64,darwin-x64,darwin-arm64
 
 jobs:
@@ -39,6 +36,11 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Verify pinned runtime configuration
+        run: node scripts/verify-searxng-runtime-config.mjs
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
@@ -64,8 +66,15 @@ jobs:
     name: Publish immutable pinned runtime release
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Verify pinned runtime configuration
+        run: node scripts/verify-searxng-runtime-config.mjs
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
@@ -87,6 +96,8 @@ jobs:
           merge-multiple: true
       - name: Create runtime manifest
         run: node scripts/create-searxng-runtime-manifest.mjs runtime-dist
+      - name: Verify built assets against the extension trust anchor
+        run: node scripts/verify-searxng-runtime-config.mjs --manifest runtime-dist/manifest.json
       - name: Add corresponding SearXNG source and license
         shell: bash
         run: |
@@ -104,8 +115,8 @@ jobs:
         shell: bash
         run: |
           gh release create "$SEARXNG_RUNTIME_TAG" \
+            runtime-dist/* \
             --target "$GITHUB_SHA" \
             --title "SearXNG runtime $SEARXNG_RUNTIME_VERSION" \
             --notes "Pinned SearXNG sidecar runtimes used by DeepSeek Copilot. Published assets are immutable; the extension trusts only checksums embedded in its VSIX." \
             --prerelease
-          gh release upload "$SEARXNG_RUNTIME_TAG" runtime-dist/*

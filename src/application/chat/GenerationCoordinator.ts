@@ -15,7 +15,7 @@ export type GenerationStopReason =
   | "deleted"
   | "history_transition";
 
-export interface GenerationAbortReason {
+interface GenerationAbortReason {
   kind: "generation_abort";
   reason: GenerationStopReason;
 }

@@ -1,7 +1,7 @@
 import * as assert from "assert";
 import { createHash } from "crypto";
 import * as path from "path";
-import { applyPatchHandler, applyPatchHandlerForced } from "@/infrastructure/tools/definitions/ApplyPatch";
+import { applyPatchHandler, applyPatchHandlerForced } from "@/infrastructure/tools/builtins/fileSystem/ApplyPatch";
 import { setToolWorkspaceHost, type ToolWorkspaceEntryType, type ToolWorkspaceHost, type ToolWorkspaceStat } from "@/infrastructure/tools/ToolWorkspace";
 
 suite("apply_patch tool", () => {

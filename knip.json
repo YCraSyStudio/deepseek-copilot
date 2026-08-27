@@ -1,0 +1,11 @@
+{
+  "entry": [
+    "src/test/**/*.test.ts",
+    "src/test/integration/PackagedRunner.ts",
+    "scripts/*.mjs"
+  ],
+  "project": [
+    "src/**/*.{ts,tsx}",
+    "scripts/*.mjs"
+  ]
+}

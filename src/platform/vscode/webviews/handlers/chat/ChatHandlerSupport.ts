@@ -1,27 +1,15 @@
-import * as vscode from "vscode";
 import type {
   ChatMessage,
   PermissionMode,
   StoredToolCall,
   ToolDefinition,
-  WorkspaceContextStatus,
 } from "@/contracts";
 import type { WorkspaceRunSnapshot } from "@/platform/vscode/workspace";
-import { redactSensitiveText } from "@/shared/security/Redaction";
 import { buildTerminalRuntimeNotice } from "./TerminalRuntimeNotice";
-import { isCancellationError as isSharedCancellationError } from "@/shared/utils/Cancellation";
 
 export interface ParsedSlashCommand {
   name: string;
   args: string[];
-}
-
-export function isCancellationError(err: unknown, signal?: AbortSignal): boolean {
-  return isSharedCancellationError(err, signal);
-}
-
-export function getErrorMessage(err: unknown): string {
-  return err instanceof Error ? redactSensitiveText(err) : "Unexpected error while connecting to the API";
 }
 
 export function appendToolAvailabilityContext(
@@ -66,23 +54,6 @@ export function isPermissionMode(value: unknown): value is PermissionMode {
   return value === "default" || value === "auto-approve" || value === "full-access";
 }
 
-export function normalizePermissionMode(value: string | undefined): string | undefined {
-  if (value === "full") {
-    return "full-access";
-  }
-  return value;
-}
-
-export function getWorkspaceStatusError(status: WorkspaceContextStatus): string {
-  if (status.state === "changed") {
-    return `Workspace "${status.binding.name}" changed. Confirm or reassign the workspace before continuing.`;
-  }
-  if (status.state === "empty") {
-    return "Open a workspace before starting a generation.";
-  }
-  return `Workspace "${status.binding.name}" is disconnected. Open it or reassign this conversation.`;
-}
-
 export function upsertStoredToolCall(toolCalls: StoredToolCall[], value: StoredToolCall): void {
   const index = toolCalls.findIndex((toolCall) => toolCall.toolCallId === value.toolCallId);
   if (index >= 0) {
@@ -100,12 +71,4 @@ export function isStoredToolStatus(value: unknown): value is StoredToolCall["sta
     value === "rejected" ||
     value === "cancelled" ||
     value === "error";
-}
-
-export function normalizeWorkspaceUri(workspaceUri: string): string {
-  try {
-    return vscode.Uri.parse(workspaceUri).toString(true);
-  } catch {
-    return workspaceUri;
-  }
 }

@@ -1,8 +1,8 @@
-import * as vscode from "vscode";
+import type * as vscode from "vscode";
 import { randomUUID } from "node:crypto";
 import { GenerationCheckpointStore, HistoryManager } from "@/platform/vscode/storage";
 import { logWarning } from "@/shared/logging/Logger";
-import type { ConversationMessage, QueuedGenerationMessage, ReferencedFile, WebviewToHandlerMessage, WorkspaceContextStatus } from "@/contracts";
+import type { QueuedGenerationMessage, ReferencedFile, WebviewToHandlerMessage, WorkspaceContextStatus } from "@/contracts";
 import type { ToolRegistry } from "@/application/tools";
 import {
   captureCurrentWorkspaceBinding,
@@ -22,10 +22,11 @@ import {
 import { GenerationExecutor } from "./generation/GenerationExecutor";
 import { recoverGenerationCheckpoints } from "./generation/GenerationRecovery";
 import { ConversationWorkspaceReferences } from "./ConversationWorkspaceReferences";
+import { ConversationWorkspaceCoordinator } from "./ConversationWorkspaceCoordinator";
+import { MessageAdmissionService } from "./MessageAdmissionService";
 import {
   cancelGeneration,
   postAvailableTools,
-  restoreRequestedConversation,
   steerGeneration,
   syncSelectedConversation,
 } from "./ConversationControl";
@@ -36,10 +37,6 @@ import {
   replayGenerationEvents,
   scheduleGenerationCheckpoint,
 } from "./generation/GenerationCheckpointing";
-import {
-  getErrorMessage,
-  getWorkspaceStatusError,
-} from "./ChatHandlerSupport";
 import type { HeadlessWebRuntime } from "@/infrastructure/browser/HeadlessWebRuntime";
 import type { ModelProviderFactory, SecretStore, SettingsRepository } from "@/application/ports";
 
@@ -61,6 +58,8 @@ export class ChatHandler {
   private readonly slashCommands: SlashCommandService;
   private readonly generationExecutor: GenerationExecutor;
   private readonly workspaceReferences: ConversationWorkspaceReferences;
+  private readonly workspaceCoordinator: ConversationWorkspaceCoordinator;
+  private readonly messageAdmission: MessageAdmissionService;
   private readonly generationEventCallbacks: GenerationEventCallbacks = {
     scheduleCheckpoint: (record) => this.scheduleCheckpoint(record),
     checkpointImmediately: (record) => {
@@ -150,6 +149,34 @@ export class ChatHandler {
         this.postHistoryTransitionActivity();
       },
     });
+    this.workspaceCoordinator = new ConversationWorkspaceCoordinator({
+      checkpointStore: this.checkpointStore,
+      conversationState: this.conversationState,
+      coordinator: this.coordinator,
+      historyManager: this.historyManager,
+      post: (message) => this.post(message),
+      postGenerationSnapshot: () => this.postGenerationSnapshot(),
+      recoveredDrafts: this.recoveredDrafts,
+      runs: this.runs,
+      workspaceReferences: this.workspaceReferences,
+    });
+    this.messageAdmission = new MessageAdmissionService({
+      conversationState: this.conversationState,
+      coordinator: this.coordinator,
+      getWebview: () => this.webviewView,
+      hasHistoryTransition: () => this.historyTransition !== undefined,
+      historyManager: this.historyManager,
+      isShuttingDown: () => this.shuttingDown,
+      loadConversation: (conversation) => this.loadConversation(conversation),
+      onConversationCreated: (conversationId) => {
+        this.selectedConversationId = conversationId;
+      },
+      post: (message) => this.post(message),
+      resolveWorkspaceContext,
+      settings: this.settings,
+      slashCommands: this.slashCommands,
+      workspaceReferences: this.workspaceReferences,
+    });
   }
 
   handle(message: WebviewToHandlerMessage, webviewView: vscode.WebviewView): void {
@@ -237,10 +264,10 @@ export class ChatHandler {
         });
         break;
       case "rebindConversationWorkspace":
-        void this.confirmAndRebindWorkspace(message.conversationId, message.workspaceRevision);
+        void this.workspaceCoordinator.confirmAndRebind(message.conversationId, message.workspaceRevision);
         break;
       case "openConversationWorkspace":
-        void this.openConversationWorkspace(message.conversationId);
+        void this.workspaceCoordinator.open(message.conversationId);
         break;
       default:
         logWarning(`[ChatHandler] Unknown message: ${message.type}`);
@@ -257,10 +284,7 @@ export class ChatHandler {
   }
 
   async getWorkspaceContext(conversationId?: string): Promise<WorkspaceContextStatus> {
-    const binding = await this.workspaceReferences.getBinding(
-      conversationId ?? this.selectedConversationId,
-    );
-    return resolveWorkspaceContext(binding);
+    return this.workspaceCoordinator.getContext(conversationId ?? this.selectedConversationId);
   }
 
   registerExternalContextFiles(files: ReferencedFile[]): void {
@@ -268,117 +292,11 @@ export class ChatHandler {
   }
 
   async rebindConversationWorkspace(conversationId: string): Promise<WorkspaceContextStatus> {
-    const current = captureCurrentWorkspaceBinding();
-    if (current.folders.length === 0) {
-      throw new Error("Open at least one workspace folder before reassigning this conversation.");
-    }
-    const conversation = await this.historyManager.getById(conversationId);
-    if (!conversation) {
-      throw new Error("Conversation not found.");
-    }
-    const previous = conversation.workspaceBinding;
-    const queued = this.coordinator.clearQueue(conversationId);
-    if (queued.length > 0) {
-      this.recoveredDrafts.set(conversationId, queued.map((task) => ({
-        clientRequestId: task.clientRequestId,
-        text: task.payload.text,
-        queuedAt: task.queuedAt,
-      })));
-    }
-    const active = this.coordinator.getActiveForConversation(conversationId);
-    if (active) {
-      this.runs.get(active.generationId)?.session.cancel();
-      this.coordinator.interrupt(active.generationId, "workspace_changed");
-      await active.completion;
-    }
-    const rebound: StoredConversation = {
-      ...conversation,
-      workspaceUri: current.uri,
-      workspaceBinding: current,
-      workspaceRebindings: [
-        ...(conversation.workspaceRebindings ?? []),
-        { fromWorkspaceUri: previous.uri, toWorkspaceUri: current.uri, at: Date.now() },
-      ].slice(-100),
-      updatedAt: Date.now(),
-    };
-    await this.checkpointStore.delete(conversationId);
-    await this.historyManager.save(rebound);
-    if (this.selectedConversationId === conversationId) {
-      this.conversationState.load(rebound);
-    }
-    const status = resolveWorkspaceContext(current);
-    this.workspaceReferences.postContext(current);
-    return status;
-  }
-
-  private async confirmAndRebindWorkspace(conversationId: string, expectedRevision?: string): Promise<void> {
-    const currentContext = await this.getWorkspaceContext(conversationId);
-    if (expectedRevision && expectedRevision !== currentContext.binding.revision) {
-      this.post({ type: "workspaceRebindResult", success: false, error: "The stored workspace binding changed. Refresh and try again." });
-      return;
-    }
-    const answer = await vscode.window.showWarningMessage(
-      "Reassign this conversation to the current workspace? Pending generations, queued messages and file references will be cleared.",
-      { modal: true },
-      "Reassign",
-    );
-    if (answer !== "Reassign") {
-      this.post({ type: "workspaceRebindResult", success: false, error: "Workspace reassignment cancelled." });
-      return;
-    }
-    try {
-      const context = await this.rebindConversationWorkspace(conversationId);
-      this.post({ type: "workspaceRebindResult", success: true, context });
-      this.postGenerationSnapshot();
-    } catch (error: unknown) {
-      this.post({ type: "workspaceRebindResult", success: false, error: getErrorMessage(error) });
-    }
-  }
-
-  private async openConversationWorkspace(conversationId: string): Promise<void> {
-    const binding = await this.workspaceReferences.getBinding(conversationId);
-    if (binding.uri.startsWith("yrs-workspace:")) {
-      await vscode.window.showInformationMessage(`Open the workspace "${binding.name}" manually; it was not saved as a .code-workspace file.`);
-      return;
-    }
-    const uri = vscode.Uri.parse(binding.uri);
-    await vscode.commands.executeCommand("vscode.openFolder", uri, { forceNewWindow: true });
+    return this.workspaceCoordinator.rebind(conversationId);
   }
 
   async handleWorkspaceFoldersChanged(): Promise<void> {
-    const affected = new Set<string>();
-    const conversationIds = new Set([
-      ...this.coordinator.getActiveGenerations().map((active) => active.task.conversationId),
-      ...this.coordinator.getQueuedConversationIds(),
-    ]);
-    for (const conversationId of conversationIds) {
-      const selected = this.conversationState.getConversation();
-      const conversation = await this.historyManager.getById(conversationId) ??
-        (selected?.id === conversationId ? selected : undefined);
-      const binding = conversation?.workspaceBinding;
-      if (binding && resolveWorkspaceContext(binding).state !== "connected") {
-        affected.add(conversationId);
-        const active = this.coordinator.getActiveForConversation(conversationId);
-        if (active) {
-          this.runs.get(active.generationId)?.session.cancel();
-          this.coordinator.interrupt(active.generationId, "workspace_changed");
-        }
-      }
-    }
-    for (const conversationId of affected) {
-      const queued = this.coordinator.clearQueue(conversationId);
-      if (queued.length > 0) {
-        this.recoveredDrafts.set(conversationId, queued.map((task) => ({
-          clientRequestId: task.clientRequestId,
-          text: task.payload.text,
-          queuedAt: task.queuedAt,
-        })));
-      }
-    }
-    this.workspaceReferences.postContext(
-      await this.workspaceReferences.getBinding(this.selectedConversationId),
-    );
-    this.postGenerationSnapshot();
+    await this.workspaceCoordinator.handleFoldersChanged(this.selectedConversationId);
   }
 
   forgetConversation(id: string): boolean {
@@ -532,85 +450,7 @@ export class ChatHandler {
   }
 
   private async acceptMessage(payload: SendMessagePayload, front = false): Promise<void> {
-    if (this.shuttingDown) {
-      this.post({ type: "requestRejected", requestId: payload.clientRequestId, action: "sendMessage", error: "The extension is shutting down." });
-      return;
-    }
-    if (this.historyTransition) {
-      this.post({ type: "requestRejected", requestId: payload.clientRequestId, action: "sendMessage", error: "Finish the incognito-mode decision before sending another message." });
-      return;
-    }
-    await this.settings.waitForPendingWrites();
-    const config = this.settings.load();
-    const webviewView = this.webviewView;
-    if (!webviewView) {
-      return;
-    }
-    if (await this.slashCommands.handle(payload, config, webviewView)) {
-      return;
-    }
-
-    if (!this.conversationState.isIncognito()) {
-      await restoreRequestedConversation(
-        payload.conversationId,
-        this.conversationState,
-        this.historyManager,
-        (conversation) => this.loadConversation(conversation),
-      );
-    }
-    let conversationId = !this.conversationState.isIncognito()
-      ? payload.conversationId ?? this.conversationState.getActiveConversationId()
-      : this.conversationState.getActiveConversationId();
-    if (!conversationId) {
-      conversationId = randomUUID();
-      const now = Date.now();
-      const workspaceBinding = this.historyManager.getWorkspaceBinding();
-      this.conversationState.load({
-        schemaVersion: 2,
-        id: conversationId,
-        title: "New conversation",
-        createdAt: now,
-        updatedAt: now,
-        messages: [],
-        model: payload.modelId || config.model,
-        workspaceUri: workspaceBinding.uri,
-        workspaceBinding,
-      });
-      this.selectedConversationId = conversationId;
-      this.workspaceReferences.postContext(workspaceBinding);
-    }
-    const binding = await this.workspaceReferences.getBinding(conversationId);
-    const workspaceStatus = resolveWorkspaceContext(binding);
-    if (workspaceStatus.state === "disconnected" || workspaceStatus.state === "changed") {
-      this.post({ type: "requestRejected", requestId: payload.clientRequestId, action: "sendMessage", error: getWorkspaceStatusError(workspaceStatus) });
-      this.workspaceReferences.postContext(binding);
-      return;
-    }
-    if (payload.workspaceRevision && payload.workspaceRevision !== binding.revision) {
-      this.post({ type: "requestRejected", requestId: payload.clientRequestId, action: "sendMessage", error: "The workspace changed. Refresh the workspace context and try again." });
-      this.workspaceReferences.postContext(binding);
-      return;
-    }
-    let referencedFiles: ReferencedFile[] | undefined;
-    try {
-      referencedFiles = await this.workspaceReferences.validateFiles(
-        payload.referencedFiles,
-        binding,
-      );
-    } catch (error: unknown) {
-      this.post({ type: "requestRejected", requestId: payload.clientRequestId, action: "sendMessage", error: getErrorMessage(error) });
-      return;
-    }
-    try {
-      this.coordinator.enqueue({
-        conversationId,
-        clientRequestId: payload.clientRequestId,
-        queuedAt: Date.now(),
-        payload: { ...payload, conversationId, referencedFiles },
-      }, front);
-    } catch (error: unknown) {
-      this.post({ type: "requestRejected", requestId: payload.clientRequestId, action: "sendMessage", error: getErrorMessage(error) });
-    }
+    await this.messageAdmission.accept(payload, front);
   }
 
   private scheduleCheckpoint(record: GenerationRunRecord): void {
@@ -701,5 +541,3 @@ export class ChatHandler {
     void this.webviewView?.webview.postMessage(message);
   }
 }
-
-export default ChatHandler;

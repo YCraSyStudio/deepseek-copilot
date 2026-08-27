@@ -1,5 +1,6 @@
 import { MAX_OUTPUT_TOKENS, WEBVIEW_INPUT_LIMITS, WEBVIEW_PROTOCOL_VERSION, type AppConfig, type WebviewToHandlerMessage } from "@/contracts";
 import { isAllowedApiBaseUrl } from "@/shared/security/ApiOrigin";
+import { isRecord } from "@/shared/utils/TypeGuards";
 
 const MAX_CHAT_TEXT = WEBVIEW_INPUT_LIMITS.chatText;
 const MAX_CODE_TEXT = 2 * 1024 * 1024;
@@ -290,10 +291,6 @@ function isAllowedSearxngUrl(value: unknown): boolean {
 function isSearxngEngineSelection(value: unknown): boolean {
   return Array.isArray(value) && value.length <= 512 && value.every((item) =>
     typeof item === "string" && /^[a-zA-Z0-9_-]{1,64}$/.test(item));
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
 function hasOnlyKeys(value: Record<string, unknown>, allowedKeys: readonly string[]): boolean {

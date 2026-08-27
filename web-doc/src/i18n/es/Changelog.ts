@@ -4,8 +4,18 @@ export const changelog: PageContent = {
   navTitle: "Changelog",
   title: "Changelog",
   description: "Cambios relevantes y estado preview.",
-  lead: "La preview 0.1.11 migra la búsqueda web a un runtime SearXNG local administrado, hace visibles los terminales del agente, elimina paradas arbitrarias de ciclos y añade revisiones de finalización y progreso mediante el modelo.",
+  lead: "La preview 0.1.12 elimina el parche de recuperación de DSML textual, simplifica los límites internos y añade control automático de código muerto a las puertas de producción.",
   sections: [
+    {
+      title: "0.1.12 tool calls nativas y limpieza de mantenimiento",
+      items: [
+        "Eliminados el detector de DSML textual específico del proveedor, el buffer de streaming, el reintento oculto y el prompt de recuperación. Solo las tool_calls nativas de la API pueden ejecutar herramientas; el texto del asistente con forma de herramienta sigue siendo contenido ordinario.",
+        "Separados la generación de chat, historial, ajustes, protocolo webview, adjuntos, uso, finalización de tool calls e instalación de SearXNG en servicios enfocados sin cambiar sus contratos externos.",
+        "Eliminados shims de compatibilidad, módulos de reenvío, rutas de proveedor y FIM sin uso y alias redundantes de resultados. Restaurado y reforzado el flujo inmutable de publicación del runtime SearXNG con validaciones previas de metadatos y checksums.",
+        "Activados los controles de código sin uso de TypeScript y una puerta Knip de producción; eliminados los tests triviales de detalles de implementación conservando la cobertura de comportamiento e integración.",
+        "Renombrada a Auto la opción automática del idioma de la interfaz en todos los idiomas compatibles.",
+      ],
+    },
     {
       title: "0.1.11 búsqueda administrada y ejecución sostenida del agente",
       items: [

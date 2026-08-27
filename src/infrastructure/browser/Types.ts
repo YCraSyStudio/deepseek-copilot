@@ -1,4 +1,4 @@
-export type WebSearchProviderId = "searxng";
+type WebSearchProviderId = "searxng";
 
 export interface WebSecurityMetadata {
   source: "live_web";

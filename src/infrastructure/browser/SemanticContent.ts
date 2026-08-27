@@ -1,7 +1,7 @@
 import { validatePublicWebUrl } from "./NetworkPolicy";
 import type { WebContentSection } from "./Types";
 
-export const MAX_DOCUMENT_CHARS = 64 * 1024;
+const MAX_DOCUMENT_CHARS = 64 * 1024;
 export const MAX_WEB_RESPONSE_CHARS = 8 * 1024;
 const MAX_SECTION_BYTES = 4 * 1024;
 

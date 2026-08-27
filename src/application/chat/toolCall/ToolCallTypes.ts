@@ -48,8 +48,8 @@ export interface CompletionReviewContext {
   recoveryAttempted: boolean;
 }
 
-export type ProgressReviewDecision = "continue" | "finalize" | "blocked" | "unknown";
-export type ProgressReviewConfidence = "high" | "medium" | "low";
+type ProgressReviewDecision = "continue" | "finalize" | "blocked" | "unknown";
+type ProgressReviewConfidence = "high" | "medium" | "low";
 
 export interface ProgressReviewResult {
   decision: ProgressReviewDecision;
@@ -73,9 +73,9 @@ export interface ToolCallCycleResult {
   transcript: ChatMessage[];
 }
 
-export type ToolExecutor = (toolCall: ToolCall) => Promise<string>;
+type ToolExecutor = (toolCall: ToolCall) => Promise<string>;
 
-export interface ToolCallModelRoundOptions {
+interface ToolCallModelRoundOptions {
   messages: ChatMessage[];
   tools: ToolDefinition[];
   model: string;

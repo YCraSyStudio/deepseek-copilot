@@ -16,6 +16,8 @@ artifacts/**
 .gitignore
 .yarnrc
 package-lock.json
+knip.json
+REFACTOR_AUDIT.md
 esbuild.js
 vsc-extension-quickstart.md
 testingPrompt.md

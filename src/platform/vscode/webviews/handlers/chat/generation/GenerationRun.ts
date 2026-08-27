@@ -81,7 +81,7 @@ export function createGenerationEventSink(
   };
 }
 
-export function handleGenerationEvent(
+function handleGenerationEvent(
   record: GenerationRunRecord,
   value: unknown,
   callbacks: GenerationEventCallbacks,

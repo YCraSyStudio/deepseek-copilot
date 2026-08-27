@@ -1,6 +1,7 @@
 import type { AssistantTimelineEvent, ConversationMessage, DangerConfirmationData, StoredToolCall, WorkspaceBinding } from "@/contracts";
 import { isConversationContextSummary, isProviderTranscript, type StoredConversation } from "./ProviderTranscript";
 import { isUsageAggregate } from "@/shared/usage/Usage";
+import { isRecord } from "@/shared/utils/TypeGuards";
 
 export function isConversation(value: unknown): value is StoredConversation {
   if (!isRecord(value) || !isBoundedString(value.id, 512) || !isBoundedString(value.title, 4096) || !isBoundedString(value.model, 256) || !isBoundedString(value.workspaceUri, 32_768)) {
@@ -154,10 +155,6 @@ export function isDangerConfirmationData(value: unknown): value is DangerConfirm
   return ["command", "filePath", "cwd", "shell", "beforeHash"].every((key) =>
     value[key] === undefined || isBoundedString(value[key], 5 * 1024 * 1024)
   );
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
 function isBoundedString(value: unknown, maxLength: number): value is string {

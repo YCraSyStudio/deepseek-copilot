@@ -1,9 +1,10 @@
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
-import { WEBVIEW_INPUT_LIMITS, type HandlerToWebviewMessage, type ImageAttachment, type PathCompletionItem, type ReferencedFile } from "@/contracts";
+import { WEBVIEW_INPUT_LIMITS, type ImageAttachment, type ReferencedFile } from "@/contracts";
 import "./InputCtrl.css";
-import { FileSelector, getPathToken, type PathToken } from "@webview/components/chatView";
+import { FileSelector } from "@webview/components/chatView";
 import { useVsCode } from "@webview/views/chatView/contexts";
 import { t } from "@webview/i18n";
+import { usePathCompletions } from "./UsePathCompletions";
 
 type Props = {
   input: string;
@@ -49,48 +50,28 @@ const InputCtrl = forwardRef<HTMLTextAreaElement, Props>(
     ref,
   ) => {
     const taRef = useRef<HTMLTextAreaElement | null>(null);
-    const requestIdRef = useRef(0);
-    const activeRequestIdRef = useRef(0);
-    const completionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const lastCompletionQueryRef = useRef<string | null>(null);
     const vscode = useVsCode();
-    const [pathToken, setPathToken] = useState<PathToken | null>(null);
-    const [completions, setCompletions] = useState<PathCompletionItem[]>([]);
-    const [activeIndex, setActiveIndex] = useState(0);
-    const [hasCompletionResponse, setHasCompletionResponse] = useState(false);
     const [isControlPressed, setIsControlPressed] = useState(false);
     const hasTextContent = input.trim().length > 0;
+    const {
+      activeIndex,
+      clearCompletions,
+      completions,
+      hasCompletionResponse,
+      insertCompletion,
+      pathToken,
+      requestPathCompletions,
+      setActiveIndex,
+    } = usePathCompletions({
+      conversationId,
+      input,
+      setInput,
+      textareaRef: taRef,
+      vscode,
+      workspaceRevision,
+    });
 
     useImperativeHandle(ref, () => taRef.current!, [taRef]);
-
-    useEffect(() => {
-      const handleMessage = (event: MessageEvent<HandlerToWebviewMessage>) => {
-        const message = event.data;
-        if (
-          message.type !== "pathCompletions" ||
-          message.requestId !== activeRequestIdRef.current ||
-          (workspaceRevision && message.workspaceRevision !== workspaceRevision)
-        ) {
-          return;
-        }
-
-        const uniqueItems = message.items.filter(
-          (item, index, items) => items.findIndex((candidate) => candidate.path === item.path && candidate.type === item.type) === index,
-        );
-        setCompletions(uniqueItems);
-        setActiveIndex(0);
-        setHasCompletionResponse(true);
-      };
-
-      window.addEventListener("message", handleMessage);
-      return () => window.removeEventListener("message", handleMessage);
-    }, [workspaceRevision]);
-
-    useEffect(() => () => {
-      if (completionTimerRef.current) {
-        clearTimeout(completionTimerRef.current);
-      }
-    }, []);
 
     useEffect(() => {
       const handleModifierChange = (event: KeyboardEvent) => setIsControlPressed(event.ctrlKey);
@@ -105,56 +86,13 @@ const InputCtrl = forwardRef<HTMLTextAreaElement, Props>(
       };
     }, []);
 
-    const requestPathCompletions = useCallback(
-      (value: string, cursor: number, immediate = false) => {
-        const token = getPathToken(value, cursor);
-        setPathToken(token);
-
-        if (completionTimerRef.current) {
-          clearTimeout(completionTimerRef.current);
-          completionTimerRef.current = null;
-        }
-
-        if (!token || !vscode) {
-          setCompletions([]);
-          setHasCompletionResponse(false);
-          lastCompletionQueryRef.current = null;
-          activeRequestIdRef.current = requestIdRef.current + 1;
-          requestIdRef.current = activeRequestIdRef.current;
-          return;
-        }
-
-        if (lastCompletionQueryRef.current === token.query) {
-          return;
-        }
-
-        lastCompletionQueryRef.current = token.query;
-        setCompletions([]);
-        setHasCompletionResponse(false);
-        const requestId = requestIdRef.current + 1;
-        requestIdRef.current = requestId;
-        activeRequestIdRef.current = requestId;
-        const sendRequest = () => {
-          vscode.postMessage({ type: "getPathCompletions", requestId, query: token.query, conversationId, workspaceRevision });
-        };
-
-        if (immediate) {
-          sendRequest();
-        } else {
-          completionTimerRef.current = setTimeout(sendRequest, 140);
-        }
-      },
-      [vscode, conversationId, workspaceRevision],
-    );
-
     const handleSend = useCallback(() => {
       const text = input.trim();
       if ((!text && imageAttachments.length === 0) || !vscode || !canSend) {
         return;
       }
 
-      setCompletions([]);
-      setPathToken(null);
+      clearCompletions();
       const clientRequestId = crypto.randomUUID();
       onSend?.(text, clientRequestId);
       vscode.postMessage({
@@ -168,7 +106,7 @@ const InputCtrl = forwardRef<HTMLTextAreaElement, Props>(
         referencedFiles: referencedFiles?.map(toRequestReference),
         imageAttachments,
       });
-    }, [input, imageAttachments, vscode, canSend, selectedModelRef, reasoningRef, referencedFiles, conversationId, workspaceRevision, onSend]);
+    }, [input, imageAttachments, vscode, canSend, clearCompletions, selectedModelRef, reasoningRef, referencedFiles, conversationId, workspaceRevision, onSend]);
 
     const handleCancel = useCallback(() => {
       if (activeGenerationId && conversationId) {
@@ -202,36 +140,6 @@ const InputCtrl = forwardRef<HTMLTextAreaElement, Props>(
       });
     }, [activeGenerationId, conversationId, imageAttachments, input, onSend, reasoningRef, referencedFiles, selectedModelRef, vscode, workspaceRevision]);
 
-    const insertCompletion = useCallback(
-      (completion: PathCompletionItem) => {
-        if (!pathToken) {
-          return;
-        }
-
-        const textarea = taRef.current;
-        const nextInput = `${input.slice(0, pathToken.start)}${completion.path}${input.slice(pathToken.end)}`;
-        const cursor = pathToken.start + completion.path.length;
-        setInput(nextInput);
-
-        requestAnimationFrame(() => {
-          if (!textarea) {
-            return;
-          }
-          textarea.selectionStart = cursor;
-          textarea.selectionEnd = cursor;
-          textarea.focus();
-          if (completion.type === "directory") {
-            lastCompletionQueryRef.current = null;
-            requestPathCompletions(nextInput, cursor, true);
-          } else {
-            setCompletions([]);
-            setPathToken(null);
-          }
-        });
-      },
-      [input, pathToken, requestPathCompletions, setInput],
-    );
-
     const handleKeyDown = useCallback(
       (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
         if (completions.length > 0) {
@@ -252,8 +160,7 @@ const InputCtrl = forwardRef<HTMLTextAreaElement, Props>(
           }
           if (e.key === "Escape") {
             e.preventDefault();
-            setCompletions([]);
-            setPathToken(null);
+            clearCompletions();
             return;
           }
         }
@@ -269,7 +176,7 @@ const InputCtrl = forwardRef<HTMLTextAreaElement, Props>(
           }
         }
       },
-      [activeIndex, canSend, completions, handleSend, handleSteer, insertCompletion, isProcessing],
+      [activeIndex, canSend, clearCompletions, completions, handleSend, handleSteer, insertCompletion, isProcessing, setActiveIndex],
     );
 
     const handleChange = useCallback(

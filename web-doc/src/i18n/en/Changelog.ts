@@ -4,8 +4,18 @@ export const changelog: PageContent = {
   navTitle: "Changelog",
   title: "Changelog",
   description: "Relevant changes and preview status.",
-  lead: "Preview 0.1.11 moves web search to a managed local SearXNG runtime, makes agent terminals visible, removes arbitrary tool-cycle stops, and adds model-backed completion and progress reviews.",
+  lead: "Preview 0.1.12 removes the DSML text-recovery workaround, simplifies internal boundaries, and adds automated dead-code enforcement to the production gates.",
   sections: [
+    {
+      title: "0.1.12 native tool calls and maintenance cleanup",
+      items: [
+        "Removed the provider-specific DSML text detector, streaming buffer, hidden retry, and recovery prompt. Only native API tool_calls can execute tools; tool-shaped assistant text remains ordinary content.",
+        "Split chat generation, history, settings, webview protocol, attachments, usage accounting, tool-call completion, and SearXNG installation into focused services without changing their external contracts.",
+        "Removed obsolete compatibility shims, forwarding modules, unused provider and FIM paths, and redundant tool-result aliases. Restored and hardened the immutable SearXNG runtime publication workflow with pre-publish metadata and checksum gates.",
+        "Enabled TypeScript unused-code checks and a Knip production gate, then removed trivial implementation-detail tests while retaining behavioral and integration coverage.",
+        "Renamed the interface-language automatic option to Auto in every supported locale.",
+      ],
+    },
     {
       title: "0.1.11 managed search and sustained agent execution",
       items: [

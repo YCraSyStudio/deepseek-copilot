@@ -1,5 +1,4 @@
-import type { AppConfig, ChatMessage, ToolDefinition } from "@/contracts";
-import { DEEPSEEK_DEFAULTS } from "../../DeepSeekConfig";
+import { DEFAULT_CONFIG, type AppConfig, type ChatMessage, type ToolDefinition } from "@/contracts";
 import { buildChatBody, type ChatRequest } from "../Chat";
 import type { ToolCallCycleOptions } from "@/application/chat/toolCall/ToolCallTypes";
 
@@ -23,11 +22,11 @@ export function buildToolCallRequest(options: BuildToolCallRequestOptions): Chat
   };
 
   const config: AppConfig = {
-    ...DEEPSEEK_DEFAULTS,
+    ...DEFAULT_CONFIG,
     model,
     thinkingMode: cycleOptions.thinkingMode ?? true,
     reasoningEffort: cycleOptions.reasoningEffort,
-    maxTokens: cycleOptions.maxTokens ?? DEEPSEEK_DEFAULTS.maxTokens,
+    maxTokens: cycleOptions.maxTokens ?? DEFAULT_CONFIG.maxTokens,
     userId: cycleOptions.userId,
   };
 

@@ -1,6 +1,6 @@
 import { takeUtf8Head, takeUtf8Tail } from "@/shared/utils/BoundedText";
 
-export const MAX_TOOL_RESULT_MODEL_BYTES = 128 * 1024;
+const MAX_TOOL_RESULT_MODEL_BYTES = 128 * 1024;
 
 export function fitToolResultForModel(value: string, maxBytes = MAX_TOOL_RESULT_MODEL_BYTES): string {
   if (Buffer.byteLength(value, "utf8") <= maxBytes) {return value;}

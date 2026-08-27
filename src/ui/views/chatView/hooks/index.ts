@@ -1,5 +1,5 @@
 export { useMessageHandler } from "./UseMessageHandler";
-export type { MessageDispatcher, StreamDoneInfo } from "./UseMessageHandler";
+export type { MessageDispatcher } from "./UseMessageHandler";
 
 export { useStreamHandler } from "./UseStreamHandler";
 

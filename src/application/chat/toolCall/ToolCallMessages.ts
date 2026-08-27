@@ -1,4 +1,4 @@
-import type { ChatMessage, ToolCall, ToolDefinition } from "@/contracts";
+import type { ToolCall, ToolDefinition } from "@/contracts";
 import type { ToolCallResult } from "./ToolCallTypes";
 
 export function validateToolCall(toolCall: ToolCall, availableTools: Map<string, ToolDefinition>): { valid: boolean; error?: string } {
@@ -22,8 +22,4 @@ export function createToolResultMessage(toolCallId: string, name: string, result
     content: result,
     name,
   };
-}
-
-export function hasToolResultMessages(messages: ChatMessage[]): boolean {
-  return messages.some((message) => message.role === "tool");
 }

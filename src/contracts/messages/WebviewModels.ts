@@ -3,7 +3,6 @@ import type { UsageAggregate } from "@/shared/usage/Usage";
 
 export type ChatPersistenceMode = "persistent" | "incognito";
 export type HistoryTransitionPhase = "stop-work" | "exit-incognito";
-export type HistoryTransitionDecision = "stop" | "save" | "discard" | "cancel";
 
 export type WebviewConfig = Omit<AppConfig, "apiKey">;
 
@@ -39,7 +38,7 @@ export interface DangerConfirmationData {
   beforeHash?: string;
 }
 
-export type ConversationMessageRole = "user" | "assistant" | "error" | "tool" | "context";
+type ConversationMessageRole = "user" | "assistant" | "error" | "tool" | "context";
 
 export interface ConversationMessage {
   id: string;
@@ -87,7 +86,7 @@ export interface WorkspaceFolderBinding {
   scheme: string;
 }
 
-export interface WorkspaceCapabilities {
+interface WorkspaceCapabilities {
   files: boolean;
   search: boolean;
   git: boolean;
@@ -111,7 +110,7 @@ export interface WorkspaceContextStatus {
   defaultFolderAlias?: string;
 }
 
-export interface WorkspaceRebinding {
+interface WorkspaceRebinding {
   fromWorkspaceUri: string;
   toWorkspaceUri: string;
   at: number;
@@ -154,7 +153,7 @@ export interface ConversationSummary {
   workspaceUri: string;
 }
 
-export interface AvailableToolParameter {
+interface AvailableToolParameter {
   name: string;
   type: string;
   required: boolean;

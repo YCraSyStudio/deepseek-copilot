@@ -19,7 +19,7 @@ import {
 import { withFileLock, writeJsonFileAtomic } from "@/infrastructure/persistence/JsonFileStorage";
 import { getUserDataDirectory } from "@/infrastructure/persistence/UserDataPaths";
 
-export const DEFAULT_SEARXNG_URL = "http://127.0.0.1:8888";
+const DEFAULT_SEARXNG_URL = "http://127.0.0.1:8888";
 const READY_ATTEMPTS = 360;
 const READY_INTERVAL_MS = 250;
 const PROCESS_STOP_TIMEOUT_MS = 4_000;

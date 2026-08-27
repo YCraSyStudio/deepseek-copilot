@@ -1,4 +1,4 @@
-export const EXTENSION_ID = "yrs-dpsk-copilot";
+const EXTENSION_ID = "yrs-dpsk-copilot";
 export const CONFIG_SECTION = EXTENSION_ID;
 export const SIDEBAR_VIEW_ID = "workbench.view.extension.yrs-dpsk-copilot-sidebar";
 export const CHAT_VIEW_TYPE = "yrs-dpsk-copilot.chatView";

@@ -64,7 +64,7 @@ export async function collectCommandFileContext(
   return contexts;
 }
 
-export function extractExplicitFileOperands(command: string): string[] {
+function extractExplicitFileOperands(command: string): string[] {
   const candidates: string[] = [];
   for (const segment of splitShellSegments(command)) {
     const tokens = tokenize(segment);

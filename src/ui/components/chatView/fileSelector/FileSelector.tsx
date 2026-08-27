@@ -2,7 +2,6 @@ import { useEffect, useRef } from "react";
 import type { PathCompletionItem } from "@/contracts";
 import "./FileSelector.css";
 import { t } from "@webview/i18n";
-import { getPathToken, type PathToken } from "./PathToken";
 
 export { getPathToken, type PathToken } from "./PathToken";
 
@@ -68,10 +67,6 @@ export function FileSelector({ activeIndex, completions, isOpen, onSelect, listb
       )}
     </div>
   );
-}
-
-export function isFileSelectorNavigationKey(key: string): boolean {
-  return key === "ArrowDown" || key === "ArrowUp" || key === "Enter" || key === "Tab" || key === "Escape";
 }
 
 function CompletionIcon({ completion }: { completion: PathCompletionItem }) {

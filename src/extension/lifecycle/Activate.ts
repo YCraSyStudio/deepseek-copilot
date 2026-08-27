@@ -53,7 +53,7 @@ async function initializeUserSettings(): Promise<void> {
   const legacyWebConfig = vscode.workspace.getConfiguration(`${CONFIG_SECTION}.webSearch`);
   const initialSettings: Record<string, unknown> = Object.fromEntries(LEGACY_SETTING_KEYS.map((key) => [key, legacyConfig.get(key)]));
   initialSettings.includeHomeAgents = legacyConfig.get(INCLUDE_HOME_AGENTS_KEY);
-  initialSettings.webSearchEngine = migrateLegacyWebSearchEngine(legacyWebConfig.get<string>("engine"));
+  initialSettings.webSearchEngine = "searxng";
   await SettingsManager.initialize(initialSettings);
 
   const removals: Thenable<void>[] = [];
@@ -76,8 +76,4 @@ async function initializeUserSettings(): Promise<void> {
     }
   }
   await Promise.all(removals);
-}
-
-function migrateLegacyWebSearchEngine(_value: string | undefined): AppConfig["webSearchEngine"] {
-  return "searxng";
 }

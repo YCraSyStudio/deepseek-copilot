@@ -106,9 +106,6 @@ export class DeepSeekModelProvider implements ModelProvider {
   }
 }
 
-/** @deprecated Use DeepSeekModelProvider. */
-export const DeepSeekProvider = DeepSeekModelProvider;
-
 export function assertCompatibleModel(model: string, baseUrl: string): void {
   const url = new URL(baseUrl);
   if (url.origin !== "https://api.deepseek.com") {

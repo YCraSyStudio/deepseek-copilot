@@ -1,6 +1,7 @@
 import { DeepSeekApiError } from "@/infrastructure/deepseek/errors/DeepSeekApiError";
 import { buildDeepSeekAuthHeaders } from "@/infrastructure/deepseek/auth/AuthHeaders";
 import { ApiOriginError, assertSameApiOrigin, normalizeApiBaseUrl } from "@/shared/security/ApiOrigin";
+import { isRecord } from "@/shared/utils/TypeGuards";
 import { readBoundedJson } from "./BoundedResponseJson";
 
 const DEEPSEEK_BASE_URL = "https://api.deepseek.com";
@@ -47,7 +48,7 @@ export async function deepseekFetch(options: DeepSeekFetchOptions): Promise<Resp
       );
     } catch (error) {
       clearTimeout(timeout);
-      if (requestInit.signal?.aborted || isDeepSeekApiError(error) || error instanceof ApiOriginError || attempt === attempts) {throw error;}
+      if (requestInit.signal?.aborted || error instanceof DeepSeekApiError || error instanceof ApiOriginError || attempt === attempts) {throw error;}
       await wait(getRetryDelayMs(null, attempt), requestInit.signal);
     } finally {
       clearTimeout(timeout);
@@ -168,10 +169,6 @@ function safeIdentifier(value: unknown): string | undefined {
   return typeof value === "string" && /^[a-zA-Z0-9_.-]{1,128}$/.test(value) ? value : undefined;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === "object" && !Array.isArray(value);
-}
-
 function isRetryableStatus(status: number): boolean {
   return status === 429 || status === 408 || status >= 500;
 }
@@ -203,8 +200,4 @@ function wait(delayMs: number, signal?: AbortSignal | null): Promise<void> {
     }, delayMs);
     signal?.addEventListener("abort", onAbort, { once: true });
   });
-}
-
-function isDeepSeekApiError(error: unknown): error is DeepSeekApiError {
-  return error instanceof DeepSeekApiError;
 }

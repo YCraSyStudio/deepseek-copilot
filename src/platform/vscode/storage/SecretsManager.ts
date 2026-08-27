@@ -1,6 +1,7 @@
 import type * as vscode from "vscode";
 import { getApiOrigin } from "@/shared/security/ApiOrigin";
 import { API_CREDENTIALS_SECRET_KEY, API_KEY_SECRET_KEY } from "@/shared/constants";
+import { isRecord } from "@/shared/utils/TypeGuards";
 
 interface StoredApiCredentials {
   version: 2;
@@ -75,8 +76,4 @@ async function readCredentials(context: vscode.ExtensionContext): Promise<Stored
   } catch {
     return { version: 2, byOrigin: {} };
   }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === "object" && !Array.isArray(value);
 }

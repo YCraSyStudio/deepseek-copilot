@@ -5,14 +5,14 @@ import {
   type InterfaceLanguage,
   type PermissionMode,
   type SearxngEngineOption,
-  type WebSearchEngine,
 } from "@/contracts";
 import { normalizeApiBaseUrlOrDefault } from "@/shared/security/ApiOrigin";
+import { isRecord } from "@/shared/utils/TypeGuards";
 
 export type StoredSettingKey = Exclude<keyof AppConfig, "apiKey" | "userId">;
 export type StoredSettings = Pick<AppConfig, StoredSettingKey>;
 
-export const STORED_SETTING_KEYS = new Set<StoredSettingKey>([
+const STORED_SETTING_KEYS = new Set<StoredSettingKey>([
   "interfaceLanguage", "baseUrl", "model", "thinkingMode", "reasoningEffort",
   "temperature", "topP", "maxTokens", "maxConcurrentGenerations",
   "permissionMode", "autoContext", "historyEnabled",
@@ -20,7 +20,7 @@ export const STORED_SETTING_KEYS = new Set<StoredSettingKey>([
 ]);
 
 export function normalizeConfig(value: unknown): AppConfig {
-  const config = isConfigRecord(value) ? value : {};
+  const config = isRecord(value) ? value : {};
   return {
     interfaceLanguage: normalizeInterfaceLanguage(config.interfaceLanguage),
     apiKey: "",
@@ -39,7 +39,7 @@ export function normalizeConfig(value: unknown): AppConfig {
     includeHomeAgents: normalizeBoolean(config.includeHomeAgents, DEFAULT_CONFIG.includeHomeAgents),
     usageBreakdown: normalizeBoolean(config.usageBreakdown, DEFAULT_CONFIG.usageBreakdown),
     webSearchEnabled: normalizeBoolean(config.webSearchEnabled, DEFAULT_CONFIG.webSearchEnabled),
-    webSearchEngine: normalizeWebSearchEngine(config.webSearchEngine),
+    webSearchEngine: "searxng",
     searxngUrl: normalizeSearxngUrl(config.searxngUrl),
     searxngEngines: normalizeSearxngEngines(config.searxngEngines),
     searxngEngineCatalog: normalizeSearxngEngineCatalog(config.searxngEngineCatalog),
@@ -72,15 +72,11 @@ export function normalizeSettingValue(key: StoredSettingKey, value: unknown): un
   if (key === "maxTokens") {return clampInteger(value, 1, MAX_OUTPUT_TOKENS, DEFAULT_CONFIG.maxTokens);}
   if (key === "maxConcurrentGenerations") {return clampInteger(value, 1, 16, DEFAULT_CONFIG.maxConcurrentGenerations);}
   if (key === "historyRetentionDays") {return clampInteger(value, 0, 3650, DEFAULT_CONFIG.historyRetentionDays);}
-  if (key === "webSearchEngine") {return normalizeWebSearchEngine(value);}
+  if (key === "webSearchEngine") {return "searxng";}
   if (key === "searxngUrl") {return normalizeSearxngUrl(value);}
   if (key === "searxngEngines") {return normalizeSearxngEngines(value);}
   if (key === "searxngEngineCatalog") {return normalizeSearxngEngineCatalog(value);}
   return value;
-}
-
-export function isConfigRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
 function normalizeInterfaceLanguage(value: unknown): InterfaceLanguage {
@@ -98,10 +94,6 @@ function normalizePermissionMode(value: unknown): PermissionMode {
 
 function normalizeReasoningEffort(value: unknown): AppConfig["reasoningEffort"] {
   return value === "high" || value === "max" ? value : DEFAULT_CONFIG.reasoningEffort;
-}
-
-function normalizeWebSearchEngine(_value: unknown): WebSearchEngine {
-  return "searxng";
 }
 
 function normalizeSearxngUrl(value: unknown): string {
@@ -137,7 +129,7 @@ function normalizeSearxngEngineCatalog(value: unknown): SearxngEngineOption[] {
   const seen = new Set<string>();
   const engines: SearxngEngineOption[] = [];
   for (const item of value) {
-    if (!isConfigRecord(item) || typeof item.name !== "string" || typeof item.shortcut !== "string") {continue;}
+    if (!isRecord(item) || typeof item.name !== "string" || typeof item.shortcut !== "string") {continue;}
     const shortcut = item.shortcut.trim().toLowerCase();
     if (!/^[a-z0-9_-]{1,64}$/.test(shortcut) || seen.has(shortcut)) {continue;}
     seen.add(shortcut);

@@ -4,6 +4,7 @@ import type { ToolHostCommandOptions, ToolHostCommandResult } from "@/applicatio
 import { BoundedOutput } from "@/infrastructure/tools/builtins/terminal/ShellExecution";
 
 const TERMINAL_NAME = "DeepSeek Copilot";
+export const VSCODE_TERMINAL_SHELL_DESCRIPTION = "VS Code integrated terminal (default profile)";
 const SHELL_INTEGRATION_TIMEOUT_MS = 10_000;
 const OUTPUT_DRAIN_GRACE_MS = 500;
 
@@ -30,10 +31,6 @@ export function executeInVsCodeTerminal(
   const operation = executionQueue.then(() => executeQueued(command, options));
   executionQueue = operation.then(() => undefined, () => undefined);
   return operation;
-}
-
-export function describeVsCodeTerminalShell(): string {
-  return "VS Code integrated terminal (default profile)";
 }
 
 export function shutdownVsCodeTerminals(): void {
@@ -74,7 +71,7 @@ async function executeQueued(command: string, options: ToolHostCommandOptions): 
       durationMs: Math.max(0, Math.round(performance.now() - startedAt)),
       truncated: { stdout: output.truncated, stderr: false },
       terminationConfirmed: outcome.terminationConfirmed,
-      shell: managed.terminal.state.shell ?? describeVsCodeTerminalShell(),
+      shell: managed.terminal.state.shell ?? VSCODE_TERMINAL_SHELL_DESCRIPTION,
     };
   } finally {
     if (!managed.closed) {disposeManagedTerminal(managed);}

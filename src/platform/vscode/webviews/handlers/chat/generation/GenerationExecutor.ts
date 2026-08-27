@@ -10,26 +10,23 @@ import { getGenerationStopReason, type GenerationTask } from "@/application/chat
 import { selectGenerationTools } from "@/application/chat/GenerationToolSelection";
 import { createProviderTranscript } from "@/application/chat/ProviderTranscript";
 import { PartialStreamError } from "@/application/errors/PartialStreamError";
-import { GenerationBudgetManager } from "@/application/chat/context/GenerationBudgetManager";
-import { ToolExecutor, type ToolRegistry } from "@/application/tools";
+import type { ToolRegistry } from "@/application/tools";
 import type { ModelProviderFactory, SecretStore, SettingsRepository } from "@/application/ports";
 import { createDelegatedVisionAnalyzer } from "@/infrastructure/deepseek/providers/deepseek/DelegatedVisionAnalyzer";
-import { getToolWorkspaceHost, runWithToolWorkspaceHost } from "@/infrastructure/tools/ToolWorkspace";
+import { runWithToolWorkspaceHost } from "@/infrastructure/tools/ToolWorkspace";
 import {
-  aggregateUsageAggregates,
   createUsageAggregate,
-  formatUsageSummary,
   isOfficialDeepSeekEndpoint,
   recordUsage,
   type ProviderUsage,
 } from "@/shared/usage/Usage";
-import { logInfo } from "@/shared/logging/Logger";
 import type {
   GenerationCheckpointStore,
   HistoryManager,
 } from "@/platform/vscode/storage";
 import { createVsCodeToolWorkspace } from "@/platform/vscode/tools/VsCodeToolWorkspace";
 import { extractHttpsUrls } from "@/infrastructure/browser/NetworkPolicy";
+import { isCancellationError } from "@/shared/utils/Cancellation";
 import {
   captureWorkspaceRunSnapshot,
   type WorkspaceRunSnapshot,
@@ -37,18 +34,16 @@ import {
 import { StreamEventEmitter } from "../StreamEventEmitter";
 import { sendMessageStreaming } from "../Streaming";
 import type { SendMessagePayload } from "../Types";
-import { ToolCallSession } from "../toolCalls/ToolCallSession";
-import {
-  appendToolAvailabilityContext,
-  getErrorMessage,
-  isCancellationError,
-} from "../ChatHandlerSupport";
+import { appendToolAvailabilityContext } from "../ChatHandlerSupport";
+import { getErrorMessage } from "../ChatErrors";
 import {
   buildGenerationMessages,
   fitGenerationRequestContext,
 } from "./GenerationContext";
 import { recordToolCycleCompaction } from "./GenerationCompactionRecorder";
 import { GenerationResultStore } from "./GenerationResultStore";
+import { createGenerationRunRecord, createGenerationState } from "./GenerationRunFactory";
+import { GenerationRunFinalizer } from "./GenerationRunFinalizer";
 import {
   createGenerationEventSink,
   publishGenerationTerminal,
@@ -75,11 +70,19 @@ interface GenerationExecutorDependencies {
 
 export class GenerationExecutor {
   private readonly resultStore: GenerationResultStore;
+  private readonly finalizer: GenerationRunFinalizer;
 
   constructor(private readonly dependencies: GenerationExecutorDependencies) {
     this.resultStore = new GenerationResultStore({
       runs: dependencies.runs,
       syncSelectedConversation: dependencies.syncSelectedConversation,
+    });
+    this.finalizer = new GenerationRunFinalizer({
+      checkpoint: dependencies.checkpoint,
+      checkpointStore: dependencies.checkpointStore,
+      generationEventCallbacks: dependencies.generationEventCallbacks,
+      resultStore: this.resultStore,
+      runs: dependencies.runs,
     });
   }
 
@@ -174,61 +177,30 @@ export class GenerationExecutor {
   ): Promise<void> {
     const {
       activeConversationState,
-      checkpointStore,
       historyManager,
       runs,
       toolRegistry,
     } = this.dependencies;
     const payload = task.payload;
     const config = this.dependencies.settings.load();
-    const sourceConversation = await historyManager.getById(task.conversationId) ??
-      (
-        activeConversationState.getActiveConversationId() === task.conversationId
-          ? activeConversationState.getConversation()
-          : undefined
-      );
-    const selectedMode = activeConversationState.getActiveConversationId() === task.conversationId
-      ? activeConversationState.getPersistenceMode()
-      : undefined;
-    const runState = new ConversationState(
+    const runState = await createGenerationState({
+      activeConversationState,
+      config,
       historyManager,
-      selectedMode ?? (config.historyEnabled ? "persistent" : "incognito"),
-    );
-    if (sourceConversation) {
-      runState.load(sourceConversation);
-    } else {
-      const now = Date.now();
-      runState.load({
-        schemaVersion: 2,
-        id: task.conversationId,
-        title: "New conversation",
-        createdAt: now,
-        updatedAt: now,
-        messages: [],
-        model: payload.modelId || config.model,
-        workspaceUri: workspaceSnapshot.binding.uri,
-        workspaceBinding: workspaceSnapshot.binding,
-      });
-    }
-
-    const session = new ToolCallSession(new ToolExecutor(toolRegistry, () => {
-      const host = getToolWorkspaceHost();
-      return host.getWorkspaceId?.() ?? host.getRootPath() ?? "workspace:unknown";
-    }));
-    const record: GenerationRunRecord = {
-      generationId,
-      conversationId: task.conversationId,
+      task,
+      workspaceSnapshot,
+    });
+    const record = createGenerationRunRecord({
       clientRequestId: task.clientRequestId,
+      config,
+      conversationId: task.conversationId,
+      generationId,
+      initialPermissionSnapshot,
+      model: payload.modelId || config.model,
       state: runState,
-      session,
-      content: "",
-      timeline: [],
-      toolCalls: [],
-      status: "starting",
-      eventLog: [],
-      permissionSnapshot: initialPermissionSnapshot,
-      budgetManager: new GenerationBudgetManager(payload.modelId || config.model, config.maxTokens),
-    };
+      toolRegistry,
+    });
+    const session = record.session;
     runs.set(generationId, record);
     const eventSink = createGenerationEventSink(
       record,
@@ -429,84 +401,14 @@ export class GenerationExecutor {
         });
       }
     } finally {
-      if (usageAggregate.count > 0) {
-        eventSink.publish({
-          type: "assistantUsageUpdated",
-          generationId,
-          conversationId: task.conversationId,
-          usage: structuredClone(usageAggregate),
-        });
-        logInfo(`[usage] ${formatUsageSummary(usageAggregate)}`, undefined, { generationId, conversationId: task.conversationId });
-        const conversationUsage = aggregateUsageAggregates(
-          runState.getConversation()?.messages.flatMap((message) => message.usage ? [message.usage] : []) ?? [],
-        );
-        if (conversationUsage) {
-          logInfo(`[usage:conversation] ${formatUsageSummary(conversationUsage)}`, undefined, { conversationId: task.conversationId });
-        }
-      }
-      const stopReason = getGenerationStopReason(signal);
-      const userCancelled = signal.aborted && stopReason === "user_cancelled";
-      const interrupted = signal.aborted && !userCancelled;
-      const terminalStatus = userCancelled ? "cancelled" : interrupted ? "interrupted" : undefined;
-      if (
-        terminalStatus &&
-        !runState.getConversation()?.messages.some(
-          (message) =>
-            message.role === "assistant" &&
-            message.generationId === generationId,
-        )
-      ) {
-        await this.resultStore.save({
-          content: record.content,
-          timeline: record.timeline,
-          toolCalls: record.toolCalls,
-          generationId,
-          status: terminalStatus,
-          stopReason,
-          model: providerConfig.model,
-          state: runState,
-          providerTranscript: record.providerTranscript,
-          usage: usageAggregate.count > 0 ? usageAggregate : undefined,
-        });
-      }
-      if (terminalStatus) {
-        stream.done({ status: terminalStatus, generationStopReason: stopReason });
-      }
-      if (record.checkpointTimer) {
-        clearTimeout(record.checkpointTimer);
-      }
-      if (userCancelled) {
-        this.resultStore.logCompletedToolsNotRolledBack(record);
-        this.resultStore.transitionToTerminal(record, "cancelled");
-        await checkpointStore.delete(record.conversationId);
-        publishGenerationTerminal(record, this.dependencies.generationEventCallbacks, {
-          type: "streamDone",
-          status: "cancelled",
-          generationStopReason: stopReason,
-        });
-      } else {
-        if (interrupted) {
-          this.resultStore.transitionToTerminal(record, "interrupted");
-        }
-        if ((record.status as string) === "completed" || interrupted) {
-          await checkpointStore.delete(record.conversationId);
-        } else {
-          await this.dependencies.checkpoint(record, true);
-        }
-        const pendingIsError = record.pendingTerminalEvent?.type === "streamError" || record.status === "error";
-        publishGenerationTerminal(
-          record,
-          this.dependencies.generationEventCallbacks,
-          pendingIsError
-            ? { type: "streamError", error: String(record.pendingTerminalEvent?.error ?? "Generation failed") }
-            : {
-                type: "streamDone",
-                status: interrupted ? "interrupted" : "completed",
-                ...(interrupted ? { generationStopReason: stopReason } : {}),
-              },
-        );
-      }
-      runs.delete(generationId);
+      await this.finalizer.finalize({
+        eventSink,
+        model: providerConfig.model,
+        record,
+        signal,
+        stream,
+        usage: usageAggregate,
+      });
     }
   }
 
