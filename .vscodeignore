@@ -18,6 +18,7 @@ artifacts/**
 package-lock.json
 knip.json
 REFACTOR_AUDIT.md
+release-notes.md
 esbuild.js
 vsc-extension-quickstart.md
 testingPrompt.md
