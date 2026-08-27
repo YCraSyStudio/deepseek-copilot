@@ -14,28 +14,28 @@ suite("SearxngRuntimeManifest", () => {
     assert.deepStrictEqual(PINNED_SEARXNG_RUNTIME_ASSETS, {
       "linux-x64": {
         name: "searxng-runtime-linux-x64",
-        sha256: "098d1240125ca03287f8d11754adbca1dd87097da43eceb486614b8905f22e34",
-        size: 57_385_216,
+        sha256: "a424e312f7c6be591819ae68bb7b3178e5f6edaf47c992488a36524e0645f788",
+        size: 57_384_640,
       },
       "linux-arm64": {
         name: "searxng-runtime-linux-arm64",
-        sha256: "350994beafb8ca48c5454f196aa9623031ef5cbebfc735992fca0d80e5f158d7",
-        size: 56_074_520,
+        sha256: "c29609495aa36ed5b0ba820217b7e7a92f7bbb68980242588b1e067343fc2f0c",
+        size: 56_074_744,
       },
       "win32-x64": {
         name: "searxng-runtime-win32-x64.exe",
-        sha256: "76bf2b580a21f3c8d6b9db9baad3745f027f969ff6f2acc798747e3cfda36035",
-        size: 39_824_137,
+        sha256: "a40217fb31552d9ee182cabf321e816e4fc5c5915febbead2cdac1de64fb6db4",
+        size: 39_825_631,
       },
       "darwin-x64": {
         name: "searxng-runtime-darwin-x64",
-        sha256: "0367108ae89f5f575e29cbdd2ead1ebc46fa02a894525d116cd539fefb45b2f8",
-        size: 40_355_664,
+        sha256: "5b30cc7608504df4fe043b4a9bb9861f34ef7c06103f3620fe075f8d951753f4",
+        size: 40_356_496,
       },
       "darwin-arm64": {
         name: "searxng-runtime-darwin-arm64",
-        sha256: "8f82394c04f2d541c74fdbbf7f480f8b6fa157757b288750620bad9f07dc3187",
-        size: 39_470_304,
+        sha256: "c63b441730024bf371f2e1f92495eb008eb6fb46fdbb7fb0cf102e854ff6f911",
+        size: 39_471_456,
       },
     });
   });
