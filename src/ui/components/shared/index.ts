@@ -1,4 +1,4 @@
 export { default as Header } from "./header/Header";
 export { default as HistoryTransitionPanel } from "./historyTransitionPanel/HistoryTransitionPanel";
 export type { HistoryTransition } from "./historyTransitionPanel/HistoryTransitionPanel";
-export { default as WorkspaceMismatchModal } from "./workspaceMismatchModal/WorkspaceMismatchModal";
+
