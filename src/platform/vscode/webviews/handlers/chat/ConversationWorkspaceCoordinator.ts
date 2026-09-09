@@ -70,6 +70,8 @@ export class ConversationWorkspaceCoordinator {
     return resolveWorkspaceContext(current);
   }
 
+  /** Reassigns the conversation to the current workspace. The confirmation is
+   *  handled by the webview modal, so no native VS Code prompt is shown. */
   async confirmAndRebind(conversationId: string, expectedRevision?: string): Promise<void> {
     const currentContext = await this.getContext(conversationId);
     if (expectedRevision && expectedRevision !== currentContext.binding.revision) {
@@ -77,19 +79,6 @@ export class ConversationWorkspaceCoordinator {
         type: "workspaceRebindResult",
         success: false,
         error: "The stored workspace binding changed. Refresh and try again.",
-      });
-      return;
-    }
-    const answer = await vscode.window.showWarningMessage(
-      "Reassign this conversation to the current workspace? Pending generations, queued messages and file references will be cleared.",
-      { modal: true },
-      "Reassign",
-    );
-    if (answer !== "Reassign") {
-      this.dependencies.post({
-        type: "workspaceRebindResult",
-        success: false,
-        error: "Workspace reassignment cancelled.",
       });
       return;
     }

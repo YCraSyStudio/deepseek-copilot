@@ -112,77 +112,37 @@
 .activity-block {
   width: 100%;
   box-sizing: border-box;
+  background: transparent;
+  border-width: 0 0 1px;
+  border-radius: 0;
+  overflow: visible;
 
-  &:not([open]) {
-    background: transparent;
-    border-width: 0 0 1px;
-    border-radius: 0;
-    overflow: visible;
+  > .collapsiblePanelSummary {
+    gap: 7px;
+    padding: 6px 2px 9px;
+  }
 
-    > .collapsiblePanelSummary {
-      gap: 7px;
-      padding: 6px 2px 9px;
-    }
+  .collapsiblePanelTitle {
+    color: var(--text-secondary);
+    flex: 0 1 auto;
+    font-weight: 500;
+  }
 
-    .collapsiblePanelTitle {
-      color: var(--text-secondary);
-      flex: 0 1 auto;
-      font-weight: 500;
-    }
+  .collapsiblePanelChevron {
+    border: solid currentColor;
+    border-width: 0 1.5px 1.5px 0;
+    width: 5px;
+    height: 5px;
+    transform: rotate(-45deg);
+  }
 
-    &.completed .activityStatus {
-      display: none;
-    }
-
-    .collapsiblePanelChevron {
-      border: solid currentColor;
-      border-width: 0 1.5px 1.5px 0;
-      width: 5px;
-      height: 5px;
-      transform: rotate(-45deg);
-    }
+  &[open] > .collapsiblePanelSummary .collapsiblePanelChevron {
+    transform: rotate(45deg);
   }
 }
 
-.activityMeta,
 .activityBody {
   min-width: 0;
-}
-
-.activityMeta {
-  gap: 7px;
-}
-
-.activityStatus {
-  background: color-mix(in srgb, var(--border-color) 70%, transparent);
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  white-space: nowrap;
-  border-radius: 999px;
-  padding: 2px 7px;
-  font-size: 10px;
-  font-weight: 700;
-
-  &.pending,
-  &.running,
-  &.awaiting_confirmation {
-    background: color-mix(in srgb, var(--warning-color, #d9a441) 20%, transparent);
-    color: var(--warning-color, #d9a441);
-  }
-
-  &.completed {
-    background: color-mix(in srgb, var(--success-color, #4caf50) 18%, transparent);
-    color: var(--success-color, #4caf50);
-  }
-
-  &.error,
-  &.rejected {
-    background: color-mix(in srgb, var(--danger-color) 18%, transparent);
-    color: #ffb6b6;
-  }
-}
-
-.activityBody {
   flex-direction: column;
   gap: 7px;
   display: flex;
@@ -196,26 +156,51 @@
 }
 
 .activityToolList {
-  background: color-mix(in srgb, var(--bg-primary) 58%, transparent);
-  border-radius: 8px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  border-left: 2px solid color-mix(in srgb, var(--border-color) 70%, transparent);
+  padding-left: 8px;
 }
 
 .activityToolListSummary {
-  padding: 8px 10px;
+  padding: 6px 4px 6px 2px;
   font-size: 11px;
   font-weight: 500;
 }
 
+.activity-block .activityToolList .collapsiblePanelChevron {
+  border: solid currentColor;
+  border-width: 0 1.5px 1.5px 0;
+  width: 5px;
+  height: 5px;
+  transform: rotate(-45deg);
+}
+
+.activity-block .activityToolList[open] > .collapsiblePanelSummary .collapsiblePanelChevron {
+  transform: rotate(45deg);
+}
+
 .activityToolListBody {
-  padding: 0 8px 8px;
+  padding: 0 0 6px;
 }
 
 .activityReasoning {
-  border: 1px solid color-mix(in srgb, var(--border-color) 70%, transparent);
-  background: color-mix(in srgb, var(--bg-primary) 78%, transparent);
-  border-radius: 8px;
+  border: 0;
+  border-left: 2px solid color-mix(in srgb, var(--border-color) 70%, transparent);
+  background: transparent;
+  border-radius: 0;
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
+  padding-left: 8px;
+}
+
+.activity-block .toolCallItem {
+  border: 0;
+  border-left: 2px solid color-mix(in srgb, var(--border-color) 70%, transparent);
+  background: transparent;
+  border-radius: 0;
+  padding-left: 8px;
 }
 
 .activityItemLabel {

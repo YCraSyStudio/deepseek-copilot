@@ -33,12 +33,14 @@ export class ToolCallSession {
   private currentRound = 0;
   private activeEventSink?: GenerationEventSink<Record<string, unknown>>;
   private webTainted = false;
+  private forceCompaction = false;
   constructor(private readonly toolExecutor: ToolExecutor) {}
 
   async run(options: ToolCallRunOptions): Promise<ToolCallRunResult | undefined> {
     this.activeEventSink = options.eventSink;
     this.activePermissionSnapshot = options.permissionSnapshot;
     this.webTainted = false;
+    this.forceCompaction = false;
     let streamedContent = "";
     const executedToolCalls = new Map<string, StoredExecution>();
     const mutationFailureGuard = new MutationFailureGuard();
@@ -55,6 +57,10 @@ export class ToolCallSession {
         ),
         executeToolCall: async (toolCall) => {
           const context = this.createExecutionContext(options, executedToolCalls);
+          if (toolCall.function.name === "compact_context") {
+            this.forceCompaction = true;
+            return compactContextSignal(this.forceCompaction);
+          }
           const blocked = mutationFailureGuard.getBlockReason(toolCall);
           if (blocked) {
             recordSyntheticToolError(toolCall, context, blocked);
@@ -115,7 +121,8 @@ export class ToolCallSession {
           },
           prepareRequestContext: async (messages, toolsForRound, round) => {
             const assessment = options.budgetManager.assessRequest(messages, toolsForRound);
-            if (assessment.status === "within_budget") {return undefined;}
+            const forceCompaction = this.forceCompaction;
+            if (!forceCompaction && assessment.status === "within_budget") {return undefined;}
             if (!options.budgetManager.canCompactAutomatically()) {
               await options.eventSink.publish({
                 type: "resourceLimitReached",
@@ -132,8 +139,10 @@ export class ToolCallSession {
               options.trustedUserRequest,
               executedToolCalls.values(),
               round,
+              forceCompaction,
             );
             if (!compacted) {return undefined;}
+            this.forceCompaction = false;
             options.budgetManager.recordAutomaticCompaction();
             await options.onContextCompacted?.({
               estimatedTokensBefore: compacted.estimatedTokensBefore,
@@ -160,6 +169,7 @@ export class ToolCallSession {
       this.activeEventSink = undefined;
       this.activePermissionSnapshot = undefined;
       this.webTainted = false;
+      this.forceCompaction = false;
     }
   }
 
@@ -299,4 +309,12 @@ export class ToolCallSession {
 function hasAutomaticPermissionMode(options: ToolCallRunOptions): boolean {
   return options.permissionSnapshot.permissionMode === "auto-approve" ||
     options.permissionSnapshot.permissionMode === "full-access";
+}
+
+function compactContextSignal(force: boolean): string {
+  return [
+    `${force ? "Compaction requested." : "Compaction not requested."}`,
+    "The active tool protocol will be rolled over into a compacted continuation when the next round begins.",
+    "Trust successful tool outcomes and do not repeat completed mutations.",
+  ].join(" ");
 }

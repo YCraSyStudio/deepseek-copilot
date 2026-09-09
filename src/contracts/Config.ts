@@ -1,4 +1,4 @@
-import { DEEPSEEK_VISION_MODEL_ID } from "./deepseek/Models";
+import { DEEPSEEK_VISION_MODEL_ID, MAX_OUTPUT_TOKENS } from "./deepseek/Models";
 
 export type PermissionMode = "default" | "auto-approve" | "full-access";
 export type InterfaceLanguage = "auto" | "en" | "es" | "zh";
@@ -60,7 +60,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   reasoningEffort: "high",
   temperature: 1.0,
   topP: 1.0,
-  maxTokens: 8192,
+  maxTokens: MAX_OUTPUT_TOKENS,
   maxConcurrentGenerations: 8,
   permissionMode: "default",
   autoContext: false,

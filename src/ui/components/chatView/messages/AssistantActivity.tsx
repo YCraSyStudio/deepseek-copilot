@@ -91,11 +91,6 @@ function ActivityPanel({
     >
       <summary className="collapsiblePanelSummary">
         <span className="collapsiblePanelTitle">{t("chat.activities")}</span>
-        <span className="collapsiblePanelMeta activityMeta">
-          <span className={`activityStatus ${summary.status}`} role="status" aria-live="polite">
-            {formatActivityStatus(summary.status)}
-          </span>
-        </span>
         <span className="collapsiblePanelChevron" aria-hidden="true" />
       </summary>
       <div className="collapsiblePanelBody activityBody">
@@ -213,10 +208,6 @@ function getMissingToolStatus(
   if (blocks.slice(blockIndex + 1).some((block) => block.type === "content")) {return "completed";}
   if (isActive) {return "pending";}
   return generationStatus === "error" ? "error" : "cancelled";
-}
-
-function formatActivityStatus(status: ToolCallStatus): string {
-  return t(`tools.${status === "awaiting_confirmation" ? "awaitingConfirmation" : status}`);
 }
 
 function findTimelineToolGroup(

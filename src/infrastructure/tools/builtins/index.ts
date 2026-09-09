@@ -7,10 +7,12 @@ import { editFileDefinition, editFileHandler, editFileMetadata, editFileHandlerF
 import { applyPatchDefinition, applyPatchHandler, applyPatchMetadata, applyPatchHandlerForced } from "./fileSystem/ApplyPatch";
 import { terminalCommandDefinition, terminalCommandHandler, terminalCommandMetadata, terminalCommandHandlerForced } from "./terminal/TerminalCommand";
 import { analyzeImagesTool } from "./vision/AnalyzeImages";
+import { compactContextDefinition, compactContextHandler, compactContextMetadata } from "./context/CompactContext";
 
 /** Complete list of built-in tools. */
 export const BUILT_IN_TOOLS: RegisteredTool[] = [
   withEffect(analyzeImagesTool, "external-effect"),
+  withEffect({ definition: compactContextDefinition, handler: compactContextHandler, metadata: compactContextMetadata }, "read-only"),
   withEffect({ definition: readFileDefinition, handler: readFileHandler, metadata: readFileMetadata }, "read-only"),
   withEffect({ definition: searchContentDefinition, handler: searchContentHandler, metadata: searchContentMetadata }, "read-only"),
   withEffect({ definition: listDirDefinition, handler: listDirHandler, metadata: listDirMetadata }, "read-only"),

@@ -5,10 +5,14 @@ export interface GenerationEventScope {
   activeGenerationId?: string;
 }
 
+export type GenerationEventScopeSource = GenerationEventScope | (() => GenerationEventScope);
+
 export function acceptMessageForScope(
   message: HandlerToWebviewMessage,
-  scope: GenerationEventScope | undefined,
+  source: GenerationEventScopeSource | undefined,
 ): boolean {
+  // Protocol handlers update refs before React commits the next render.
+  const scope = typeof source === "function" ? source() : source;
   if (!scope || message.type === "generationSnapshot") {
     return true;
   }

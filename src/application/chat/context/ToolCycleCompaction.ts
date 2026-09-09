@@ -24,9 +24,10 @@ export function compactToolCycleContext(
   trustedUserRequest: string,
   executedToolCalls: Iterable<ToolContinuityExecution>,
   nextRound: number,
+  force = false,
 ): ToolCycleCompactionResult | undefined {
   const before = budgetManager.assessRequest(messages, tools);
-  if (before.status === "within_budget") {return undefined;}
+  if (!force && before.status === "within_budget") {return undefined;}
 
   const compacted = createToolContinuityMessages(messages, trustedUserRequest, executedToolCalls, nextRound);
   const after = budgetManager.assertRequestFitsContext(compacted, tools);

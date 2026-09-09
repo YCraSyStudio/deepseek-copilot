@@ -4,48 +4,51 @@
 
 ## Versioning policy
 
-`0.1.12` is the final **Public Preview** release. It keeps `preview: true` and is published through the normal Marketplace release channel, matching the historical `0.1.x` behavior.
+The extension follows an alternating stable/pre-release scheme on the minor version line. **Even minor versions are stable; odd minor versions are pre-release (unstable).**
 
-Starting after `0.1.12`, the extension uses VS Code's two Marketplace channels instead of the `preview` gallery flag:
+| Line       | Stability                                      | `preview` flag |
+|------------|------------------------------------------------|----------------|
+| `0.1.x`    | Pre-release (unstable) — current               | `true`         |
+| `0.2.x`    | Stable (first stable release)                  | `false`        |
+| `0.3.x`    | Pre-release (unstable)                         | `true`         |
+| `0.4.x`    | Stable                                         | `false`        |
+| `0.5.x`    | Pre-release (unstable)                         | `true`         |
+| ...        | Alternates from here on                        |                |
 
-- **Stable channel:** even minor versions (`0.2.x`, `0.4.x`, `0.6.x`, ...).
-- **Pre-release channel:** odd minor versions (`0.3.x`, `0.5.x`, `0.7.x`, ...), published with `vsce --pre-release`.
-- New release lines start at patch `.0`. Patch increments are reserved for fixes or incremental builds within the same line.
-- `preview` must be `false` for both stable and pre-release builds after `0.1.12`; channel selection is handled by the Marketplace pre-release flag.
+The `0.1.x` line is **not stable**. Bugs found in daily use continue to be fixed and published as incremental patch releases (`0.1.13`, `0.1.14`, `0.1.15`, ...) for as long as needed. We remain on `0.1.x` until no removal-worthy errors remain in daily use.
 
-The first stable release is therefore `0.2.0`. The next development line is `0.3.0` on the pre-release channel. When the `0.3.x` work is ready for stable users, it is promoted as `0.4.0`, not as `0.2.x`. This keeps the stable release numerically newer than every pre-release build that preceded it.
+Once the `0.1.x` work stabilizes, the extension advances to **`0.2.x`** as the first stable release. After that, the next unstable work moves to `0.3.x`, and the pattern repeats (`0.4.x` stable, `0.5.x` pre-release, ...).
 
 Example lifecycle:
 
 ```text
-0.1.12  Public Preview, final legacy preview release
-   ↓
+0.1.13  Pre-release (incremental fix)
+0.1.14  Pre-release (incremental fix)
+0.1.15  Pre-release (incremental fix)
+   ↓  ready when no daily-use errors remain
 0.2.0   Stable
-0.2.1   Stable hotfix
-   │
-   └──── 0.3.0  Pre-release
-         0.3.1  Pre-release update
-         0.3.2  Pre-release update
-            ↓ promote
+   ↓  next unstable phase
+0.3.0   Pre-release
+0.3.1   Pre-release (incremental fix)
+   ↓  ready when no daily-use errors remain
 0.4.0   Stable
-0.4.1   Stable hotfix
-   │
-   └──── 0.5.0  Next pre-release line
-            ↓ promote
-0.6.0   Stable
 ```
 
-Do not use SemVer suffixes such as `-beta.1` or `-preview.1` for Marketplace package versions. The version number and Marketplace channel together identify release stability.
+- `0.1.x` (and every odd-minor) releases may be published as often as needed to address remaining bugs.
+- `0.2.x` is the first stable release; it is cut only when daily-use testing no longer surfaces errors, deferred across `0.1.14`, `0.1.15`, ... until then.
+- `preview` stays `true` for every odd-minor (`0.1.x`, `0.3.x`, ...) build and is set to `false` at each even-minor stable line (`0.2.x`, `0.4.x`, ...).
+
+Do not use SemVer suffixes such as `-beta.1` or `-preview.1` for Marketplace package versions. The version number and the `preview` gallery flag together identify release stability.
 
 ## Target release
 
-For the current branch, `0.1.12` is the final preview target. Keep `package.json` and the root lockfile aligned to `0.1.12` until that release is cut.
+For the current branch, `0.1.13` is the next preview target. Keep `package.json` and the root lockfile aligned to that release until it is cut.
 
-After `0.1.12`:
+After `0.1.13`:
 
-- stable releases use an even minor version and the normal Marketplace channel;
-- pre-release builds use the following odd minor version and the Marketplace pre-release channel;
-- a pre-release line is promoted by advancing to the next even minor version.
+- each subsequent `0.1.x` release keeps `preview: true` and the normal Marketplace channel;
+- remaining bugs are tracked across `0.1.14`, `0.1.15`, ... until `0.1.x` stabilizes;
+- the line is promoted to `0.2.x` with `preview: false` only once daily-use testing reports no remaining errors.
 
 ## Marketplace metadata
 
@@ -86,37 +89,31 @@ Do not use the deprecated `vsce` package. Older versions still require explicit 
 
 ## Marketplace publishing
 
-### Final Public Preview: 0.1.12
+### Pre-release releases: odd-minor lines (0.1.x, 0.3.x, ...)
 
-`0.1.12` is published through the normal release channel while retaining `preview: true` in `package.json`.
+Every odd-minor release is published through the normal release channel while retaining `preview: true` in `package.json`.
 
 ```bash
+# Example: 0.1.13, 0.1.14, 0.1.15, 0.3.0
 npx @vscode/vsce publish
 ```
 
-### Stable channel
+Do not publish odd-minor builds with `--pre-release`; the `preview: true` gallery flag is what identifies them as preview builds.
 
-Even-minor versions are published normally:
+### Stable releases: even-minor lines (0.2.x, 0.4.x, ...)
+
+Even-minor releases are published normally with `preview: false`:
 
 ```bash
-# Example: 0.2.0, 0.2.1, 0.4.0
+# Example: 0.2.0, 0.4.0
 npx @vscode/vsce publish
 ```
 
-### Pre-release channel
-
-Odd-minor versions are published explicitly to VS Code's pre-release channel:
-
-```bash
-# Example: 0.3.0, 0.3.1, 0.5.0
-npx @vscode/vsce publish --pre-release
-```
-
-A pre-release build must never be republished as stable with the same version number. Promotion always advances to the next even minor version.
+A pre-release build (odd minor) must never be republished as stable with the same version number. The stable step is the next even-minor line only, cut once daily-use testing reports no remaining errors.
 
 ## GitHub release
 
-Before creating the extension tag, publish the immutable SearXNG sidecar release from the exact `main` commit intended for `0.1.12`:
+Before creating the extension tag, publish the immutable SearXNG sidecar release from the exact `main` commit intended for the release:
 
 ```bash
 gh workflow run searxng-runtime.yml --ref main
@@ -130,17 +127,17 @@ The runtime workflow reads the `v2` metadata pinned in the extension, builds and
 Push a `vX.Y.Z` tag after `main` points at the release commit:
 
 ```bash
-git tag v0.1.12
-git push origin v0.1.12
+# Example: 0.1.13, 0.1.14, ..., 0.2.0, 0.3.0, ...
+git tag v0.1.13
+git push origin v0.1.13
 ```
 
 The production workflow must validate the tag against `package.json`, extract the matching section from `CHANGELOG.md`, wait for quality, extension-host, and packaged-VSIX smoke gates, verify `sha256.txt`, and publish the verified VSIX and checksum.
 
-GitHub release status mirrors the Marketplace channel:
+GitHub release status mirrors the Marketplace `preview` flag:
 
-- even-minor stable releases are normal GitHub releases;
-- odd-minor Marketplace pre-releases are GitHub prereleases;
-- `0.1.12` remains a GitHub prerelease because it is the final Public Preview build.
+- every odd-minor (pre-release) build remains a GitHub prerelease;
+- every even-minor (stable) release is a normal GitHub release.
 
 Publish only after installing the packaged VSIX in a clean profile and testing an upgrade from the previous Marketplace release.
 

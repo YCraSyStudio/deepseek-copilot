@@ -24,6 +24,12 @@ export const history = {
     pageSummary: "Página {page} de {pages} · {count} conversaciones",
     openTitle: "Abrir {title}",
     deleteTitle: "Eliminar {title}",
-    countMessages: "{count} mensajes"
+    countMessages: "{count} mensajes",
+    workspaceMismatch: {
+      title: "¿Abrir en este workspace?",
+      description: "Esta conversación pertenece a \"{workspace}\", que no es el workspace abierto actualmente. ¿Quieres abrirla aquí en su lugar? Las generaciones pendientes, los mensajes en cola y las referencias a archivos se eliminarán.",
+      confirm: "Abrir aquí",
+      cancel: "Cancelar",
+    }
   }
 } satisfies TranslationCatalog;

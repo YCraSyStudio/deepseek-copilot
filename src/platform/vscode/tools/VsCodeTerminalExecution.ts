@@ -44,6 +44,7 @@ export function shutdownVsCodeTerminals(): void {
 async function executeQueued(command: string, options: ToolHostCommandOptions): Promise<ToolHostCommandResult> {
   throwIfAborted(options.signal);
   let managed = getOrCreateTerminal(options.cwd);
+  let keepOpen = false;
   try {
     let integration = await waitForShellIntegration(managed, options.signal);
 
@@ -61,6 +62,7 @@ async function executeQueued(command: string, options: ToolHostCommandOptions): 
     const drain = drainExecutionOutput(execution, output).catch(() => undefined);
     const outcome = await waitForExecutionEnd(managed, execution, options);
     await Promise.race([drain, delay(OUTPUT_DRAIN_GRACE_MS)]);
+    keepOpen = !outcome.timedOut;
 
     return {
       stdout: output.toString(),
@@ -74,7 +76,7 @@ async function executeQueued(command: string, options: ToolHostCommandOptions): 
       shell: managed.terminal.state.shell ?? VSCODE_TERMINAL_SHELL_DESCRIPTION,
     };
   } finally {
-    if (!managed.closed) {disposeManagedTerminal(managed);}
+    if (!managed.closed && !keepOpen) {disposeManagedTerminal(managed);}
   }
 }
 
@@ -93,7 +95,6 @@ function getOrCreateTerminal(cwd: string): ManagedTerminal {
       MSBUILDDISABLENODEREUSE: "1",
       UseSharedCompilation: "false",
     },
-    isTransient: true,
   });
   const managed: ManagedTerminal = { terminal, cwd, closed: false };
   terminals.set(key, managed);

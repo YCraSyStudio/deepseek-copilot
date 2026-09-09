@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import "./InputFooter.css";
 import { MODEL_OPTIONS } from "@/contracts/deepseek/Models";
 import ReferencedFilesChips from "./ReferencedFilesChips";
@@ -7,7 +7,7 @@ import type { PermissionMode } from "@/contracts";
 import { t } from "@webview/i18n";
 import { getVsCodeApi } from "@webview/VsCodeApi";
 import ModelReasoningPicker from "./ModelReasoningPicker";
-import UsagePicker from "./UsagePicker";
+import UsagePicker, { UsagePopover } from "./UsagePicker";
 import type { UsageAggregate } from "@/shared/usage/Usage";
 
 type Props = {
@@ -49,6 +49,19 @@ function InputFooter({
   usageByModel = [],
   showUsage = false,
 }: Props) {
+  const footerRef = useRef<HTMLDivElement>(null);
+  const [compact, setCompact] = useState(false);
+
+  useEffect(() => {
+    const composer = footerRef.current?.closest(".inputComposer");
+    if (!composer) {return;}
+    const observer = new ResizeObserver(([entry]) => {
+      setCompact(entry.contentRect.width <= 440);
+    });
+    observer.observe(composer);
+    return () => observer.disconnect();
+  }, []);
+
   const reasoningOptions = useMemo(() => {
     return [{ value: "off", label: t("chat.off") }, { value: "high", label: t("chat.high") }, { value: "max", label: t("chat.max") }];
   }, []);
@@ -71,7 +84,7 @@ function InputFooter({
   ];
 
   return (
-    <div className="inputFooter">
+    <div className="inputFooter" ref={footerRef}>
       <ReferencedFilesChips files={referencedFiles} onRemove={onRemoveReferencedFile ?? (() => undefined)} />
       <div className="inputFooterControls">
         <div className="inputFooterPrimaryControls">
@@ -94,9 +107,25 @@ function InputFooter({
             reasoningOptions={reasoningOptions}
             onModelChange={onModelChange}
             onReasoningChange={onReasoningChange}
-          />
+            compact={compact}
+            permission={compact ? {
+              value: permissionMode,
+              options: permissionOptions,
+              pending: permissionUpdatePending,
+              onChange: (value) => {
+                const mode = parsePermissionMode(value);
+                if (mode) {onPermissionModeChange(mode);}
+              },
+            } : undefined}
+          >
+            {compact && showUsage && usage && usage.count > 0 ? (
+              <div className="compactComposerUsage">
+                <UsagePopover usage={usage} usageByModel={usageByModel} />
+              </div>
+            ) : null}
+          </ModelReasoningPicker>
         </div>
-        <div className="inputFooterSecondaryControls">
+        {!compact ? <div className="inputFooterSecondaryControls">
           {showUsage ? <UsagePicker usage={usage} usageByModel={usageByModel} /> : null}
           <span className="selectTooltipWrapper" data-tooltip={t("tools.permissionMode")}>
             <select
@@ -116,7 +145,7 @@ function InputFooter({
               ))}
             </select>
           </span>
-        </div>
+        </div> : null}
       </div>
     </div>
   );

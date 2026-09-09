@@ -1,4 +1,6 @@
 .inputComposer {
+  container: chat-composer / inline-size;
+  min-width: 0;
   border: 1px solid var(--input-border);
   background: var(--input-bg);
   border-radius: 16px;
@@ -119,13 +121,16 @@
 }
 
 .inputComposerFooter {
+  position: relative;
   min-width: 0;
-  align-items: flex-end;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
   gap: 6px;
-  display: flex;
+  display: grid;
 }
 
 .inputComposerActions {
+  grid-column: 3;
   flex: none;
   align-items: center;
   gap: 4px;
@@ -174,13 +179,18 @@
   }
 }
 
-@media (max-width: 260px) {
+/* Collapse settings before the full toolbar needs to wrap. */
+@container chat-composer (max-width: 440px) {
   .inputComposerFooter {
-    align-items: flex-end;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .inputComposerFooter .inputFooterPrimaryControls {
+    grid-column: 1;
   }
 
   .inputComposerActions {
-    padding-bottom: 2px;
+    grid-column: 2;
   }
 }
 @keyframes pulse-stop {

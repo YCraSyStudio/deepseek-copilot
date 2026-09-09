@@ -28,6 +28,13 @@ function App() {
     vscode?.postMessage({ type: "newConversation", requestId: beginNavigationRequest() });
   }, []);
 
+  const handleCancelWorkspaceMismatch = useCallback(() => {
+    setLoadedConversation(null);
+    setCurrentView("history");
+    setNavigationPending(false);
+    setChatRevision((revision) => revision + 1);
+  }, []);
+
   useEffect(() => {
     const handleNavigationStarted = () => setNavigationPending(true);
     const handleMessage = (event: MessageEvent<HandlerToWebviewMessage>) => {
@@ -38,6 +45,9 @@ function App() {
         setNavigationPending(false);
         setChatRevision((revision) => revision + 1);
         setCurrentView("chat");
+      } else if (message.type === "conversationLoadRejected") {
+        if (!isLatestNavigationRequest(message.requestId)) {return;}
+        setNavigationPending(false);
       } else if (message.type === "conversationPageLoaded") {
         if (!isLatestNavigationRequest(message.requestId)) {return;}
         setLoadedConversation((current) => current?.id === message.id ? {
@@ -112,7 +122,12 @@ function App() {
           onIncognitoToggle={handleIncognitoToggle}
         />
         <div className={`viewPane ${currentView === "chat" ? "active" : "hidden"}`} aria-hidden={currentView !== "chat"}>
-          <ChatView key={chatRevision} loadedConversation={loadedConversation} navigationPending={navigationPending} />
+          <ChatView
+            key={chatRevision}
+            loadedConversation={loadedConversation}
+            navigationPending={navigationPending}
+            onCancelWorkspaceMismatch={handleCancelWorkspaceMismatch}
+          />
         </div>
         {currentView === "settings" ? (
           <div className="viewPane active">

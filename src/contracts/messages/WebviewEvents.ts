@@ -96,6 +96,7 @@ export type HandlerToWebviewMessage =
   | { type: "historyError"; requestId?: string; error: string }
   | { type: "conversationLoaded"; requestId: string; conversation: Conversation }
   | { type: "conversationPageLoaded"; requestId: string; id: string; messages: Conversation["messages"]; hasEarlierMessages: boolean; cursor?: string }
+  | { type: "conversationLoadRejected"; requestId: string }
   | { type: "conversationDeleted"; id: string }
   | { type: "toolCallStarted"; generationId: string; conversationId: string; toolCalls: ToolCall[]; round: number; totalRounds?: number }
   | {

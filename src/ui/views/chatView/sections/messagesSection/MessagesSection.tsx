@@ -9,6 +9,7 @@ import { t } from "@webview/i18n";
 import { reconcileLatestAssistantToolCalls } from "@webview/components/chatView/messages/ToolCallReconciliation";
 
 function MessagesSection({
+  getGenerationScope,
   conversationId,
   activeGenerationId,
   messages: externalMessages,
@@ -84,7 +85,7 @@ function MessagesSection({
       setIsRecovering(false);
       dispatcher.onStreamError?.(error, generationId);
     },
-  }, { conversationId, activeGenerationId });
+  }, getGenerationScope ?? { conversationId, activeGenerationId });
 
   useEffect(() => {
     if (!followsLatestRef.current) {

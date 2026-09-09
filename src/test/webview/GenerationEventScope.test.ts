@@ -18,6 +18,30 @@ suite("generation event scope", () => {
     assert.strictEqual(acceptMessageForScope(lateMessage, {}), false);
   });
 
+  test("accepts the first user message immediately after admission, before a render", () => {
+    const conversationId = { current: undefined as string | undefined };
+    const generationId = { current: undefined as string | undefined };
+    const getScope = () => ({ conversationId: conversationId.current, activeGenerationId: generationId.current });
+    const firstMessage: HandlerToWebviewMessage = {
+      ...lateMessage,
+      message: { role: "user", content: "First message", generationId: "generation-a" },
+    };
+
+    assert.strictEqual(acceptMessageForScope(firstMessage, getScope), false);
+    conversationId.current = "conversation-a";
+    generationId.current = "generation-a";
+    assert.strictEqual(acceptMessageForScope(firstMessage, getScope), true);
+    assert.strictEqual(acceptMessageForScope({
+      type: "showTyping", conversationId: "conversation-a", generationId: "generation-a",
+    }, getScope), true);
+
+    generationId.current = "generation-b";
+    assert.strictEqual(acceptMessageForScope(firstMessage, getScope), false);
+    conversationId.current = undefined;
+    generationId.current = undefined;
+    assert.strictEqual(acceptMessageForScope(lateMessage, getScope), false);
+  });
+
   test("rejects another conversation and another generation", () => {
     assert.strictEqual(acceptMessageForScope(lateMessage, {
       conversationId: "conversation-b",

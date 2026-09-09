@@ -1,6 +1,13 @@
 # Change Log
 
-## Unreleased
+## [0.1.13] - 2026-09-09
+
+- Added the `compact_context` tool to request a tool-cycle context compaction on demand. Its handler is a read-only no-op that forces the active tool protocol to roll over into a compacted continuation at the next round, and the model is expected to trust prior successful tool outcomes without repeating completed mutations.
+- Raised the default maximum output tokens to DeepSeek's documented 384K limit instead of the conservative 8192 token allowance, so long reasoning and file-generation rounds are no longer prematurely truncated.
+- Replaced the native VS Code workspace-reassign prompt with an in-webview Workspace Mismatch modal offering `Open here` (rebind) or `Cancel`, backed by a new `conversationLoadRejected` protocol message and English, Spanish, and Chinese localization.
+- `run_terminal_command` now reuses one dedicated VS Code integrated terminal across successive commands so its scrollback and history remain visible; the terminal is closed only on timeout, cancellation, a working-directory mismatch, or extension shutdown, never right after a successful command.
+- Fixed generation-event scoping so protocol handlers that update conversation/generation refs before the next React render accept the first user message immediately after admission.
+- Reworked the chat composer footer around CSS grid and container queries: narrow sidebars collapse the model/reasoning/permission picker into a settings gear with an inline usage breakdown, and the activity and tool panels use a cleaner left-indented layout without status capsules.
 
 ## [0.1.12] - 2026-08-28
 

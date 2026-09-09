@@ -1,5 +1,6 @@
 import type { ConversationMessage, HandlerToWebviewMessage, StoredToolCall, DangerConfirmationData } from "@/contracts/messages/Webview";
 import type { PermissionMode } from "@/contracts";
+import type { GenerationEventScope } from "./hooks/GenerationEventScope";
 
 export type { StoredToolCall, DangerConfirmationData };
 
@@ -54,6 +55,7 @@ export type CodeAction = "copy" | "insert";
 
 /** Chat message section props. */
 export type MessagesSectionProps = {
+  getGenerationScope?: () => GenerationEventScope;
   conversationId?: string;
   activeGenerationId?: string;
   messages?: ChatMessage[];

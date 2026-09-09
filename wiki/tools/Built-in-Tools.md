@@ -10,11 +10,15 @@
 - `create_file`: creates or overwrites a file after permission and stale-content checks.
 - `edit_file`: applies structured edits with optimistic SHA-256 guards.
 - `apply_patch`: applies a patch while preserving workspace containment.
-- `run_terminal_command`: runs a finite, non-interactive command visibly in a dedicated VS Code integrated terminal and closes it after completion. Shell Integration provides structured bounded output, exit status, timeout handling, and cancellation; non-VS Code hosts retain the headless executor as a compatibility fallback.
+- `run_terminal_command`: runs a finite, non-interactive command visibly in a dedicated VS Code integrated terminal and reuses that same terminal for later commands so its scrollback/history stays visible. Shell Integration provides structured bounded output, exit status, timeout handling, and cancellation; non-VS Code hosts retain the headless executor as a compatibility fallback. The terminal is closed only on timeout, cancellation, a working-directory mismatch, or extension shutdown — never after a successful command.
 
 Detached/background launchers are rejected because they can outlive the owned terminal and keep project files locked. Agent terminals disable .NET MSBuild server reuse and shared compilation so completed builds do not leave orphaned `dotnet` workers behind.
 
 `search_content` accepts a non-empty query up to 4,096 characters and an optional workspace-relative glob up to 1,024 characters. It skips sensitive paths, binary files, and files over 2 MiB; scans at most 10,000 files; returns at most 50 matches; and times out after 15 seconds.
+
+## Context tool
+
+- `compact_context`: requests a tool-cycle context compaction. Its handler is a read-only no-op; the active tool protocol is rolled over into a compacted continuation at the next round. The model is expected to trust prior successful tool outcomes and not repeat completed mutations.
 
 ## Web tools
 

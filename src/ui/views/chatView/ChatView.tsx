@@ -3,6 +3,7 @@ import "./ChatView.css";
 import "@vscode/codicons/dist/codicon.css";
 import { InputCtrls, InputFooter, MessagesSection } from "./sections";
 import { useChatConfig } from "./hooks";
+import WorkspaceMismatchModal from "@webview/components/shared/workspaceMismatchModal/WorkspaceMismatchModal";
 import type { ApiKeyStatus, ChatMessage } from "./ChatViewTypes";
 import { getVsCodeApi } from "@webview/VsCodeApi";
 import type { Conversation, ImageAttachment, PermissionMode, QueuedGenerationMessage, ReferencedFile, WorkspaceContextStatus } from "@/contracts";
@@ -28,9 +29,15 @@ interface IncognitoChatViewState {
 interface ChatViewProps {
   loadedConversation?: Conversation | null;
   navigationPending?: boolean;
+  onCancelWorkspaceMismatch?: () => void;
 }
 
-function ChatView({ loadedConversation, navigationPending = false }: ChatViewProps) {
+interface WorkspaceMismatch {
+  conversationId: string;
+  workspaceName: string;
+}
+
+function ChatView({ loadedConversation, navigationPending = false, onCancelWorkspaceMismatch }: ChatViewProps) {
   const [apiKeyStatus, setApiKeyStatus] = useState<ApiKeyStatus>("missing");
   const [isProcessing, setIsProcessing] = useState(false);
   const [draft, setDraft] = useState("");
@@ -42,9 +49,14 @@ function ChatView({ loadedConversation, navigationPending = false }: ChatViewPro
   const [activeGenerationId, setActiveGenerationId] = useState<string | undefined>();
   const [recoveredDrafts, setRecoveredDrafts] = useState<QueuedGenerationMessage[]>([]);
   const [workspaceContext, setWorkspaceContext] = useState<WorkspaceContextStatus>();
+  const [workspaceMismatch, setWorkspaceMismatch] = useState<WorkspaceMismatch | null>(null);
   const conversationIdRef = useRef(conversationId);
   const activeGenerationIdRef = useRef(activeGenerationId);
   const pendingRequestsRef = useRef(new Map<string, PendingChatRequest>());
+  const getGenerationScope = useCallback(() => ({
+    conversationId: conversationIdRef.current,
+    activeGenerationId: activeGenerationIdRef.current,
+  }), []);
   const draftRef = useRef(draft);
   const referencedFilesRef = useRef(referencedFiles);
   const imageAttachmentsRef = useRef(imageAttachments);
@@ -166,16 +178,22 @@ function ChatView({ loadedConversation, navigationPending = false }: ChatViewPro
   useEffect(() => {
     if (
       !conversationId ||
+      !loadedConversation ||
+      loadedConversation.id !== conversationId ||
       (workspaceContext?.state !== "changed" && workspaceContext?.state !== "disconnected")
     ) {
       workspaceMismatchRef.current = undefined;
+      setWorkspaceMismatch(null);
       return;
     }
     const mismatch = `${conversationId}:${workspaceContext.binding.revision}`;
     if (workspaceMismatchRef.current === mismatch) {return;}
     workspaceMismatchRef.current = mismatch;
-    getVsCodeApi()?.postMessage({ type: "newConversation", requestId: beginNavigationRequest() });
-  }, [conversationId, workspaceContext]);
+    setWorkspaceMismatch({
+      conversationId,
+      workspaceName: workspaceContext.binding.name,
+    });
+  }, [conversationId, workspaceContext, loadedConversation]);
 
   useEffect(() => {
     if (historyEnabled === undefined) {
@@ -219,6 +237,23 @@ function ChatView({ loadedConversation, navigationPending = false }: ChatViewPro
     });
   }, [draft, referencedFiles, imageAttachments, conversationId, historyEnabled, stateHydrated]);
 
+  const handleConfirmWorkspaceMismatch = useCallback(() => {
+    if (!workspaceMismatch) {return;}
+    workspaceMismatchRef.current = undefined;
+    setWorkspaceMismatch(null);
+    getVsCodeApi()?.postMessage({
+      type: "rebindConversationWorkspace",
+      conversationId: workspaceMismatch.conversationId,
+      workspaceRevision: workspaceContext?.binding.revision,
+    });
+  }, [workspaceMismatch, workspaceContext]);
+
+  const handleCancelWorkspaceMismatch = useCallback(() => {
+    workspaceMismatchRef.current = undefined;
+    setWorkspaceMismatch(null);
+    onCancelWorkspaceMismatch?.();
+  }, [onCancelWorkspaceMismatch]);
+
   useChatCommandMessages({
     appendReferencedFiles,
     focusInput,
@@ -247,6 +282,13 @@ function ChatView({ loadedConversation, navigationPending = false }: ChatViewPro
 
   return (
     <div className="chatView">
+      {workspaceMismatch ? (
+        <WorkspaceMismatchModal
+          workspaceName={workspaceMismatch.workspaceName}
+          onConfirm={handleConfirmWorkspaceMismatch}
+          onCancel={handleCancelWorkspaceMismatch}
+        />
+      ) : null}
       {loadedConversation?.hasEarlierMessages && loadedConversation.historyCursor ? (
         <button
           type="button"
@@ -262,6 +304,7 @@ function ChatView({ loadedConversation, navigationPending = false }: ChatViewPro
         </button>
       ) : null}
       <MessagesSection
+        getGenerationScope={getGenerationScope}
         conversationId={conversationId}
         activeGenerationId={activeGenerationId}
         messages={messages}

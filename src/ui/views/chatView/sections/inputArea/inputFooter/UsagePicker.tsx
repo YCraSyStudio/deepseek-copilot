@@ -45,7 +45,7 @@ function UsagePicker({ usage, usageByModel = [] }: UsagePickerProps) {
   );
 }
 
-function UsagePopover({ usage, usageByModel }: { usage: UsageAggregate; usageByModel: readonly UsageAggregate[] }) {
+export function UsagePopover({ usage, usageByModel }: { usage: UsageAggregate; usageByModel: readonly UsageAggregate[] }) {
   const reportedCost = usage.costUsd ?? sumModelCosts(usageByModel);
   const partialCost = usage.costUsd === undefined && reportedCost !== undefined;
   const cacheTotal = (usage.cacheHitTokens ?? 0) + (usage.cacheMissTokens ?? 0);

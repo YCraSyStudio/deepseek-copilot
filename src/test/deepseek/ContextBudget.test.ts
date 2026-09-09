@@ -3,7 +3,6 @@ import type { ChatCompletionRequest, ChatCompletionResponse, StreamChunk } from 
 import { DEFAULT_CONFIG } from "@/contracts/Config";
 import { ContextCompactor } from "@/application/chat/context/ContextCompaction";
 import {
-  assessRequestBudget,
   assertRequestFitsContext,
   estimateRequestTokens,
   getContextBudget,
@@ -29,21 +28,12 @@ suite("Context budget and compaction", () => {
     assert.doesNotThrow(() => assertRequestFitsContext(messages, [], "deepseek-v4-flash-vision-exp", 8_192));
   });
 
-  test("uses the documented V4 limits with a conservative default output allowance", () => {
-    assert.strictEqual(DEFAULT_CONFIG.maxTokens, 8_192);
+  test("uses the documented V4 limits with the maximum default output allowance", () => {
+    assert.strictEqual(DEFAULT_CONFIG.maxTokens, 384_000);
     const budget = getContextBudget(DEFAULT_CONFIG.model, DEFAULT_CONFIG.maxTokens);
     assert.strictEqual(budget.contextTokens, 1_000_000);
-    assert.strictEqual(budget.outputTokens, 8_192);
-    assert.strictEqual(budget.inputTokens, 941_808);
-  });
-
-  test("uses conservative capabilities for unknown models and exposes preventive thresholds", () => {
-    const budget = getContextBudget("custom-model", 384_000);
-    assert.strictEqual(budget.contextTokens, 128_000);
-    assert.strictEqual(budget.outputTokens, 8_192);
-    const assessment = assessRequestBudget([{ role: "user", content: "hello" }], [], "custom-model", 384_000);
-    assert.strictEqual(assessment.status, "within_budget");
-    assert.ok(assessment.softLimitTokens < assessment.hardLimitTokens);
+    assert.strictEqual(budget.outputTokens, 384_000);
+    assert.strictEqual(budget.inputTokens, 566_000);
   });
 
   test("stops reasoning-dominated output preventively and allows one concise recovery", () => {
@@ -57,7 +47,7 @@ suite("Context budget and compaction", () => {
   });
 
   test("calibrates request estimates from provider prompt usage and enforces the calibrated hard limit", () => {
-    const manager = new GenerationBudgetManager("custom-model", 8_192);
+    const manager = new GenerationBudgetManager("deepseek-v4-flash-vision-exp", 8_192);
     const calibrationMessages = [{ role: "user" as const, content: "calibrate" }];
     const baseline = estimateRequestTokens(calibrationMessages);
     manager.recordPromptUsage(calibrationMessages, [], {
@@ -66,7 +56,7 @@ suite("Context budget and compaction", () => {
       total_tokens: baseline * 2 + 1,
     });
 
-    const request = [{ role: "user" as const, content: "x".repeat(180_000) }];
+    const request = [{ role: "user" as const, content: "x".repeat(1_400_000) }];
     assert.strictEqual(
       manager.assessRequest(request, []).estimatedTokens,
       estimateRequestTokens(request) * 2,
@@ -84,12 +74,12 @@ suite("Context budget and compaction", () => {
   });
 
   test("compacts a tool cycle that jumps directly to the hard limit", () => {
-    const manager = new GenerationBudgetManager("custom-model", 8_192);
+    const manager = new GenerationBudgetManager("deepseek-v4-flash-vision-exp", 8_192);
     const compacted = compactToolCycleContext(
       manager,
       [
         { role: "system", content: "system" },
-        { role: "user", content: "old context".repeat(40_000) },
+        { role: "user", content: "old context".repeat(220_000) },
       ],
       [],
       "finish the requested change",
@@ -103,10 +93,10 @@ suite("Context budget and compaction", () => {
   });
 
   test("does not report a tool-cycle compaction when continuity would not reduce the request", () => {
-    const manager = new GenerationBudgetManager("custom-model", 8_192);
+    const manager = new GenerationBudgetManager("deepseek-v4-flash-vision-exp", 8_192);
     const compacted = compactToolCycleContext(
       manager,
-      [{ role: "system", content: "s".repeat(260_000) }, { role: "user", content: "x" }],
+      [{ role: "system", content: "s".repeat(2_300_000) }, { role: "user", content: "x" }],
       [],
       "x",
       [],

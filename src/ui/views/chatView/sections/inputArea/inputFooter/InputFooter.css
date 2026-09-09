@@ -1,13 +1,10 @@
-.inputFooter {
-  flex: 1 1 auto;
-  min-width: 0;
-  flex-direction: column;
-  gap: 4px;
-  transition: border-color .2s, background .2s;
-  display: flex;
-  position: relative;
+.inputFooter,
+.inputFooterControls {
+  display: contents;
 }
 .referencedFiles {
+  grid-column: 1 / -1;
+  min-width: 0;
   border-bottom: 1px solid var(--vscode-editorWidget-border, #ddd);
   flex-wrap: wrap;
   gap: 4px;
@@ -15,6 +12,8 @@
   display: flex;
 }
 .fileChip {
+  min-width: 0;
+  max-width: 100%;
   background: var(--vscode-badge-background, #e8e8e8);
   color: var(--vscode-badge-foreground, #333);
   user-select: none;
@@ -73,21 +72,15 @@
     opacity: 1;
   }
 }
-.inputFooterControls {
-  flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: center;
-  gap: 6px;
-  display: flex;
-}
 .inputFooterPrimaryControls {
   min-width: 0;
-  flex-wrap: wrap;
+  grid-column: 1;
   align-items: center;
-  gap: 3px;
+  gap: 5px;
   display: flex;
 }
 .inputFooterSecondaryControls {
+  grid-column: 2;
   min-width: 0;
   align-items: center;
   justify-content: flex-end;
@@ -95,6 +88,8 @@
   display: flex;
 }
 .modelReasoningPicker {
+  flex: 0 1 auto;
+  max-width: calc(100% - 33px);
   min-width: 0;
   position: relative;
 }
@@ -103,6 +98,7 @@
   background: var(--input-bg);
   color: var(--text-primary);
   border-radius: 8px;
+  width: 100%;
   max-width: 220px;
   min-height: 30px;
   justify-content: space-between;
@@ -113,6 +109,57 @@
     background: color-mix(in srgb, var(--input-bg) 88%, var(--text-primary) 12%);
     opacity: 1;
   }
+}
+.modelReasoningTrigger > .codicon {
+  flex: none;
+}
+.compactComposerPicker {
+  margin-left: auto;
+  position: static;
+  flex: none;
+  max-width: none;
+
+  .modelReasoningTrigger {
+    width: 44px;
+    gap: 3px;
+    padding: 5px;
+  }
+
+  .modelReasoningMenu {
+    left: auto;
+    right: 0;
+    width: 260px;
+    max-width: calc(100cqw - 2px);
+    min-width: 0;
+  }
+
+  .modelReasoningOption {
+    white-space: normal;
+    text-align: left;
+    overflow-wrap: anywhere;
+  }
+
+  .modelReasoningOption > .codicon {
+    flex: none;
+  }
+}
+.compactComposerUsage .usagePopover {
+  position: static;
+  width: 100%;
+  max-height: none;
+  padding: 8px 3px;
+  border: 0;
+  border-top: 1px solid var(--border-color);
+  border-radius: 0;
+  box-shadow: none;
+}
+.compactComposerUsage .usageMetricGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.compactComposerUsage .usageModelRow,
+.compactComposerUsage .usagePhaseRow {
+  flex-wrap: wrap;
+  gap: 2px 6px;
 }
 .modelReasoningValue {
   min-width: 0;
@@ -375,6 +422,10 @@
   min-width: 0;
   display: inline-flex;
   select {
+    min-height: 30px;
+    padding-top: 5px;
+    padding-bottom: 5px;
+    text-overflow: ellipsis;
     min-width: 0;
   }
 }
@@ -393,56 +444,5 @@
 
   &:hover {
     background: color-mix(in srgb, var(--input-bg) 78%, var(--text-primary) 22%);
-  }
-}
-@media (max-width: 360px) {
-  .inputFooterControls {
-    align-items: stretch;
-    gap: 6px;
-  }
-
-  .inputFooterPrimaryControls {
-    flex: 1 1 100%;
-    width: 100%;
-    gap: 5px;
-
-    .modelReasoningPicker {
-      flex: 1 1 110px;
-    }
-
-    .modelReasoningTrigger {
-      width: 100%;
-      max-width: none;
-    }
-  }
-
-  .inputFooterSecondaryControls {
-    flex: 1 1 120px;
-    max-width: 100%;
-  }
-}
-
-@media (max-width: 260px) {
-  .inputFooterPrimaryControls {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-
-    .modelReasoningPicker {
-      grid-column: 1;
-      width: 100%;
-    }
-
-    .attachmentPickerTrigger {
-      grid-column: 2;
-      justify-self: end;
-    }
-  }
-
-  .inputFooterSecondaryControls {
-    width: 100%;
-  }
-
-  .inputFooterSecondaryControls > .selectTooltipWrapper {
-    flex: 1 1 auto;
   }
 }

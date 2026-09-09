@@ -4,7 +4,7 @@ import { WEBVIEW_PROTOCOL_VERSION, type AssistantTimelineEvent, type Conversatio
 import type { UsageAggregate } from "@/shared/usage/Usage";
 import type { ApiKeyStatus, DangerConfirmationData, ToolCallStatus } from "../ChatViewTypes";
 import { setInterfaceLanguage } from "@webview/i18n";
-import { acceptMessageForScope } from "./GenerationEventScope";
+import { acceptMessageForScope, type GenerationEventScopeSource } from "./GenerationEventScope";
 
 /**
  * Additional streamDone event data.
@@ -59,7 +59,7 @@ export type MessageDispatcher = {
 export function useMessageHandler(
   vscode: VsCodeApi | null,
   dispatcher: MessageDispatcher,
-  scope?: { conversationId?: string; activeGenerationId?: string },
+  scope?: GenerationEventScopeSource,
 ): void {
   const dispatcherRef = useRef(dispatcher);
   dispatcherRef.current = dispatcher;

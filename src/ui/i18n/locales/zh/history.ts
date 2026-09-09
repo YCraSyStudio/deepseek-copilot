@@ -24,6 +24,12 @@ export const history = {
     pageSummary: "第 {page}/{pages} 页 · {count} 个会话",
     openTitle: "打开 {title}",
     deleteTitle: "删除 {title}",
-    countMessages: "{count} 条消息"
+    countMessages: "{count} 条消息",
+    workspaceMismatch: {
+      title: "在此工作区中打开？",
+      description: "此会话属于工作区“{workspace}”，并非当前打开的工作区。要改在这里打开吗？待处理的生成任务、队列中的消息和文件引用将被清除。",
+      confirm: "在此打开",
+      cancel: "取消",
+    }
   }
 } satisfies TranslationCatalog;
