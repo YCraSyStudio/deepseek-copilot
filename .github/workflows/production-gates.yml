@@ -11,15 +11,20 @@ on:
 permissions:
   contents: read
 
-env:
-  MIN_VSCODE_VERSION: 1.131.0
-
 jobs:
   quality-and-package:
     name: Quality, security, and VSIX
     runs-on: ubuntu-latest
+    outputs:
+      release: ${{ steps.release-mode.outputs.release }}
+      tag: ${{ steps.release-mode.outputs.tag }}
     steps:
       - uses: actions/checkout@v7
+      - name: Detect a release request
+        id: release-mode
+        env:
+          HEAD_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: node scripts/detect-release-mode.mjs
       - uses: actions/setup-node@v7
         with:
           node-version: 24
@@ -32,11 +37,13 @@ jobs:
       - run: npm run test:unit
       - run: npm run verify:searxng-runtime-config
       - name: Verify published SearXNG runtime
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: steps.release-mode.outputs.release == 'true'
         run: npm run verify:searxng-runtime
       - name: Validate release tag and changelog
-        if: startsWith(github.ref, 'refs/tags/v')
-        run: node scripts/extract-release-notes.mjs CHANGELOG.md package.json "$GITHUB_REF_NAME" release-notes.md
+        if: steps.release-mode.outputs.release == 'true'
+        env:
+          TAG: ${{ steps.release-mode.outputs.tag }}
+        run: node scripts/extract-release-notes.mjs CHANGELOG.md package.json "$TAG" release-notes.md
       - name: Audit runtime dependencies
         run: npm audit --omit=dev --audit-level=high
       - name: Audit build chain
@@ -58,12 +65,11 @@ jobs:
           if-no-files-found: warn
 
   extension-host:
-    name: Extension host (${{ matrix.os }}, VS Code ${{ matrix.vscode }})
+    name: Extension host (${{ matrix.os }}, VS Code stable)
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        vscode: [1.131.0, stable]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -75,25 +81,21 @@ jobs:
       - run: node scripts/prepare-test-results.mjs
       - name: Run extension-host integration tests
         if: runner.os != 'Linux'
-        run: npm run test:integration -- --code-version ${{ matrix.vscode }} --reporter xunit --reporter-option output=test-results/integration.xml
+        run: npm run test:integration -- --code-version stable --reporter xunit --reporter-option output=test-results/integration.xml
       - name: Run extension-host integration tests (Linux)
         if: runner.os == 'Linux'
-        run: xvfb-run -a npm run test:integration -- --code-version ${{ matrix.vscode }} --reporter xunit --reporter-option output=test-results/integration.xml
+        run: xvfb-run -a npm run test:integration -- --code-version stable --reporter xunit --reporter-option output=test-results/integration.xml
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: extension-host-${{ matrix.os }}-${{ matrix.vscode }}
+          name: extension-host-${{ matrix.os }}
           path: test-results/
           if-no-files-found: warn
 
   packaged-smoke:
-    name: Installed VSIX smoke (VS Code ${{ matrix.vscode }})
+    name: Installed VSIX smoke (VS Code stable)
     needs: quality-and-package
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        vscode: [1.131.0, stable]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -106,34 +108,61 @@ jobs:
           name: production-vsix
           path: artifacts
       - run: npm run prepare:integration
-      - run: xvfb-run -a node scripts/test-packaged-vsix.mjs artifacts/*.vsix ${{ matrix.vscode }}
+      - run: xvfb-run -a node scripts/test-packaged-vsix.mjs artifacts/*.vsix stable
 
   github-release:
     name: GitHub release
-    if: startsWith(github.ref, 'refs/tags/v')
     needs: [quality-and-package, extension-host, packaged-smoke]
+    if: needs.quality-and-package.outputs.release == 'true'
     runs-on: ubuntu-latest
     permissions:
       actions: read
       contents: write
+    env:
+      TAG: ${{ needs.quality-and-package.outputs.tag }}
     steps:
       - uses: actions/checkout@v7
+      - name: Look for an existing release
+        id: published
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Release skipped::$TAG is already published."
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Ensure the release tag exists
+        if: steps.published.outputs.published == 'false'
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" > /dev/null 2>&1; then
+            echo "$TAG already exists on origin."
+          else
+            git tag "$TAG" "$GITHUB_SHA"
+            git push origin "refs/tags/$TAG"
+            echo "Created $TAG at $GITHUB_SHA."
+          fi
       - uses: actions/download-artifact@v8
+        if: steps.published.outputs.published == 'false'
         with:
           name: production-vsix
           path: artifacts
       - name: Verify release artifact checksum
+        if: steps.published.outputs.published == 'false'
         run: cd artifacts && sha256sum --check sha256.txt
       - name: Prepare release notes
-        run: node scripts/extract-release-notes.mjs CHANGELOG.md package.json "$GITHUB_REF_NAME" release-notes.md
+        if: steps.published.outputs.published == 'false'
+        run: node scripts/extract-release-notes.mjs CHANGELOG.md package.json "$TAG" release-notes.md
       - name: Create GitHub release
+        if: steps.published.outputs.published == 'false'
         env:
           GH_TOKEN: ${{ github.token }}
         run: >
-          gh release create "$GITHUB_REF_NAME"
+          gh release create "$TAG"
           artifacts/*.vsix
           artifacts/sha256.txt
-          --title "Yar's DeepSeek Copilot $GITHUB_REF_NAME"
+          --title "Yar's DeepSeek Copilot $TAG"
           --notes-file release-notes.md
           --prerelease
           --verify-tag

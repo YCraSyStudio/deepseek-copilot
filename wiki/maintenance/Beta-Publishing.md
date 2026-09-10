@@ -132,7 +132,21 @@ git tag v0.1.14
 git push origin v0.1.14
 ```
 
-The production workflow must validate the tag against `package.json`, extract the matching section from `CHANGELOG.md`, wait for quality, extension-host, and packaged-VSIX smoke gates, verify `sha256.txt`, and publish the verified VSIX and checksum.
+A push to `main` whose commit subject starts with `release: ` publishes the same way, so a release no longer needs a hand-created tag before the gates run:
+
+```bash
+git commit -m "release: fix v0.1.14 preview"
+git push origin main
+```
+
+The production workflow resolves the release mode in its first step and publishes the VSIX and checksum only after quality, extension-host, and packaged-VSIX smoke gates pass. The rules are:
+
+- a pushed `vX.Y.Z` tag always publishes;
+- a push to `main` publishes when the commit **subject** starts with `release: ` (case-insensitive, first line only); the tag is derived from the `package.json` version (`0.1.14` → `v0.1.14`) and the commit is validated against `CHANGELOG.md`;
+- `release: ` commits on any other branch, in a pull request, or in a manual dispatch never publish;
+- the tag is created at the tested commit when it does not exist yet, and a release that already exists is skipped, so a re-run never publishes twice.
+
+The workflow must validate the release against `package.json`, extract the matching section from `CHANGELOG.md`, wait for quality, extension-host, and packaged-VSIX smoke gates, verify `sha256.txt`, and publish the verified VSIX and checksum.
 
 GitHub release status mirrors the Marketplace `preview` flag:
 

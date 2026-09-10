@@ -28,13 +28,16 @@ export function createInlineDiffPreview(): InlineDiffPreview {
     clear();
     const document = await vscode.workspace.openTextDocument(uri);
     // A pending confirmation must never interrupt the user. Reuse an editor that
-    // already shows the file, and otherwise open a transient preview that keeps
-    // focus (and the caret) wherever the user is typing.
+    // already shows the file; the transient preview keeps a tabbed file in its own
+    // column, and focus returns to whatever the user had when the platform reports
+    // a different active editor.
+    const focused = vscode.window.activeTextEditor;
     const editor = findVisibleEditor(document) ?? await vscode.window.showTextDocument(document, {
       preview: true,
       preserveFocus: true,
-      viewColumn: vscode.ViewColumn.Active,
+      viewColumn: findTabColumn(document) ?? vscode.ViewColumn.Active,
     });
+    await restoreFocus(focused);
     const preview = computeInlinePreview(before, after, document);
     if (!preview) {
       return;
@@ -123,6 +126,27 @@ function clampLine(line: number, document: vscode.TextDocument): number {
 function findVisibleEditor(document: vscode.TextDocument): vscode.TextEditor | undefined {
   const target = document.uri.toString(true);
   return vscode.window.visibleTextEditors.find((editor) => editor.document.uri.toString(true) === target);
+}
+
+/** Column of the tab that already shows the document, so a preview never moves it. */
+function findTabColumn(document: vscode.TextDocument): vscode.ViewColumn | undefined {
+  const target = document.uri.toString(true);
+  for (const group of vscode.window.tabGroups.all) {
+    for (const tab of group.tabs) {
+      if (tab.input instanceof vscode.TabInputText && tab.input.uri.toString(true) === target) {
+        return group.viewColumn;
+      }
+    }
+  }
+  return undefined;
+}
+
+/** `preserveFocus` is advisory: a platform that still activates the shown editor would take the caret away. */
+async function restoreFocus(previous: vscode.TextEditor | undefined): Promise<void> {
+  if (!previous || vscode.window.activeTextEditor === previous) {
+    return;
+  }
+  await previous.show(previous.viewColumn);
 }
 
 function formatAdditionLabel(lines: string[]): string {

@@ -65,7 +65,7 @@ Update 2026-09-10: items 1-3 and 5-7, 9-10 and 12 shipped in `0.1.14`. What rema
 
 - Auxiliary-model policy: implement it as policy and verify it once a model more capable than Flash exists; it is inert today because `deepseek-flash` is the only registered model.
 - Security-review payload facts: owned by draft 021.
-- `src/infrastructure/tools/builtins/fileSystem/CodeSymbols.ts` (the regex scanner that `read_func` used before the editor-provider switch) is now unreferenced and is waiting for an explicit deletion confirmation.
+- `src/infrastructure/tools/builtins/fileSystem/CodeSymbols.ts` (the regex scanner that `read_func` used before the editor-provider switch) was flagged by the unused-file gate and deleted.
 
 ### Acceptance criteria
 

@@ -155,21 +155,18 @@ suite("Extension integration", () => {
     await vscode.workspace.fs.writeFile(editedUri, Buffer.from("alpha\n"));
 
     try {
-      const userEditor = await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(userUri));
-      const editedEditor = await vscode.window.showTextDocument(
-        await vscode.workspace.openTextDocument(editedUri),
-        { viewColumn: vscode.ViewColumn.Beside },
-      );
-      await vscode.window.showTextDocument(userEditor.document, { viewColumn: userEditor.viewColumn });
+      const editedEditor = await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(editedUri));
+      // The user's file is shown last because re-activating an editor that is already visible is not
+      // reported as a focus change on a headless macOS runner, while a fresh open always is.
+      await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(userUri), {
+        viewColumn: vscode.ViewColumn.Beside,
+      });
+      await expectActiveEditor(userUri, "The user's editor must already be the active one before the preview runs.");
 
       const host = createVsCodeToolWorkspace();
       await host.prepareFileDiff!(path.basename(editedUri.fsPath), "alpha\n", "beta\n");
 
-      assert.strictEqual(
-        vscode.window.activeTextEditor?.document.uri.toString(true),
-        userUri.toString(true),
-        "A pending edit preview must not take focus from the user's editor.",
-      );
+      await expectActiveEditor(userUri, "A pending edit preview must not take focus from the user's editor.");
       const previewEditor = vscode.window.visibleTextEditors.find(
         (editor) => editor.document.uri.toString(true) === editedUri.toString(true),
       );
@@ -353,6 +350,22 @@ suite("Extension integration", () => {
 
 function sha256(content: Uint8Array): string {
   return createHash("sha256").update(content).digest("hex");
+}
+
+async function expectActiveEditor(uri: vscode.Uri, message: string): Promise<void> {
+  const expected = uri.toString(true);
+  // Stays inside the harness timeout so a late state reports this assertion instead of a mocha timeout.
+  const deadline = Date.now() + 4_000;
+  let actual = activeEditorUri();
+  while (actual !== expected && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    actual = activeEditorUri();
+  }
+  assert.strictEqual(actual, expected, message);
+}
+
+function activeEditorUri(): string | undefined {
+  return vscode.window.activeTextEditor?.document.uri.toString(true);
 }
 
 class SummaryProvider implements ModelProvider {
