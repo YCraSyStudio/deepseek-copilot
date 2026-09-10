@@ -11,9 +11,6 @@ on:
 permissions:
   contents: read
 
-env:
-  MIN_VSCODE_VERSION: 1.131.0
-
 jobs:
   quality-and-package:
     name: Quality, security, and VSIX
@@ -58,12 +55,11 @@ jobs:
           if-no-files-found: warn
 
   extension-host:
-    name: Extension host (${{ matrix.os }}, VS Code ${{ matrix.vscode }})
+    name: Extension host (${{ matrix.os }}, VS Code stable)
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        vscode: [1.131.0, stable]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -75,25 +71,21 @@ jobs:
       - run: node scripts/prepare-test-results.mjs
       - name: Run extension-host integration tests
         if: runner.os != 'Linux'
-        run: npm run test:integration -- --code-version ${{ matrix.vscode }} --reporter xunit --reporter-option output=test-results/integration.xml
+        run: npm run test:integration -- --code-version stable --reporter xunit --reporter-option output=test-results/integration.xml
       - name: Run extension-host integration tests (Linux)
         if: runner.os == 'Linux'
-        run: xvfb-run -a npm run test:integration -- --code-version ${{ matrix.vscode }} --reporter xunit --reporter-option output=test-results/integration.xml
+        run: xvfb-run -a npm run test:integration -- --code-version stable --reporter xunit --reporter-option output=test-results/integration.xml
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: extension-host-${{ matrix.os }}-${{ matrix.vscode }}
+          name: extension-host-${{ matrix.os }}
           path: test-results/
           if-no-files-found: warn
 
   packaged-smoke:
-    name: Installed VSIX smoke (VS Code ${{ matrix.vscode }})
+    name: Installed VSIX smoke (VS Code stable)
     needs: quality-and-package
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        vscode: [1.131.0, stable]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -106,7 +98,7 @@ jobs:
           name: production-vsix
           path: artifacts
       - run: npm run prepare:integration
-      - run: xvfb-run -a node scripts/test-packaged-vsix.mjs artifacts/*.vsix ${{ matrix.vscode }}
+      - run: xvfb-run -a node scripts/test-packaged-vsix.mjs artifacts/*.vsix stable
 
   github-release:
     name: GitHub release

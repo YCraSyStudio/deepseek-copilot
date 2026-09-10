@@ -12,7 +12,7 @@ Each release links to its extended notes in the [documentation](https://yarcrasy
 - The usage popover reports the conversation-wide total computed by the extension host instead of the messages the webview happens to hold.
 - Auxiliary compaction uses per-phase output ceilings, the cache-hit ratio is shown per phase, and model capability flags nobody read were removed.
 - A finished turn ends with an edited-files summary whose rows open the native change diff; reverting changes is out of scope.
-- Pending `edit_file` and `apply_patch` previews no longer steal focus.
+- Pending `edit_file` and `apply_patch` previews no longer steal focus, including on macOS, where the platform activates the shown editor even when it is asked to preserve focus.
 - Long conversations render lazily, with memoized message rows.
 - Added the `list_workspace` tool; reasoning blocks render Markdown and collapse like the tool lists; fixed the tool-call chevron; attached images open a zoomable, draggable viewer; and the composer gained spacing above its toolbar.
 - Added the `read_func` tool, which returns only the functions, methods, or types named in a source file, chained through their enclosing declarations, so reading one function no longer pulls the whole document into the context. Symbol ranges come from the editor's own language providers, so the tool follows the language instead of a text pattern. Module-level `const` bindings are resolvable, and an empty answer is believed only after the file has been loaded and the provider has repeated it across a short backoff.
