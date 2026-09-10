@@ -45,8 +45,8 @@ In Extension Development Host:
 - type `./` in the chat input and select a suggested path; verify `../` never opens autocomplete and is rejected if sent manually.
 - attach an ordinary file and an image through the same `+` picker; verify signature-based routing, preview, removal, and a maximum of eight images.
 - paste JPEG, PNG, GIF, and WebP images with `Ctrl+V`/`Cmd+V`; verify the bounded Base64 IPC value is discarded after upload and never appears in history or provider messages.
-- with V4 Vision, verify file IDs are sent directly; with V4 Pro, verify `analyze_images` is available only when the prompt has images and returns a Vision-generated text description.
-- simulate Vision model-unavailable, 404, and 410 responses on the official origin; verify one retry uses stable Flash, strips image blocks, and discloses the limitation. Verify V4 Pro image analysis fails explicitly and that 401, 403, 429, generic 5xx, cancellation, and custom-origin failures do not retry.
+- verify image file IDs are sent directly to `deepseek-flash` as `{ type: "file", file_id }` content blocks.
+- simulate 404, 410, 429, and generic 5xx responses on the official origin; verify the failure is surfaced without a hidden retry, without dropping the already-sent image references, and without rewriting a custom-origin model name.
 - delete a conversation containing images, use Undo, then permanently delete it and verify preview/remote cleanup happens only after the Undo window.
 - execute a safe tool.
 - confirm or cancel a dangerous tool.
@@ -56,8 +56,18 @@ In Extension Development Host:
 - verify the API-key preview appears as the input placeholder on first open.
 - verify auto-approve and full-access use the independent DeepSeek reviewer without a local danger analyzer, apply routine/elevated/critical policy correctly, and preserve rejection guidance without losing a generation round.
 - verify grouped activity remains compact until expanded.
+- verify a turn that edits several files ends with the edited-files summary;
+  verify the per-file line counts, `Show N more files`, and that each row opens
+  the diff for that file, and that `Review` opens every change of the turn.
+- create or rewrite a file large enough to truncate the diff stored in the tool
+  result and verify the change still opens completely, both from the summary and
+  from `View change` on the tool call.
+- reopen a conversation from history and verify small changes still open, while a
+  change whose recorded diff was truncated reports that it cannot be compared.
 - verify “Open file” opens the affected file and a file mutation opens the
   specific change diff.
+- while typing in the chat input, trigger an `edit_file` or `apply_patch`
+  confirmation and verify the inline preview appears without moving focus.
 - verify confirmation panels fit narrow sidebars and use the available width in
   wide views.
 

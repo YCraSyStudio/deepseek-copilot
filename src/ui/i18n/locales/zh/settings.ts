@@ -116,7 +116,10 @@ export const settings = {
     },
     usage: {
       title: "用量与成本",
-      breakdown: "在回复下方显示 Token 用量"
+      breakdown: "在回复下方显示 Token 用量",
+      currency: "费用货币",
+      currencyUsd: "美元（USD）",
+      currencyCny: "人民币（CNY）"
     },
     limits: {
       maxTokens: "最大输出 Token 数",

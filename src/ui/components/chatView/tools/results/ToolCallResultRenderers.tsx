@@ -40,8 +40,8 @@ export function renderToolCallArgumentsPreview(toolName: string, argumentsJson: 
   if (path && isEditorFileTool(toolName)) {
     return renderToolCallSummaryPreview(
       toolName === "read_file"
-        ? t("chat.readingPath", { path: formatRelativePath(path) })
-        : formatRelativePath(path),
+        ? `${t("chat.readingPath", { path: formatRelativePath(path) })}${describeLineRange(parsed)}`
+        : `${formatRelativePath(path)}${describeRequestedNames(parsed.names)}`,
     );
   }
 
@@ -106,6 +106,33 @@ export function renderPlainResult(result: string, status: string) {
       <pre className={isError ? "errorText" : ""}>{truncate(result, 1000)}</pre>
     </details>
   );
+}
+
+function describeRequestedNames(value: unknown): string {
+  if (!Array.isArray(value)) {
+    return "";
+  }
+  const names = value
+    .filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
+    .slice(0, 6)
+    .map((entry) => entry.trim());
+  return names.length > 0 ? ` :: ${names.join(", ")}` : "";
+}
+
+function describeLineRange(args: Record<string, unknown>): string {
+  const offset = toPositiveCount(args.offset);
+  const limit = toPositiveCount(args.limit);
+  if (offset !== undefined && limit !== undefined) {
+    return ` :: lines ${offset}-${offset + limit - 1}`;
+  }
+  if (offset !== undefined) {
+    return ` :: from line ${offset}`;
+  }
+  return limit !== undefined ? ` :: first ${limit} lines` : "";
+}
+
+function toPositiveCount(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : undefined;
 }
 
 function formatRelativePath(path: string): string {

@@ -54,4 +54,4 @@ export type WebviewToHandlerMessage =
   | { type: "uploadClipboardImage"; requestId: string; name: string; mediaType: string; size: number; dataBase64: string }
   | { type: "deleteImageAttachment"; requestId: string; attachment: ImageAttachment }
   | { type: "openFile"; path: string; line?: number; conversationId?: string; workspaceRevision?: string }
-  | { type: "openFileDiff"; path: string; diff: string; conversationId?: string; workspaceRevision?: string };
+  | { type: "openFileDiff"; path: string; diff?: string; beforeHash?: string; afterHash?: string; preview?: boolean; conversationId?: string; workspaceRevision?: string };

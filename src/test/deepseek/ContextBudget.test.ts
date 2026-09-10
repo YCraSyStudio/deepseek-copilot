@@ -13,7 +13,7 @@ import type { ModelProvider } from "@/application/ports";
 
 suite("Context budget and compaction", () => {
   test("reserves model output and a safety margin while counting tool schemas", () => {
-    const budget = getContextBudget("deepseek-v4-flash-vision-exp", 8_192);
+    const budget = getContextBudget("deepseek-flash", 8_192);
     assert.strictEqual(budget.contextTokens, 1_000_000);
     assert.strictEqual(budget.safetyMarginTokens, 50_000);
     assert.strictEqual(budget.inputTokens, 941_808);
@@ -25,7 +25,7 @@ suite("Context budget and compaction", () => {
       function: { name: "read_file", parameters: { type: "object", properties: { path: { type: "string" } } } },
     }]);
     assert.ok(withTools > withoutTools);
-    assert.doesNotThrow(() => assertRequestFitsContext(messages, [], "deepseek-v4-flash-vision-exp", 8_192));
+    assert.doesNotThrow(() => assertRequestFitsContext(messages, [], "deepseek-flash", 8_192));
   });
 
   test("uses the documented V4 limits with the maximum default output allowance", () => {
@@ -37,7 +37,7 @@ suite("Context budget and compaction", () => {
   });
 
   test("stops reasoning-dominated output preventively and allows one concise recovery", () => {
-    const manager = new GenerationBudgetManager("deepseek-v4-flash-vision-exp", 1_000);
+    const manager = new GenerationBudgetManager("deepseek-flash", 1_000);
     const assessment = manager.observeOutput("r".repeat(2_500), "");
     assert.strictEqual(assessment.status, "output_reasoning_limit");
     assert.strictEqual(manager.canRecoverConcise(), true);
@@ -47,7 +47,7 @@ suite("Context budget and compaction", () => {
   });
 
   test("calibrates request estimates from provider prompt usage and enforces the calibrated hard limit", () => {
-    const manager = new GenerationBudgetManager("deepseek-v4-flash-vision-exp", 8_192);
+    const manager = new GenerationBudgetManager("deepseek-flash", 8_192);
     const calibrationMessages = [{ role: "user" as const, content: "calibrate" }];
     const baseline = estimateRequestTokens(calibrationMessages);
     manager.recordPromptUsage(calibrationMessages, [], {
@@ -65,7 +65,7 @@ suite("Context budget and compaction", () => {
   });
 
   test("allows exactly three automatic compactions per generation", () => {
-    const manager = new GenerationBudgetManager("deepseek-v4-flash-vision-exp", 8_192);
+    const manager = new GenerationBudgetManager("deepseek-flash", 8_192);
     for (let index = 0; index < 3; index += 1) {
       assert.strictEqual(manager.canCompactAutomatically(), true);
       manager.recordAutomaticCompaction();
@@ -74,7 +74,7 @@ suite("Context budget and compaction", () => {
   });
 
   test("compacts a tool cycle that jumps directly to the hard limit", () => {
-    const manager = new GenerationBudgetManager("deepseek-v4-flash-vision-exp", 8_192);
+    const manager = new GenerationBudgetManager("deepseek-flash", 8_192);
     const compacted = compactToolCycleContext(
       manager,
       [
@@ -93,7 +93,7 @@ suite("Context budget and compaction", () => {
   });
 
   test("does not report a tool-cycle compaction when continuity would not reduce the request", () => {
-    const manager = new GenerationBudgetManager("deepseek-v4-flash-vision-exp", 8_192);
+    const manager = new GenerationBudgetManager("deepseek-flash", 8_192);
     const compacted = compactToolCycleContext(
       manager,
       [{ role: "system", content: "s".repeat(2_300_000) }, { role: "user", content: "x" }],
@@ -110,7 +110,7 @@ suite("Context budget and compaction", () => {
     const provider = new StubProvider();
     const lines = Array.from({ length: 500 }, (_, index) => `literal line ${index + 1}`);
     const signal = new AbortController().signal;
-    const compactor = new ContextCompactor(provider, "deepseek-v4-flash-vision-exp", signal);
+    const compactor = new ContextCompactor(provider, "deepseek-flash", signal);
     const [file] = await compactor.compactFiles([{
       path: "src/large.ts",
       type: "file",
@@ -120,18 +120,33 @@ suite("Context budget and compaction", () => {
     assert.strictEqual(provider.requests.length, 1);
     assert.deepStrictEqual(provider.requests[0].thinking, { type: "disabled" });
     assert.strictEqual(provider.requests[0].tool_choice, "none");
-    assert.strictEqual(provider.requests[0].max_tokens, 4096);
+    // Range selection returns at most a dozen short 1-based ranges, so it needs
+    // far less than the generic auxiliary ceiling.
+    assert.strictEqual(provider.requests[0].max_tokens, 512);
     assert.strictEqual(provider.signals[0], signal);
     assert.ok(file.content?.includes("literal line 10"));
     assert.ok(file.content?.includes("literal line 12"));
     assert.ok(!file.content?.includes("literal line 100"));
   });
 
+  test("reserves a wider ceiling for prose summaries than for range selection", async () => {
+    const provider = new StubProvider("summary");
+    const compactor = new ContextCompactor(provider, "deepseek-flash", new AbortController().signal);
+    await compactor.summarize([{
+      generationId: "generation-1",
+      visibleText: "context",
+      messages: [{ role: "user", content: "context" }],
+    }]);
+
+    assert.deepStrictEqual(provider.requests[0].thinking, { type: "disabled" });
+    assert.strictEqual(provider.requests[0].max_tokens, 2_048);
+  });
+
   test("does not build or send a numbered auxiliary request for a huge single-line file", async () => {
     const provider = new StubProvider();
     const [file] = await new ContextCompactor(
       provider,
-      "deepseek-v4-flash-vision-exp",
+      "deepseek-flash",
       new AbortController().signal,
     ).compactFiles([{
       path: "dist/minified.js",
@@ -149,7 +164,7 @@ suite("Context budget and compaction", () => {
     const lines = Array.from({ length: 500 }, (_, index) => `unique line ${index + 1}`);
     const [file] = await new ContextCompactor(
       provider,
-      "deepseek-v4-flash-vision-exp",
+      "deepseek-flash",
       new AbortController().signal,
     ).compactFiles([{ path: "src/large.ts", type: "file", content: lines.join("\n") }], "inspect");
 
@@ -160,7 +175,7 @@ suite("Context budget and compaction", () => {
 
   test("keeps cumulative summary coverage but stores only the new boundary delta", async () => {
     const provider = new StubProvider("summary");
-    const compactor = new ContextCompactor(provider, "deepseek-v4-flash-vision-exp", new AbortController().signal);
+    const compactor = new ContextCompactor(provider, "deepseek-flash", new AbortController().signal);
     const first = await compactor.summarize([{
       generationId: "generation-1",
       visibleText: "first",
@@ -182,7 +197,7 @@ suite("Context budget and compaction", () => {
     controller.abort();
 
     await assert.rejects(
-      new ContextCompactor(provider, "deepseek-v4-flash-vision-exp", controller.signal).summarize([{
+      new ContextCompactor(provider, "deepseek-flash", controller.signal).summarize([{
         generationId: "cancelled-generation",
         visibleText: "cancelled",
         messages: [{ role: "user", content: "cancelled" }],

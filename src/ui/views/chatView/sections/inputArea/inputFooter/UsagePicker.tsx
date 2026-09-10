@@ -1,5 +1,5 @@
-import type { PhaseUsage, UsageAggregate, UsagePhase } from "@/shared/usage/Usage";
-import { estimateReportedUsageCost, USAGE_PHASES } from "@/shared/usage/Usage";
+import type { PhaseUsage, UsageAggregate, UsageCurrency, UsagePhase } from "@/shared/usage/Usage";
+import { estimateAggregateCost, formatUsageCost, USAGE_PHASES } from "@/shared/usage/Usage";
 import { getUiLocale, t } from "@webview/i18n";
 import { useComposerPopover } from "./UseComposerPopover";
 import { MODEL_OPTIONS } from "@/contracts/deepseek/Models";
@@ -7,6 +7,7 @@ import { MODEL_OPTIONS } from "@/contracts/deepseek/Models";
 interface UsagePickerProps {
   usage?: UsageAggregate;
   usageByModel?: readonly UsageAggregate[];
+  currency?: UsageCurrency;
 }
 
 const PHASE_LABELS: Record<UsagePhase, Parameters<typeof t>[0]> = {
@@ -20,7 +21,7 @@ const PHASE_LABELS: Record<UsagePhase, Parameters<typeof t>[0]> = {
   vision_analysis: "chat.usage.phases.visionAnalysis",
 };
 
-function UsagePicker({ usage, usageByModel = [] }: UsagePickerProps) {
+function UsagePicker({ usage, usageByModel = [], currency = "usd" }: UsagePickerProps) {
   const { open, rootRef, triggerRef, togglePopover } = useComposerPopover();
   const hasUsage = !!usage && usage.count > 0;
 
@@ -40,18 +41,19 @@ function UsagePicker({ usage, usageByModel = [] }: UsagePickerProps) {
         <span className="codicon codicon-pulse" aria-hidden="true" />
       </button>
 
-      {open && usage ? <UsagePopover usage={usage} usageByModel={usageByModel} /> : null}
+      {open && usage ? <UsagePopover usage={usage} usageByModel={usageByModel} currency={currency} /> : null}
     </div>
   );
 }
 
-export function UsagePopover({ usage, usageByModel }: { usage: UsageAggregate; usageByModel: readonly UsageAggregate[] }) {
-  const reportedCost = usage.costUsd ?? sumModelCosts(usageByModel);
-  const partialCost = usage.costUsd === undefined && reportedCost !== undefined;
-  const cacheTotal = (usage.cacheHitTokens ?? 0) + (usage.cacheMissTokens ?? 0);
-  const cacheRate = cacheTotal > 0 && usage.cacheHitTokens !== undefined
-    ? Math.round(usage.cacheHitTokens / cacheTotal * 100)
-    : undefined;
+export function UsagePopover({ usage, usageByModel, currency = "usd" }: {
+  usage: UsageAggregate;
+  usageByModel: readonly UsageAggregate[];
+  currency?: UsageCurrency;
+}) {
+  const reportedCost = estimateAggregateCost(usage, currency) ?? sumModelCosts(usageByModel, currency);
+  const partialCost = reportedCost !== undefined && usage.reported < usage.count;
+  const cacheRate = cacheHitRate(usage);
   const phases = USAGE_PHASES.flatMap((phase) => {
     const value = usage.byPhase[phase];
     return value ? [{ phase, value }] : [];
@@ -70,7 +72,7 @@ export function UsagePopover({ usage, usageByModel }: { usage: UsageAggregate; u
 
       <div className="usageHero">
         <UsageMetric label={t("chat.usage.total")} value={formatTokens(usage.totalTokens)} prominent />
-        <UsageMetric label={t("chat.usage.cost")} value={formatCost(reportedCost, partialCost)} prominent />
+        <UsageMetric label={t("chat.usage.cost")} value={formatCost(reportedCost, currency, partialCost)} prominent />
       </div>
 
       <div className="usageMetricGrid">
@@ -96,7 +98,7 @@ export function UsagePopover({ usage, usageByModel }: { usage: UsageAggregate; u
         <div className="usageModels">
           <div className="usageSectionLabel">{t("chat.usage.byModel")}</div>
           {usageByModel.map((modelUsage, index) => (
-            <ModelUsageRow key={modelUsage.model ?? `unknown-${index}`} usage={modelUsage} />
+            <ModelUsageRow key={modelUsage.model ?? `unknown-${index}`} usage={modelUsage} currency={currency} />
           ))}
         </div>
       ) : null}
@@ -113,8 +115,8 @@ export function UsagePopover({ usage, usageByModel }: { usage: UsageAggregate; u
   );
 }
 
-function ModelUsageRow({ usage }: { usage: UsageAggregate }) {
-  const cost = usage.costUsd ?? estimateReportedUsageCost(usage);
+function ModelUsageRow({ usage, currency }: { usage: UsageAggregate; currency: UsageCurrency }) {
+  const cost = estimateAggregateCost(usage, currency);
   return (
     <div className="usageModelRow">
       <div className="usageModelIdentity">
@@ -123,7 +125,7 @@ function ModelUsageRow({ usage }: { usage: UsageAggregate }) {
       </div>
       <div className="usageModelValues">
         <span>{formatTokens(usage.totalTokens)}</span>
-        <span>{formatCost(cost, usage.costUsd === undefined && cost !== undefined)}</span>
+        <span>{formatCost(cost, currency, cost !== undefined && usage.reported < usage.count)}</span>
       </div>
     </div>
   );
@@ -139,14 +141,37 @@ function UsageMetric({ label, value, prominent = false }: { label: string; value
 }
 
 function PhaseRow({ phase, usage }: { phase: UsagePhase; usage: PhaseUsage }) {
+  const hitRate = cacheHitRate(usage);
   return (
     <div className="usagePhaseRow">
       <span>{t(PHASE_LABELS[phase])}</span>
       <span className="usagePhaseValues">
+        {hitRate !== undefined ? (
+          <span
+            className="usagePhaseCache"
+            title={t("chat.usage.cacheHit")}
+            aria-label={`${t("chat.usage.cacheHit")} ${hitRate}%`}
+          >
+            {hitRate}%
+          </span>
+        ) : null}
         {formatTokens(usage.inputTokens)} <span aria-hidden="true">+</span> {formatTokens(usage.outputTokens)}
       </span>
     </div>
   );
+}
+
+/**
+ * Cache-hit share of the input tokens a phase actually reports. Rendering it per
+ * phase is what makes a serialized-prefix regression visible: the conversation
+ * total hides it behind the primary phase's share.
+ */
+function cacheHitRate(usage: PhaseUsage): number | undefined {
+  if (usage.cacheHitTokens === undefined || usage.cacheMissTokens === undefined) {
+    return undefined;
+  }
+  const total = usage.cacheHitTokens + usage.cacheMissTokens;
+  return total > 0 ? Math.round(usage.cacheHitTokens / total * 100) : undefined;
 }
 
 function formatTokens(value: number | undefined): string {
@@ -158,20 +183,18 @@ function formatNumber(value: number): string {
   return new Intl.NumberFormat(getUiLocale()).format(value);
 }
 
-function formatCost(value: number | undefined, partial: boolean): string {
-  if (value === undefined) {return t("chat.usage.unavailable");}
-  const formatted = new Intl.NumberFormat(getUiLocale(), {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: value < 0.01 ? 4 : 2,
-    maximumFractionDigits: value < 0.01 ? 6 : 2,
-  }).format(value);
-  return partial ? `≥ ${formatted}` : formatted;
+function formatCost(value: number | undefined, currency: UsageCurrency, partial: boolean): string {
+  return formatUsageCost(value, {
+    currency,
+    locale: getUiLocale(),
+    unavailable: t("chat.usage.unavailable"),
+    partial,
+  });
 }
 
-function sumModelCosts(values: readonly UsageAggregate[]): number | undefined {
+function sumModelCosts(values: readonly UsageAggregate[], currency: UsageCurrency): number | undefined {
   if (values.length === 0) {return undefined;}
-  const costs = values.map((value) => value.costUsd ?? estimateReportedUsageCost(value));
+  const costs = values.map((value) => estimateAggregateCost(value, currency));
   return costs.every((cost): cost is number => cost !== undefined)
     ? Math.round(costs.reduce((sum, cost) => sum + cost, 0) * 1_000_000) / 1_000_000
     : undefined;

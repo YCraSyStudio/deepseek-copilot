@@ -20,6 +20,7 @@ knip.json
 REFACTOR_AUDIT.md
 release-notes.md
 esbuild.js
+generate-vsix.sh
 vsc-extension-quickstart.md
 testingPrompt.md
 *.vsix

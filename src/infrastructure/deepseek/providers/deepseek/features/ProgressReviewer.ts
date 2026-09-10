@@ -3,6 +3,7 @@ import type {
   ProgressReviewContext,
   ProgressReviewResult,
 } from "@/application/chat/toolCall/ToolCallTypes";
+import { isTurnGuidanceMessage } from "@/application/chat/toolCall/TurnGuidance";
 import { getTextContent } from "@/contracts/deepseek/Chat";
 import { chatCompletion } from "./Chat";
 import type { ProviderUsage } from "@/shared/usage/Usage";
@@ -105,7 +106,7 @@ export function parseProgressReview(content: string | null | undefined): Progres
 }
 
 function buildProgressEvidence(options: ProgressReviewContext): Record<string, unknown> {
-  const userMessages = options.messages.filter((message) => message.role === "user");
+  const userMessages = options.messages.filter((message) => message.role === "user" && !isTurnGuidanceMessage(message));
   const originatingRequest = getTextContent(userMessages[0]?.content);
   const currentRequest = getTextContent(userMessages.at(-1)?.content);
   const toolCallCounts: Record<string, number> = {};

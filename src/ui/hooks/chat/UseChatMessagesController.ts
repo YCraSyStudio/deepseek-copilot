@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import type { AppConfig, HandlerToWebviewMessage } from "@/contracts";
+import type { ConversationUsageSnapshot } from "@/shared/usage/Usage";
 import type { ChatMessage, InitialConfig, StoredToolCall } from "../../views/chatView/ChatViewTypes";
 import { useStreamHandler, type MessageDispatcher } from "../../views/chatView/hooks";
 
@@ -8,11 +9,13 @@ interface ChatMessagesControllerOptions {
   externalSetMessages?: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
   externalIsProcessing?: boolean;
   externalListRef?: React.RefObject<HTMLDivElement | null>;
+  conversationId?: string;
   onApiKeyStatusChange?: (status: "configured" | "missing") => void;
   onConfigLoaded?: (config: InitialConfig) => void;
   onConfigUpdateResult?: (message: Extract<HandlerToWebviewMessage, { type: "configUpdateResult" }>) => void;
   onModelChanged?: (modelId: string) => void;
   onProcessingChange?: (isProcessing: boolean) => void;
+  onConversationUsageUpdated?: (usage: ConversationUsageSnapshot) => void;
   focusInput: () => void;
 }
 
@@ -21,11 +24,13 @@ export function useChatMessagesController({
   externalSetMessages,
   externalIsProcessing,
   externalListRef,
+  conversationId,
   onApiKeyStatusChange,
   onConfigLoaded,
   onConfigUpdateResult,
   onModelChanged,
   onProcessingChange,
+  onConversationUsageUpdated,
   focusInput,
 }: ChatMessagesControllerOptions) {
   const [internalMessages, setInternalMessages] = useState<ChatMessage[]>([]);
@@ -181,6 +186,7 @@ export function useChatMessagesController({
           permissionMode: config.permissionMode,
           historyEnabled: config.historyEnabled,
           usageBreakdown: config.usageBreakdown,
+          usageCostCurrency: config.usageCostCurrency,
         });
       },
       [onConfigLoaded],
@@ -199,6 +205,17 @@ export function useChatMessagesController({
     ),
 
     onConfigUpdateResult: useCallback((message) => onConfigUpdateResult?.(message), [onConfigUpdateResult]),
+
+    onConversationUsageUpdated: useCallback(
+      (data) => {
+        // Another conversation can still be generating while this one is shown.
+        if (conversationId !== undefined && data.conversationId !== conversationId) {
+          return;
+        }
+        onConversationUsageUpdated?.(data.usage);
+      },
+      [conversationId, onConversationUsageUpdated],
+    ),
   };
 
   return { messages, isProcessing, listRef, dispatcher };

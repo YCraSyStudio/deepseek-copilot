@@ -10,6 +10,7 @@ export type {
   ResolveWorkspacePathOptions,
   ToolHostCommandOptions,
   ToolHostCommandResult,
+  ToolHostDocumentSymbol,
   ToolWorkspaceEntryType,
   ToolWorkspaceFilePreview,
   ToolWorkspaceFindOptions,

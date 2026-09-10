@@ -1,5 +1,6 @@
 import * as path from "node:path";
 import { getToolWorkspaceHost } from "@/infrastructure/tools/ToolWorkspace";
+import { detectScriptInvocation } from "@/infrastructure/tools/safety/CommandFacts";
 
 const MAX_FILES = 3;
 const MAX_PREVIEW_BYTES = 4_096;
@@ -87,6 +88,13 @@ function extractExplicitFileOperands(command: string): string[] {
       "remove-item",
     ]).has(program)) {
       candidates.push(...extractMutationOperands(tokens.slice(1)));
+    } else {
+      // Script runs carry the actual effects: send the script body to the
+      // reviewer instead of an opaque interpreter invocation.
+      const script = detectScriptInvocation(tokens);
+      if (script) {
+        candidates.push(script.path);
+      }
     }
   }
   return [...new Set(candidates.filter(isExplicitPath))];

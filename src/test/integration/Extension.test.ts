@@ -1,5 +1,5 @@
 import * as assert from "node:assert";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { access } from "node:fs/promises";
 import * as path from "node:path";
 import * as vscode from "vscode";
@@ -11,6 +11,8 @@ import type { ModelProvider } from "@/application/ports";
 import { searchContentHandler } from "@/infrastructure/tools/builtins/fileSystem/SearchContent";
 import { runWithToolWorkspaceHost } from "@/infrastructure/tools/ToolWorkspace";
 import { createVsCodeToolWorkspace } from "@/platform/vscode/tools/VsCodeToolWorkspace";
+import { ChangeDiffViewer } from "@/platform/vscode/editor/diff/ChangeDiffViewer";
+import { fileChangeRegistry } from "@/platform/vscode/editor/diff/FileChangeRegistry";
 import { captureCurrentWorkspaceBinding, captureWorkspaceRunSnapshot, type WorkspaceRunSnapshot } from "@/platform/vscode/workspace";
 import { getPathCompletionItems } from "@/platform/vscode/editor/EditorActions";
 import { HistoryManager } from "@/platform/vscode/storage/HistoryManager";
@@ -144,6 +146,79 @@ suite("Extension integration", () => {
     }
   });
 
+  test("previews a pending edit without moving focus away from the user's editor", async () => {
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    assert.ok(workspaceFolder);
+    const userUri = vscode.Uri.joinPath(workspaceFolder.uri, `user-focus-${randomUUID()}.txt`);
+    const editedUri = vscode.Uri.joinPath(workspaceFolder.uri, `pending-edit-${randomUUID()}.txt`);
+    await vscode.workspace.fs.writeFile(userUri, Buffer.from("the user keeps typing here\n"));
+    await vscode.workspace.fs.writeFile(editedUri, Buffer.from("alpha\n"));
+
+    try {
+      const userEditor = await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(userUri));
+      const editedEditor = await vscode.window.showTextDocument(
+        await vscode.workspace.openTextDocument(editedUri),
+        { viewColumn: vscode.ViewColumn.Beside },
+      );
+      await vscode.window.showTextDocument(userEditor.document, { viewColumn: userEditor.viewColumn });
+
+      const host = createVsCodeToolWorkspace();
+      await host.prepareFileDiff!(path.basename(editedUri.fsPath), "alpha\n", "beta\n");
+
+      assert.strictEqual(
+        vscode.window.activeTextEditor?.document.uri.toString(true),
+        userUri.toString(true),
+        "A pending edit preview must not take focus from the user's editor.",
+      );
+      const previewEditor = vscode.window.visibleTextEditors.find(
+        (editor) => editor.document.uri.toString(true) === editedUri.toString(true),
+      );
+      assert.ok(previewEditor, "The pending edit should stay visible in the editor area.");
+      assert.strictEqual(previewEditor.viewColumn, editedEditor.viewColumn);
+      assert.strictEqual(previewEditor.document.getText(), "alpha\n");
+      host.clearFileDiffPreview?.();
+    } finally {
+      await vscode.commands.executeCommand("workbench.action.closeAllEditors");
+      await vscode.workspace.fs.delete(userUri, { useTrash: false });
+      await vscode.workspace.fs.delete(editedUri, { useTrash: false });
+    }
+  });
+
+  test("records a completed write so the chat can review the exact change", async () => {
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    assert.ok(workspaceFolder);
+    const fileName = `reviewed-change-${randomUUID()}.txt`;
+    const uri = vscode.Uri.joinPath(workspaceFolder.uri, fileName);
+    await vscode.workspace.fs.writeFile(uri, Buffer.from("before\n"));
+
+    const viewer = new ChangeDiffViewer();
+    try {
+      const host = createVsCodeToolWorkspace();
+      const before = await host.readFile(fileName);
+      const after = Buffer.from("after\n");
+      await host.writeFile(fileName, after);
+
+      const recorded = fileChangeRegistry.find(fileName, sha256(before), sha256(after));
+      assert.ok(recorded, "A completed write should stay reviewable during the session.");
+      assert.strictEqual(recorded.before, "before\n");
+      assert.strictEqual(recorded.after, "after\n");
+
+      await viewer.open(
+        { path: fileName, beforeHash: sha256(before), afterHash: sha256(after) },
+        captureCurrentWorkspaceBinding(),
+      );
+
+      const diffTab = vscode.window.tabGroups.all
+        .flatMap((group) => group.tabs)
+        .find((tab) => tab.input instanceof vscode.TabInputTextDiff && tab.label.includes(fileName));
+      assert.ok(diffTab, "The recorded change should open as a native diff for the edited file.");
+    } finally {
+      viewer.dispose();
+      await vscode.commands.executeCommand("workbench.action.closeAllEditors");
+      await vscode.workspace.fs.delete(uri, { useTrash: false });
+    }
+  });
+
   test("rejects a stale conversation save from another manager instance", async () => {
     const extension = vscode.extensions.getExtension("yarcrasy.yrs-dpsk-copilot");
     assert.ok(extension);
@@ -158,7 +233,7 @@ suite("Extension integration", () => {
       id,
       title: "Concurrent test",
       createdAt: now,
-      model: "deepseek-v4-flash-vision-exp",
+      model: "deepseek-flash",
       workspaceUri: binding.uri,
       workspaceBinding: binding,
       messages: [],
@@ -275,6 +350,10 @@ suite("Extension integration", () => {
     assert.strictEqual(state.getConversation()?.messages.filter((message) => message.role === "context").length, 1);
   });
 });
+
+function sha256(content: Uint8Array): string {
+  return createHash("sha256").update(content).digest("hex");
+}
 
 class SummaryProvider implements ModelProvider {
   readonly id = "summary";

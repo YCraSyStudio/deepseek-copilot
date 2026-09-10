@@ -129,9 +129,13 @@ export function isWebviewToHandlerMessage(value: unknown): value is WebviewToHan
       );
     case "openFileDiff":
       return (
-        hasOnlyKeys(value, ["type", "path", "diff", "conversationId", "workspaceRevision"]) &&
+        hasOnlyKeys(value, ["type", "path", "diff", "beforeHash", "afterHash", "preview", "conversationId", "workspaceRevision"]) &&
         isNonEmptyBoundedString(value.path, 32_768) &&
-        isNonEmptyBoundedString(value.diff, MAX_CHANGE_DIFF_TEXT) &&
+        (value.diff === undefined || isBoundedString(value.diff, MAX_CHANGE_DIFF_TEXT)) &&
+        (isNonEmptyBoundedString(value.diff, MAX_CHANGE_DIFF_TEXT) || isNonEmptyBoundedString(value.afterHash, 64)) &&
+        isOptionalBoundedString(value.beforeHash, 64) &&
+        isOptionalBoundedString(value.afterHash, 64) &&
+        isOptionalBoolean(value.preview) &&
         (value.conversationId === undefined || isNonEmptyBoundedString(value.conversationId, 512)) &&
         isOptionalBoundedString(value.workspaceRevision, 256)
       );
@@ -241,6 +245,7 @@ const APP_CONFIG_KEYS = [
   "includeHomeAgents",
   "userId",
   "usageBreakdown",
+  "usageCostCurrency",
   "webSearchEnabled",
   "webSearchEngine",
   "searxngUrl",
@@ -269,6 +274,7 @@ function isAppConfigPatch(value: unknown): value is Partial<AppConfig> {
     (value.historyRetentionDays === undefined || (Number.isSafeInteger(value.historyRetentionDays) && (value.historyRetentionDays as number) >= 0 && (value.historyRetentionDays as number) <= 3650)) &&
     isOptionalBoolean(value.includeHomeAgents) &&
     isOptionalBoolean(value.usageBreakdown) &&
+    (value.usageCostCurrency === undefined || value.usageCostCurrency === "usd" || value.usageCostCurrency === "cny") &&
     isOptionalBoolean(value.webSearchEnabled) &&
     (value.webSearchEngine === undefined || value.webSearchEngine === "bing" || value.webSearchEngine === "google" || value.webSearchEngine === "baidu" || value.webSearchEngine === "searxng") &&
     (value.searxngUrl === undefined || isAllowedSearxngUrl(value.searxngUrl)) &&

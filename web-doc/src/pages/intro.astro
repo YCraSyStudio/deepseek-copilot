@@ -1,6 +1,6 @@
 ---
 import DocsLayout from "../layouts/DocsLayout.astro";
-import { anchorId, pageContent } from "../i18n";
+import { pageContent, sectionAnchor } from "../i18n";
 
 const lang = "en";
 const content = pageContent[lang].intro;
@@ -10,7 +10,7 @@ const content = pageContent[lang].intro;
   <p class="lead">{content.lead}</p>
   {content.sections.map((section) => (
     <section>
-      <h2 id={anchorId(section.title)}>{section.title}</h2>
+      <h2 id={sectionAnchor(section.title)}>{section.title}</h2>
       <ul>{section.items.map((item) => <li>{item}</li>)}</ul>
     </section>
   ))}

@@ -3,6 +3,7 @@ const TOOL_EXECUTION_STAGE_ORDER = [
   "argument_validation",
   "workspace_trust",
   "prepare_remote_review",
+  "deterministic_safety",
   "remote_review",
   "user_confirmation",
   "execution",

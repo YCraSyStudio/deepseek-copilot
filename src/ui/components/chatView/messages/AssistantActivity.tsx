@@ -1,4 +1,4 @@
-import React from "react";
+import type React from "react";
 import type { AssistantTimelineEvent } from "@/contracts";
 import type {
   ChatMessage,
@@ -13,6 +13,7 @@ import {
   type AssistantTimelineBlock,
 } from "../tools/timeline/AssistantTimelineGrouping";
 import { MarkdownMessage } from "./MarkdownMessage";
+import { useAutoCollapsePanel } from "./UseAutoCollapsePanel";
 
 export function AssistantActivity({
   timeline,
@@ -70,18 +71,8 @@ function ActivityPanel({
   missingToolStatus: ToolCallStatus;
   isLive: boolean;
 }) {
-  const [open, setOpen] = React.useState(isLive);
-  const wasLiveRef = React.useRef(isLive);
+  const [open, setOpen] = useAutoCollapsePanel(isLive);
   const summary = summarizeActivity(block.rounds.flatMap((round) => round.events), toolCallGroups, missingToolStatus);
-
-  React.useEffect(() => {
-    if (isLive) {
-      setOpen(true);
-    } else if (wasLiveRef.current) {
-      setOpen(false);
-    }
-    wasLiveRef.current = isLive;
-  }, [isLive]);
 
   return (
     <details
@@ -130,12 +121,7 @@ function ActivityRound({
           );
         }
         if (event.type === "reasoning") {
-          return (
-            <section className="activityReasoning" key={event.id}>
-              <div className="activityItemLabel">{t("chat.reasoning")}</div>
-              <div className="reasoning-content">{event.content}</div>
-            </section>
-          );
+          return <ReasoningBlock key={event.id} content={event.content} isLive={isLive} />;
         }
         return (
           <RoundToolCallList
@@ -163,17 +149,7 @@ function RoundToolCallList({
   isLive: boolean;
 }) {
   const group = findTimelineToolGroup(event, toolCallGroups);
-  const [open, setOpen] = React.useState(isLive);
-  const wasLiveRef = React.useRef(isLive);
-
-  React.useEffect(() => {
-    if (isLive) {
-      setOpen(true);
-    } else if (wasLiveRef.current) {
-      setOpen(false);
-    }
-    wasLiveRef.current = isLive;
-  }, [isLive]);
+  const [open, setOpen] = useAutoCollapsePanel(isLive);
 
   if (!group || group.toolCalls.length === 0) {
     return null;
@@ -193,6 +169,26 @@ function RoundToolCallList({
       </summary>
       <div className="collapsiblePanelBody activityToolListBody">
         {renderToolCallGroups?.([group])}
+      </div>
+    </details>
+  );
+}
+
+function ReasoningBlock({ content, isLive }: { content: string; isLive: boolean }) {
+  const [open, setOpen] = useAutoCollapsePanel(isLive);
+
+  return (
+    <details
+      className="collapsiblePanel activityReasoning"
+      open={open}
+      onToggle={(event) => setOpen(event.currentTarget.open)}
+    >
+      <summary className="collapsiblePanelSummary activityReasoningSummary">
+        <span className="collapsiblePanelTitle">{t("chat.reasoning")}</span>
+        <span className="collapsiblePanelChevron" aria-hidden="true" />
+      </summary>
+      <div className="reasoning-content">
+        <MarkdownMessage content={content} role="assistant" />
       </div>
     </details>
   );

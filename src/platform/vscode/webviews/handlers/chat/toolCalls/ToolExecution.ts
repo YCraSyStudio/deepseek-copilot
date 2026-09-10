@@ -6,6 +6,8 @@ import type { ExecutionResult } from "@/application/tools/Types";
 import type { ToolHandlerContext } from "@/application/tools/Types";
 import type { HandleExecutionResultOptions, StoredExecution, ToolExecutionContext } from "./Types";
 import { ToolExecutionPipeline } from "@/application/tools/ToolExecutionPipeline";
+import { evaluateDeterministicSafety, currentWorkspaceId } from "./DeterministicSafety";
+import { positiveDecisionCache } from "@/infrastructure/tools/safety/DecisionCache";
 
 const DANGER_CANCELLED = "Tool call cancelled by user (dangerous operation)";
 const USER_REJECTED = "Tool call rejected by user";
@@ -29,6 +31,8 @@ interface ToolPipelineContext {
   executionResult?: ExecutionResult;
   confirmation?: import("@/application/tools/Types").ConfirmationRequiredResult;
   dangerOverride?: import("@/application/tools/Types").ConfirmationRequiredResult;
+  /** Complete decision key for the pending confirmation, when it is reproducible. */
+  decisionKey?: string;
 }
 
 function createToolExecutionPipeline(): ToolExecutionPipeline<ToolPipelineContext, string> {
@@ -77,16 +81,46 @@ function createToolExecutionPipeline(): ToolExecutionPipeline<ToolPipelineContex
       },
     },
     {
+      name: "deterministic_safety",
+      async handle(context) {
+        const confirmation = context.confirmation;
+        if (context.resultText || !context.executionResult || !confirmation) {return { kind: "continue", context };}
+        // Manual modes keep asking the user: deterministic facts only replace the
+        // automatic review, they never bypass an explicit user decision.
+        if (!isAutomaticExecution(context)) {return { kind: "continue", context };}
+        const evaluation = await evaluateDeterministicSafety({
+          toolCall: context.toolCall,
+          confirmation,
+          effect: context.ctx.toolExecutor.getMetadata(context.toolCall.function.name)?.effect,
+          scope: {
+            conversationId: context.ctx.conversationId,
+            workspaceId: currentWorkspaceId(),
+            permissionFingerprint: context.ctx.permissionFingerprint,
+          },
+        });
+        context.decisionKey = evaluation.key;
+        if (evaluation.verdict.kind === "approve") {
+          context.resultText = await executeForcedAfterTrust(context.toolCall, context.ctx, confirmation);
+        }
+        return { kind: "continue", context };
+      },
+    },
+    {
       name: "remote_review",
       async handle(context) {
         const confirmation = context.confirmation;
         if (context.resultText || !context.executionResult || !confirmation) {return { kind: "continue", context };}
+        if (context.decisionKey && positiveDecisionCache.has(context.decisionKey)) {
+          context.resultText = await executeForcedAfterTrust(context.toolCall, context.ctx, confirmation);
+          return { kind: "continue", context };
+        }
         const review = await reviewDangerousCommandFailClosed(context.toolCall, confirmation, context.ctx);
         const risk = review.risk;
         const canRunAutomatically = context.ctx.fullAccessMode
           ? risk !== "critical"
           : risk === "routine";
         if (review.decision === "approve" && isAutomaticConfidence(review.confidence) && canRunAutomatically) {
+          rememberPositiveDecision(context);
           context.resultText = await executeForcedAfterTrust(context.toolCall, context.ctx, confirmation);
           return { kind: "continue", context };
         }
@@ -166,7 +200,7 @@ export function recordSyntheticToolError(toolCall: ToolCall, ctx: ToolExecutionC
 }
 
 function getPathArgument(toolCall: ToolCall): string | undefined {
-  const pathTools = new Set(["read_file", "list_directory", "create_file", "edit_file", "apply_patch"]);
+  const pathTools = new Set(["read_file", "read_func", "list_directory", "create_file", "edit_file", "apply_patch"]);
   if (!pathTools.has(toolCall.function.name) && toolCall.function.name !== "run_terminal_command") {
     return undefined;
   }
@@ -261,6 +295,18 @@ async function reviewDangerousCommandFailClosed(
   }
 }
 
+/**
+ * Caches a positive reviewer decision so an identical action inside the same
+ * conversation, workspace, and permission state is not reviewed again. Only
+ * complete decision keys are cached: a key with missing facts would let the
+ * decision leak into a different scope.
+ */
+function rememberPositiveDecision(context: ToolPipelineContext): void {
+  if (context.decisionKey) {
+    positiveDecisionCache.remember(context.decisionKey);
+  }
+}
+
 function rejectCommandForRevision(toolCall: ToolCall, guidance: string, ctx: ToolExecutionContext): string {
   const result = [
     "Security reviewer rejected this command. Do not repeat it or bypass the safety controls.",
@@ -339,7 +385,6 @@ function handlerContext(ctx: ToolExecutionContext): ToolHandlerContext {
     availableToolNames: ctx.availableToolNames,
     authorizedUserUrls: ctx.authorizedUserUrls,
     webTainted: ctx.isWebTainted?.(),
-    analyzeImages: ctx.analyzeImages,
   };
 }
 

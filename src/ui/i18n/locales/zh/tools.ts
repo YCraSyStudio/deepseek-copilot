@@ -21,6 +21,10 @@ export const tools = {
     cancelled: "已取消",
     openFile: "打开文件",
     viewChange: "查看更改",
+    editedFilesOne: "已编辑 1 个文件",
+    editedFilesMany: "已编辑 {count} 个文件",
+    showMoreFiles: "再显示 {count} 个文件",
+    hideExtraFiles: "收起文件",
     copy: "复制",
     insert: "插入",
   }

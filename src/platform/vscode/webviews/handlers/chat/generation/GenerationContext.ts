@@ -4,8 +4,7 @@ import type {
   PermissionMode,
   ToolDefinition,
 } from "@/contracts";
-import { DEEPSEEK_VISION_MODEL_ID } from "@/contracts";
-import { createSystemMessage, getTextContent } from "@/contracts/deepseek/Chat";
+import { appendCurrentTimeToUserTurn, createSystemMessage, getTextContent } from "@/contracts/deepseek/Chat";
 import { ContextCompactor, referencedFileNeedsCompaction } from "@/application/chat/context/ContextCompaction";
 import { buildFileContext } from "@/application/chat/context/FileReferences";
 import type { ConversationState } from "@/application/chat/ConversationState";
@@ -63,17 +62,19 @@ export async function buildGenerationMessages({
 ${payload.text}`
     : payload.text;
   const attachments = payload.imageAttachments?.filter((attachment) => attachment.expiresAt > Date.now()) ?? [];
-  if (attachments.length > 0 && payload.modelId !== DEEPSEEK_VISION_MODEL_ID) {
-    userText += `\n\nAttached images available through analyze_images:\n${attachments
-      .map((attachment) => `- id=${attachment.id}; name=${attachment.name}`)
-      .join("\n")}`;
-  }
-  const userContent: ChatMessage["content"] = attachments.length > 0 && payload.modelId === DEEPSEEK_VISION_MODEL_ID
-    ? [
-        { type: "text", text: userText || "Describe the attached image." },
-        ...attachments.map((attachment) => ({ type: "file" as const, file_id: attachment.fileId })),
-      ]
-    : userText;
+  // DeepSeek V4.1 Flash reads DeepSeek Files API references natively, so every
+  // generation receives the trusted file IDs of the current user message.
+  // The system message stays static for prefix caching, so the current date
+  // travels with this turn: it is the newest message in the request and the only
+  // one that is allowed to change between generations.
+  const userContent: ChatMessage["content"] = appendCurrentTimeToUserTurn(
+    attachments.length > 0
+      ? [
+          { type: "text", text: userText || "Describe the attached image." },
+          ...attachments.map((attachment) => ({ type: "file" as const, file_id: attachment.fileId })),
+        ]
+      : userText,
+  );
 
   const projectInstructions = await loadProjectInstructions(workspaceSnapshot, config.includeHomeAgents, signal);
   await eventSink.publish({
@@ -104,15 +105,9 @@ ${payload.text}`
     },
     ...state.getApiContextUnits()
       .filter((unit) => unit.generationId !== excludedGenerationId)
-      .flatMap((unit) => unit.messages)
-      .map((message) => payload.modelId === DEEPSEEK_VISION_MODEL_ID ? message : stripFileParts(message)),
+      .flatMap((unit) => unit.messages),
     { role: "user", content: userContent },
   ];
-}
-
-function stripFileParts(message: ChatMessage): ChatMessage {
-  if (!Array.isArray(message.content)) {return message;}
-  return { ...message, content: getTextContent(message.content) };
 }
 
 interface FitGenerationRequestContextOptions {

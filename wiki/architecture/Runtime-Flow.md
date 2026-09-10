@@ -21,7 +21,7 @@
 1. The single `+` action opens one native picker for context files and images. `Ctrl+V`/`Cmd+V` can also paste an image.
 2. The host inspects binary signatures. JPEG, PNG, GIF, and WebP files are uploaded to DeepSeek's Files API; other selections become bounded context snapshots.
 3. Images are represented by metadata and `file_id`, never by persisted Base64. Clipboard Base64 exists only for the webview-to-host transfer.
-4. V4 Vision receives `{ type: "file", file_id }` content directly. When V4 Pro needs the image, it calls `analyze_images`; V4 Vision returns a bounded text description to Pro.
+4. DeepSeek V4.1 Flash receives `{ type: "file", file_id }` content directly for the current user message and reads those images in the same generation.
 
 ## User message
 
@@ -29,7 +29,7 @@
 2. `MessageAdmissionService` restores or creates the conversation, validates the captured workspace revision and file references, and only then enqueues the normalized request.
 3. `GenerationCoordinator` permits one active run per conversation and up to `maxConcurrentGenerations` across conversations.
 4. The run captures an immutable workspace binding, permission snapshot, model configuration, and `AbortController`.
-5. `GenerationContext` builds and, when necessary, compacts the provider request. The default output allowance is 8,192 tokens.
+5. `GenerationContext` builds and, when necessary, compacts the provider request. The requested output allowance defaults to the model's 384,000-token maximum.
 6. Streaming timeline, tool state, and canonical provider transcript are checkpointed without secrets.
 7. `GenerationRunFinalizer` reconciles persistence, usage, checkpoints, and exactly one terminal outcome; `GenerationExecutor` remains the orchestration boundary.
 
@@ -46,11 +46,12 @@
 
 1. DeepSeek emits function calls.
 2. `ToolCallSession` validates them and applies the selected permission policy.
-3. In automatic modes, a separate DeepSeek instance classifies mutations as routine, elevated, or critical.
+3. In automatic modes, machine-verifiable facts decide first: a workspace-contained, non-sensitive file mutation, an allowlisted diagnostic command, or an unchanged agent-authored script with bounded effects runs without a review request. Anything unproven goes to a separate DeepSeek instance that classifies mutations as routine, elevated, or critical.
 4. Required confirmations are shown in the webview.
 5. `ToolExecutionPipeline` runs through the generation-scoped workspace or infrastructure adapter.
 6. Results return to the same model cycle. Completed side effects and their recorded results remain visible even if the later generation is cancelled.
 7. Every 20 completed tool rounds, an independent tool-free progress reviewer decides whether concrete work remains, a final response should be produced, or progress requires a user decision. Its bounded recommendation guides the next normal round without disabling tools; the primary model can still perform a demonstrably necessary action.
+8. A tool-free completion reviewer checks a `stop` response against the current request. A response that only announces a future action is retried once; a second `incomplete` verdict keeps the delivered answer and logs a warning, because discarding a finished turn is worse than letting the user ask for a continuation. An answer that waits for a user confirmation, authorization, choice, or missing information counts as complete.
 
 Read-only work may overlap across conversations. Workspace mutations are serialized per logical workspace.
 

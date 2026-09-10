@@ -1,12 +1,20 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import "./MessagesSection.css";
 import { useVsCode } from "../../contexts";
-import type { MessagesSectionProps } from "../../ChatViewTypes";
+import type { MessagesSectionProps, ToolCallGroup } from "../../ChatViewTypes";
 import { useMessageHandler } from "../../hooks";
 import { ChatEmptyState, ChatMessages, ToolCallConfirmationModal, ToolCallTimeline } from "@webview/components/chatView";
 import { useChatMessagesController, useCodeActionHandler, useToolCallController } from "../../../../hooks/chat";
 import { t } from "@webview/i18n";
+import { beginNavigationRequest } from "@webview/NavigationRequests";
 import { reconcileLatestAssistantToolCalls } from "@webview/components/chatView/messages/ToolCallReconciliation";
+import {
+  followChatWindowGrowth,
+  growChatWindow,
+  hiddenChatMessageCount,
+  initialChatWindowSize,
+  visibleChatMessages,
+} from "@webview/components/chatView/messages/ChatMessageWindow";
 
 function MessagesSection({
   getGenerationScope,
@@ -22,22 +30,33 @@ function MessagesSection({
   permissionUpdatePending = false,
   onModelChanged,
   onProcessingChange,
+  onConversationUsageUpdated,
   onFocusInput,
+  earlierMessagesLoaded = 0,
+  historyCursor,
 }: MessagesSectionProps) {
   const vscode = useVsCode();
   const focusInput = useCallback(() => onFocusInput?.(), [onFocusInput]);
   const handleCodeAction = useCodeActionHandler(vscode);
+  const renderToolCallGroups = useCallback(
+    (groups: ToolCallGroup[]) => (
+      <ToolCallTimeline groups={groups} vscode={vscode} conversationId={conversationId} />
+    ),
+    [vscode, conversationId],
+  );
 
   const chat = useChatMessagesController({
     externalMessages,
     externalSetMessages: onMessagesChange,
     externalIsProcessing,
     externalListRef,
+    conversationId,
     onApiKeyStatusChange,
     onConfigLoaded,
     onConfigUpdateResult,
     onModelChanged,
     onProcessingChange,
+    onConversationUsageUpdated,
     focusInput,
   });
 
@@ -51,14 +70,32 @@ function MessagesSection({
   const { dispatcher: chatDispatcher, isProcessing, listRef, messages } = chat;
   const dispatcher = mergeMessageDispatchers(chatDispatcher, tools.dispatcher);
   const followsLatestRef = useRef(true);
+  const scrollAnchorRef = useRef<number | null>(null);
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
   const [isCompacting, setIsCompacting] = useState(false);
   const [isRecovering, setIsRecovering] = useState(false);
-  const timelineToolCallSignature = [...messages]
-    .reverse()
-    .find((message) => message.role === "assistant")
-    ?.timeline?.flatMap((event) => event.type === "tool-group" ? event.toolCallIds : [])
-    .join("\u0000") ?? "";
+  // Only the transcript tail is mounted; earlier messages stay in memory until revealed.
+  const [visibleMessageCount, setVisibleMessageCount] = useState(
+    () => initialChatWindowSize(messages.length, earlierMessagesLoaded),
+  );
+  const hiddenMessageCount = hiddenChatMessageCount(messages.length, visibleMessageCount);
+  // Follows the streaming transcript; it only grows here, since revealing a page stays a user decision.
+  useEffect(() => {
+    setVisibleMessageCount((count) => followChatWindowGrowth(count, messages.length, earlierMessagesLoaded));
+  }, [messages.length, earlierMessagesLoaded]);
+  const canLoadEarlierHistoryPage = Boolean(conversationId && historyCursor);
+  const visibleMessages = useMemo(
+    () => visibleChatMessages(messages, visibleMessageCount),
+    [messages, visibleMessageCount],
+  );
+  const timelineToolCallSignature = useMemo(
+    () => [...messages]
+      .reverse()
+      .find((message) => message.role === "assistant")
+      ?.timeline?.flatMap((event) => event.type === "tool-group" ? event.toolCallIds : [])
+      .join("\u0000") ?? "",
+    [messages],
+  );
 
   useEffect(() => {
     if (!onMessagesChange || tools.toolCallGroups.length === 0) {return;}
@@ -98,6 +135,38 @@ function MessagesSection({
     });
   }, [messages, isProcessing, tools.activeTimelineGroups, listRef]);
 
+  const showEarlierMessages = useCallback(() => {
+    // Anchor the height so the sentence being read stays in place.
+    scrollAnchorRef.current = listRef.current?.scrollHeight ?? null;
+    setVisibleMessageCount((count) => growChatWindow(count, messages.length));
+  }, [listRef, messages.length]);
+
+  // Reuses the earlier-messages control once no in-memory page remains.
+  const loadEarlierHistoryPage = useCallback(() => {
+    if (!conversationId || !historyCursor) {
+      return;
+    }
+    vscode?.postMessage({
+      type: "loadConversationPage",
+      requestId: beginNavigationRequest(),
+      id: conversationId,
+      cursor: historyCursor,
+    });
+  }, [conversationId, historyCursor, vscode]);
+
+  useLayoutEffect(() => {
+    const list = listRef.current;
+    const anchor = scrollAnchorRef.current;
+    if (!list || anchor === null) {
+      return;
+    }
+    scrollAnchorRef.current = null;
+    const growth = list.scrollHeight - anchor;
+    if (growth > 0) {
+      list.scrollTop += growth;
+    }
+  }, [visibleMessageCount, listRef]);
+
   const handleScroll = useCallback(() => {
     const list = listRef.current;
     if (!list) {
@@ -127,17 +196,20 @@ function MessagesSection({
             <ChatEmptyState />
           ) : (
             <>
+              {hiddenMessageCount > 0 ? (
+                <button type="button" className="showEarlierMessages" onClick={showEarlierMessages}>
+                  {t("chat.showEarlierMessages", { count: hiddenMessageCount })}
+                </button>
+              ) : canLoadEarlierHistoryPage ? (
+                <button type="button" className="showEarlierMessages" onClick={loadEarlierHistoryPage}>
+                  {t("chat.loadEarlierMessages")}
+                </button>
+              ) : null}
               <ChatMessages
-                messages={messages}
+                messages={visibleMessages}
                 isProcessing={isProcessing}
                 activeToolCallGroups={tools.activeTimelineGroups}
-                renderToolCallGroups={(groups) => (
-                  <ToolCallTimeline
-                    groups={groups}
-                    vscode={vscode}
-                    conversationId={conversationId}
-                  />
-                )}
+                renderToolCallGroups={renderToolCallGroups}
               />
             </>
           )}

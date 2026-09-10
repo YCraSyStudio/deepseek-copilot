@@ -12,9 +12,6 @@ export const OUTPUT_REASONING_LIMIT_RATIO = 0.8;
 interface ModelCapabilities {
   contextTokens: number;
   maxOutputTokens: number;
-  supportsThinking: boolean;
-  supportsTools: boolean;
-  known: boolean;
 }
 
 type BudgetStatus =
@@ -42,20 +39,8 @@ export interface ContextBudget {
 function getModelCapabilities(model: string): ModelCapabilities {
   const modelInfo = MODEL_REGISTRY.find((entry) => entry.id === model);
   return modelInfo
-    ? {
-        contextTokens: modelInfo.contextLength,
-        maxOutputTokens: modelInfo.maxOutputTokens,
-        supportsThinking: modelInfo.supportsThinking,
-        supportsTools: modelInfo.supportsTools,
-        known: true,
-      }
-    : {
-        contextTokens: UNKNOWN_MODEL_CONTEXT_TOKENS,
-        maxOutputTokens: UNKNOWN_MODEL_MAX_OUTPUT_TOKENS,
-        supportsThinking: true,
-        supportsTools: true,
-        known: false,
-      };
+    ? { contextTokens: modelInfo.contextLength, maxOutputTokens: modelInfo.maxOutputTokens }
+    : { contextTokens: UNKNOWN_MODEL_CONTEXT_TOKENS, maxOutputTokens: UNKNOWN_MODEL_MAX_OUTPUT_TOKENS };
 }
 
 export function getEffectiveMaxTokens(model: string, requestedOutputTokens: number): number {

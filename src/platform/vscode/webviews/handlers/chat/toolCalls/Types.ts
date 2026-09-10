@@ -62,11 +62,11 @@ export interface ToolCallRunOptions {
   isCancelling: () => boolean;
   isWorkspaceTrusted: () => boolean;
   generationId: string;
+  conversationId?: string;
   trustedUserRequest: string;
   authorizedUserUrls: readonly string[];
   budgetManager: GenerationBudgetManager;
   onContextCompacted?: (data: { estimatedTokensBefore: number; estimatedTokensAfter: number }) => Promise<void> | void;
-  analyzeImages?: (question: string, imageIds: string[], signal?: AbortSignal) => Promise<string>;
 }
 
 export interface ToolCallRunResult {
@@ -102,7 +102,10 @@ export interface ToolExecutionContext {
   authorizedUserUrls?: readonly string[];
   isWebTainted?: () => boolean;
   markWebTainted?: () => void;
-  analyzeImages?: (question: string, imageIds: string[], signal?: AbortSignal) => Promise<string>;
+  /** Conversation identity that scopes cached safety decisions. */
+  conversationId?: string;
+  /** Permission snapshot fingerprint that justifies the current decisions. */
+  permissionFingerprint?: string;
 }
 
 export interface HandleExecutionResultOptions {

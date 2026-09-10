@@ -1,6 +1,6 @@
 ---
 import DocsLayout from "../../layouts/DocsLayout.astro";
-import { anchorId, languages, pageContent, pageSlugs, type Language, type PageSlug } from "../../i18n";
+import { languages, pageContent, pageSlugs, sectionAnchor, type Language, type PageSlug } from "../../i18n";
 
 export function getStaticPaths() {
   return languages.flatMap((lang) => pageSlugs.map((slug) => ({ params: { lang, slug } })));
@@ -17,7 +17,7 @@ const content = pageContent[pageLang][pageSlug];
   <p class="lead">{content.lead}</p>
   {content.sections.map((section) => (
     <section>
-      <h2 id={anchorId(section.title)}>{section.title}</h2>
+      <h2 id={sectionAnchor(section.title)}>{section.title}</h2>
       <ul>
         {section.items.map((item) => <li>{item}</li>)}
       </ul>

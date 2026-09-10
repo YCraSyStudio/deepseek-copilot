@@ -10,10 +10,16 @@ import {
 import { refreshUsageCost, roundUsageCost, supportsUsagePricing } from "./UsagePricing";
 
 export {
+  estimateAggregateCost,
   estimateReportedUsageCost,
   estimateUsageCost,
   isOfficialDeepSeekEndpoint,
 } from "./UsagePricing";
+export {
+  formatUsageCost,
+  isUsageCurrency,
+  type UsageCurrency,
+} from "./UsageCurrency";
 export {
   isProviderUsage,
   isUsageAggregate,
@@ -83,12 +89,15 @@ export function aggregateUsageAggregates(values: readonly UsageAggregate[]): Usa
   }
 
   const catalogVersions = new Set(observed.map((value) => value.priceCatalogVersion));
-  if (catalogVersions.size === 1 && catalogVersions.has(PRICE_CATALOG_VERSION)) {
-    aggregate.priceCatalogVersion = PRICE_CATALOG_VERSION;
+  const sharedCatalogVersion = catalogVersions.size === 1 ? observed[0].priceCatalogVersion : undefined;
+  if (sharedCatalogVersion !== undefined) {
+    aggregate.priceCatalogVersion = sharedCatalogVersion;
+    const earliest = observed.map((value) => value.pricedAt).filter((value): value is string => value !== undefined).sort()[0];
+    if (earliest) {aggregate.pricedAt = earliest;}
   } else {
     delete aggregate.priceCatalogVersion;
   }
-  if (!aggregate.saturated && observed.every((value) => value.currency === "USD" && value.costUsd !== undefined) && aggregate.priceCatalogVersion !== undefined) {
+  if (!aggregate.saturated && sharedCatalogVersion !== undefined && observed.every((value) => value.currency === "USD" && value.costUsd !== undefined)) {
     aggregate.currency = "USD";
     aggregate.costUsd = roundUsageCost(observed.reduce((sum, value) => sum + (value.costUsd ?? 0), 0));
   } else {
@@ -112,6 +121,40 @@ export function aggregateUsageByModel(values: readonly UsageAggregate[]): UsageA
     const aggregate = aggregateUsageAggregates(group);
     return aggregate ? [aggregate] : [];
   });
+}
+
+/** The parts of a stored message a conversation usage total needs. */
+export interface UsageBearingMessage {
+  usage?: UsageAggregate;
+  generationId?: string;
+}
+
+/** Conversation-wide usage the host reports to the composer popover. */
+export interface ConversationUsageSnapshot {
+  total?: UsageAggregate;
+  byModel: UsageAggregate[];
+}
+
+/**
+ * Totals the usage recorded by every message of a conversation. The composer
+ * popover cannot add up the messages it renders, because history paging only
+ * loads the transcript tail, so the sum has to come from the whole conversation.
+ * `pending` covers the run whose assistant message is not persisted yet, which
+ * keeps the total from lagging a turn behind.
+ */
+export function summarizeConversationUsage(
+  messages: readonly UsageBearingMessage[],
+  pending?: UsageBearingMessage,
+): ConversationUsageSnapshot {
+  const values = messages.flatMap((message) => (message.usage ? [message.usage] : []));
+  const pendingAggregate = pending?.usage;
+  const pendingGenerationId = pending?.generationId;
+  const alreadyCounted = pendingAggregate !== undefined && pendingGenerationId !== undefined &&
+    messages.some((message) => message.generationId === pendingGenerationId && message.usage !== undefined);
+  if (pendingAggregate && pendingAggregate.count > 0 && !alreadyCounted) {
+    values.push(pendingAggregate);
+  }
+  return { total: aggregateUsageAggregates(values), byModel: aggregateUsageByModel(values) };
 }
 
 /** Redacted one-line summary suitable for diagnostics and release comparisons. */

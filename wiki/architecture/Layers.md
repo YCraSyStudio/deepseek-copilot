@@ -26,10 +26,10 @@ Concrete external integrations:
 
 - DeepSeek chat/FIM requests, SSE validation, retries, Files API, and provider models.
 - independent DeepSeek mutation review.
-- built-in filesystem, terminal, and vision tools.
+- built-in filesystem and terminal tools.
 - isolated browser search and page extraction.
 
-The `analyze_images` built-in delegates image file IDs to V4 Vision and returns text to V4 Pro. It does not expose VS Code UI concerns.
+Image attachments are uploaded through the DeepSeek Files API, and generation context passes only trusted file IDs to the provider; vision needs no built-in tool.
 
 ## `src/platform/vscode`
 

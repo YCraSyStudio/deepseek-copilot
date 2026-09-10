@@ -4,6 +4,7 @@ import {
   parseProgressReview,
   reviewProgress,
 } from "@/infrastructure/deepseek/providers/deepseek/features/ProgressReviewer";
+import { createProgressReviewCheckpointMessage } from "@/application/chat/toolCall/TurnGuidance";
 
 suite("DeepSeek progress reviewer", () => {
   test("accepts only the strict progress decision schema", () => {
@@ -99,6 +100,38 @@ suite("DeepSeek progress reviewer", () => {
     assert.match(evidence, /"detail":"dotnet build"/);
     assert.match(evidence, /"detail":"dotnet test backend.Tests"/);
     assert.match(evidence, /"outcome":"error","exitCode":1/);
+  });
+
+  test("never reads injected turn guidance as the user's request", async () => {
+    let evidence = "";
+    await reviewProgress({
+      messages: [
+        { role: "system", content: "agent" },
+        { role: "user", content: "Build the application" },
+        { role: "assistant", content: null, tool_calls: [{
+          id: "call-1",
+          type: "function",
+          function: { name: "run_terminal_command", arguments: '{"command":"dotnet build"}' },
+        }] },
+        { role: "tool", name: "run_terminal_command", tool_call_id: "call-1", content: "Build succeeded." },
+        createProgressReviewCheckpointMessage(
+          { decision: "finalize", confidence: "high", reason: "The build passed." },
+          20,
+        ),
+      ],
+      completedRounds: 20,
+      toolCallsExecuted: 1,
+      reviewsCompleted: 0,
+      providerConfig: config(),
+      complete: async (_signal, request) => {
+        evidence = String(request.messages[1]?.content);
+        return response({ decision: "finalize", confidence: "high", reason: "Done.", nextAction: "" });
+      },
+    });
+
+    assert.match(evidence, /"originatingUserRequest":"Build the application"/);
+    assert.doesNotMatch(evidence, /progress_review_checkpoint/);
+    assert.doesNotMatch(evidence, /currentUserRequest/);
   });
 
   test("fails open with an unknown decision", async () => {

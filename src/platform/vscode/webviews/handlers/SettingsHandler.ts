@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import type { ModelProviderFactory, SecretStore, SettingsRepository } from "@/application/ports";
 import { logWarning } from "@/shared/logging/Logger";
 import { redactSensitiveText } from "@/shared/security/Redaction";
-import { DEEPSEEK_VISION_MODEL_ID, type AppConfig, type WebviewConfig, type WebviewToHandlerMessage } from "@/contracts";
+import { DEEPSEEK_FLASH_MODEL_ID, type AppConfig, type WebviewConfig, type WebviewToHandlerMessage } from "@/contracts";
 import { getApiOrigin, normalizeApiBaseUrl } from "@/shared/security/ApiOrigin";
 import { toWebviewConfig } from "@/platform/vscode/webviews/WebviewConfig";
 import type { ChatHandler } from "./chat/ChatHandler";
@@ -242,7 +242,7 @@ export class SettingsHandler {
         ...this.settings.load(),
         apiKey,
         baseUrl,
-        model: model || DEEPSEEK_VISION_MODEL_ID,
+        model: model || DEEPSEEK_FLASH_MODEL_ID,
       }).testConnection();
       if (!result.success) {throw new Error(result.error || "Connection test failed.");}
 

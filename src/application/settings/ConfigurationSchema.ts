@@ -7,6 +7,7 @@ import {
   type SearxngEngineOption,
 } from "@/contracts";
 import { normalizeApiBaseUrlOrDefault } from "@/shared/security/ApiOrigin";
+import { normalizeUsageCurrency } from "@/shared/usage/UsageCurrency";
 import { isRecord } from "@/shared/utils/TypeGuards";
 
 export type StoredSettingKey = Exclude<keyof AppConfig, "apiKey" | "userId">;
@@ -16,7 +17,7 @@ const STORED_SETTING_KEYS = new Set<StoredSettingKey>([
   "interfaceLanguage", "baseUrl", "model", "thinkingMode", "reasoningEffort",
   "temperature", "topP", "maxTokens", "maxConcurrentGenerations",
   "permissionMode", "autoContext", "historyEnabled",
-  "historyRetentionDays", "includeHomeAgents", "usageBreakdown", "webSearchEnabled", "webSearchEngine", "searxngUrl", "searxngEngines", "searxngEngineCatalog",
+  "historyRetentionDays", "includeHomeAgents", "usageBreakdown", "usageCostCurrency", "webSearchEnabled", "webSearchEngine", "searxngUrl", "searxngEngines", "searxngEngineCatalog",
 ]);
 
 export function normalizeConfig(value: unknown): AppConfig {
@@ -38,6 +39,7 @@ export function normalizeConfig(value: unknown): AppConfig {
     historyRetentionDays: clampInteger(config.historyRetentionDays, 0, 3650, DEFAULT_CONFIG.historyRetentionDays),
     includeHomeAgents: normalizeBoolean(config.includeHomeAgents, DEFAULT_CONFIG.includeHomeAgents),
     usageBreakdown: normalizeBoolean(config.usageBreakdown, DEFAULT_CONFIG.usageBreakdown),
+    usageCostCurrency: normalizeUsageCurrency(config.usageCostCurrency),
     webSearchEnabled: normalizeBoolean(config.webSearchEnabled, DEFAULT_CONFIG.webSearchEnabled),
     webSearchEngine: "searxng",
     searxngUrl: normalizeSearxngUrl(config.searxngUrl),
@@ -62,6 +64,7 @@ export function normalizeSettingValue(key: StoredSettingKey, value: unknown): un
   if (key === "interfaceLanguage") {return normalizeInterfaceLanguage(value);}
   if (key === "permissionMode") {return normalizePermissionMode(value);}
   if (key === "reasoningEffort") {return normalizeReasoningEffort(value);}
+  if (key === "usageCostCurrency") {return normalizeUsageCurrency(value);}
   if (["thinkingMode", "autoContext", "historyEnabled", "includeHomeAgents", "usageBreakdown", "webSearchEnabled"].includes(key)) {
     return normalizeBoolean(value, DEFAULT_CONFIG[key] as boolean);
   }

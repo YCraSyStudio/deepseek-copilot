@@ -1,0 +1,97 @@
+.editedFilesSummary {
+  border: 1px solid color-mix(in srgb, var(--border-color) 70%, transparent);
+  background: color-mix(in srgb, var(--bg-secondary) 60%, transparent);
+  border-radius: 10px;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 11px;
+}
+
+.editedFilesHeader {
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  display: flex;
+  min-width: 0;
+}
+
+.editedFilesTitle {
+  color: var(--text-primary);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.editedFilesTotals {
+  gap: 6px;
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.editedFilesAdditions {
+  color: var(--success-color, #4caf50);
+}
+
+.editedFilesDeletions {
+  color: #ffb6b6;
+}
+
+.editedFilesList {
+  border-top: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.editedFileRow {
+  width: 100%;
+  color: var(--text-primary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  display: grid;
+  gap: 8px;
+  padding: 6px 10px;
+  grid-template-columns: minmax(0, 1fr) auto;
+
+  &:hover {
+    background: color-mix(in srgb, var(--accent-color) 10%, transparent);
+  }
+}
+
+.editedFilePath {
+  font-family: var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.editedFileStats {
+  gap: 6px;
+  flex: none;
+  display: flex;
+}
+
+.editedFilesToggle {
+  width: 100%;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-top: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  display: flex;
+
+  &:hover {
+    background: color-mix(in srgb, var(--accent-color) 10%, transparent);
+  }
+}

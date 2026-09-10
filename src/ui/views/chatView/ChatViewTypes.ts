@@ -1,5 +1,6 @@
 import type { ConversationMessage, HandlerToWebviewMessage, StoredToolCall, DangerConfirmationData } from "@/contracts/messages/Webview";
 import type { PermissionMode } from "@/contracts";
+import type { ConversationUsageSnapshot, UsageCurrency } from "@/shared/usage/Usage";
 import type { GenerationEventScope } from "./hooks/GenerationEventScope";
 
 export type { StoredToolCall, DangerConfirmationData };
@@ -16,6 +17,7 @@ export type InitialConfig = {
   permissionMode?: PermissionMode;
   historyEnabled?: boolean;
   usageBreakdown?: boolean;
+  usageCostCurrency?: UsageCurrency;
 };
 
 /** User action for a tool call. */
@@ -66,7 +68,17 @@ export type MessagesSectionProps = {
   onConfigLoaded?: (config: InitialConfig) => void;
   onConfigUpdateResult?: (message: Extract<HandlerToWebviewMessage, { type: "configUpdateResult" }>) => void;
   permissionUpdatePending?: boolean;
+  /** Messages added above the loaded transcript by history paging. */
+  earlierMessagesLoaded?: number;
+  /**
+   * Opaque cursor for the conversation history stored above the loaded
+   * transcript. When it is set, the transcript's "show earlier" control keeps
+   * working after every loaded message has already been revealed.
+   */
+  historyCursor?: string;
   onModelChanged?: (modelId: string) => void;
   onProcessingChange?: (isProcessing: boolean) => void;
+  /** Conversation-wide usage the host reports, so the total covers paged-out messages. */
+  onConversationUsageUpdated?: (usage: ConversationUsageSnapshot) => void;
   onFocusInput?: () => void;
 };

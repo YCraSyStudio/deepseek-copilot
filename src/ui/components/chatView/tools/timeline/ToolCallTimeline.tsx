@@ -72,6 +72,8 @@ function ToolCallItem({ toolCall, vscode, conversationId }: ToolCallItemProps) {
                 type: "openFileDiff",
                 path: fileChange.path,
                 diff: fileChange.diff,
+                beforeHash: fileChange.beforeHash,
+                afterHash: fileChange.afterHash,
                 conversationId,
               })}
             >

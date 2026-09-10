@@ -8,7 +8,7 @@ import { t } from "@webview/i18n";
 import { getVsCodeApi } from "@webview/VsCodeApi";
 import ModelReasoningPicker from "./ModelReasoningPicker";
 import UsagePicker, { UsagePopover } from "./UsagePicker";
-import type { UsageAggregate } from "@/shared/usage/Usage";
+import type { UsageAggregate, UsageCurrency } from "@/shared/usage/Usage";
 
 type Props = {
   reasoning: string;
@@ -25,6 +25,7 @@ type Props = {
   conversationId?: string;
   usage?: UsageAggregate;
   usageByModel?: readonly UsageAggregate[];
+  usageCurrency?: UsageCurrency;
   showUsage?: boolean;
 };
 
@@ -47,6 +48,7 @@ function InputFooter({
   conversationId,
   usage,
   usageByModel = [],
+  usageCurrency = "usd",
   showUsage = false,
 }: Props) {
   const footerRef = useRef<HTMLDivElement>(null);
@@ -120,13 +122,13 @@ function InputFooter({
           >
             {compact && showUsage && usage && usage.count > 0 ? (
               <div className="compactComposerUsage">
-                <UsagePopover usage={usage} usageByModel={usageByModel} />
+                <UsagePopover usage={usage} usageByModel={usageByModel} currency={usageCurrency} />
               </div>
             ) : null}
           </ModelReasoningPicker>
         </div>
         {!compact ? <div className="inputFooterSecondaryControls">
-          {showUsage ? <UsagePicker usage={usage} usageByModel={usageByModel} /> : null}
+          {showUsage ? <UsagePicker usage={usage} usageByModel={usageByModel} currency={usageCurrency} /> : null}
           <span className="selectTooltipWrapper" data-tooltip={t("tools.permissionMode")}>
             <select
               name="PermissionMode"

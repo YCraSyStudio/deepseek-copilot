@@ -33,7 +33,7 @@ suite("DeepSeek provider contract", () => {
 
   test("keeps non-thinking mode disabled throughout tool-call rounds", () => {
     const request = buildToolCallRequest({
-      model: "deepseek-v4-flash-vision-exp",
+      model: "deepseek-flash",
       messages: [{ role: "user", content: "Read the file" }],
       tools: [tool],
       stream: true,
@@ -52,8 +52,10 @@ suite("DeepSeek provider contract", () => {
   });
 
   test("restricts official DeepSeek model IDs but permits compatible custom providers", () => {
-    assert.doesNotThrow(() => assertCompatibleModel("deepseek-v4-flash-vision-exp", "https://api.deepseek.com"));
-    assert.doesNotThrow(() => assertCompatibleModel("deepseek-v4-flash", "https://api.deepseek.com"));
+    assert.doesNotThrow(() => assertCompatibleModel("deepseek-flash", "https://api.deepseek.com"));
+    assert.throws(() => assertCompatibleModel("deepseek-v4-flash-vision-exp", "https://api.deepseek.com"), /not supported/);
+    assert.throws(() => assertCompatibleModel("deepseek-v4-flash", "https://api.deepseek.com"), /not supported/);
+    assert.throws(() => assertCompatibleModel("deepseek-v4-pro", "https://api.deepseek.com"), /not supported/);
     assert.throws(() => assertCompatibleModel("custom-model", "https://api.deepseek.com"), /not supported/);
     assert.doesNotThrow(() => assertCompatibleModel("custom-model", "http://127.0.0.1:11434/v1"));
   });
@@ -66,70 +68,34 @@ suite("DeepSeek provider contract", () => {
     });
   });
 
-  test("falls back from unavailable Vision to stable Flash for text requests", async () => {
+  test("sends image file references to the model without a hidden fallback request", async () => {
     const originalFetch = globalThis.fetch;
     const bodies: Array<Record<string, unknown>> = [];
     try {
       globalThis.fetch = async (_input, init) => {
         bodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
-        if (bodies.length === 1) {
-          return Response.json({ error: { type: "invalid_request_error", message: "Model Not Exist" } }, { status: 400 });
-        }
         return Response.json({
-          id: "fallback-response",
+          id: "vision-response",
           object: "chat.completion",
           created: 1,
-          model: "deepseek-v4-flash",
+          model: "deepseek-flash",
           choices: [{ index: 0, message: { role: "assistant", content: "ok" }, finish_reason: "stop" }],
         });
       };
       const provider = new DeepSeekModelProvider({ ...DEFAULT_CONFIG, apiKey: "test-key" });
-      const response = await provider.chatCompletion({
-        model: "deepseek-v4-flash-vision-exp",
-        messages: [{ role: "user", content: "hello" }],
-      });
-      assert.strictEqual(response.model, "deepseek-v4-flash");
-      assert.deepStrictEqual(bodies.map((body) => body.model), ["deepseek-v4-flash-vision-exp", "deepseek-v4-flash"]);
-    } finally {
-      globalThis.fetch = originalFetch;
-    }
-  });
-
-  test("stream fallback strips image blocks and discloses the visual limitation", async () => {
-    const originalFetch = globalThis.fetch;
-    const bodies: Array<Record<string, unknown>> = [];
-    const chunks: string[] = [];
-    try {
-      globalThis.fetch = async (_input, init) => {
-        bodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
-        if (bodies.length === 1) {
-          return Response.json({ error: { message: "not found" } }, { status: 404 });
-        }
-        return new Response([
-          'data: {"choices":[{"delta":{"content":"fallback"},"finish_reason":null}]}',
-          "",
-          "data: [DONE]",
-          "",
-        ].join("\n"), { status: 200, headers: { "content-type": "text/event-stream" } });
-      };
-      const provider = new DeepSeekModelProvider({ ...DEFAULT_CONFIG, apiKey: "test-key" });
-      await provider.chatCompletionStream({
-        model: "deepseek-v4-flash-vision-exp",
+      await provider.chatCompletion({
+        model: "deepseek-flash",
         messages: [{ role: "user", content: [{ type: "text", text: "describe" }, { type: "file", file_id: "file-test123" }] }],
-        stream: true,
-      }, (chunk) => {
-        if (chunk.type === "content") {chunks.push(chunk.content ?? "");}
       });
-      assert.deepStrictEqual(bodies.map((body) => body.model), ["deepseek-v4-flash-vision-exp", "deepseek-v4-flash"]);
-      assert.strictEqual(JSON.stringify(bodies[1]).includes('"type":"file"'), false);
-      assert.match(JSON.stringify(bodies[1]), /vision_fallback/);
-      assert.deepStrictEqual(chunks, ["fallback"]);
+
+      assert.deepStrictEqual(bodies.map((body) => body.model), ["deepseek-flash"]);
+      assert.match(JSON.stringify(bodies[0]), /file-test123/);
     } finally {
       globalThis.fetch = originalFetch;
     }
   });
 
-  test("does not turn a non-stream image analysis into a false Flash result", async () => {
+  test("does not retry or rewrite requests for provider failures", async () => {
     const originalFetch = globalThis.fetch;
     let calls = 0;
     try {
@@ -139,16 +105,16 @@ suite("DeepSeek provider contract", () => {
       };
       const provider = new DeepSeekModelProvider({ ...DEFAULT_CONFIG, apiKey: "test-key" });
       await assert.rejects(provider.chatCompletion({
-        model: "deepseek-v4-flash-vision-exp",
+        model: "deepseek-flash",
         messages: [{ role: "user", content: [{ type: "text", text: "describe" }, { type: "file", file_id: "file-test123" }] }],
-      }), /images could not be analyzed/);
+      }));
       assert.strictEqual(calls, 1);
     } finally {
       globalThis.fetch = originalFetch;
     }
   });
 
-  test("does not fallback for authentication failures", async () => {
+  test("does not retry authentication failures", async () => {
     const originalFetch = globalThis.fetch;
     let calls = 0;
     try {
@@ -158,7 +124,7 @@ suite("DeepSeek provider contract", () => {
       };
       const provider = new DeepSeekModelProvider({ ...DEFAULT_CONFIG, apiKey: "bad-key" });
       await assert.rejects(provider.chatCompletion({
-        model: "deepseek-v4-flash-vision-exp",
+        model: "deepseek-flash",
         messages: [{ role: "user", content: "hello" }],
       }), /Invalid API credentials/);
       assert.strictEqual(calls, 1);
@@ -167,7 +133,7 @@ suite("DeepSeek provider contract", () => {
     }
   });
 
-  test("does not apply the official Vision fallback policy to custom endpoints", async () => {
+  test("keeps custom endpoints free of official model rewriting", async () => {
     const originalFetch = globalThis.fetch;
     const models: string[] = [];
     try {
@@ -181,10 +147,10 @@ suite("DeepSeek provider contract", () => {
         baseUrl: "http://127.0.0.1:11434/v1",
       });
       await assert.rejects(provider.chatCompletion({
-        model: "deepseek-v4-flash-vision-exp",
+        model: "llama-3.1-8b",
         messages: [{ role: "user", content: "hello" }],
       }));
-      assert.deepStrictEqual(models, ["deepseek-v4-flash-vision-exp"]);
+      assert.deepStrictEqual(models, ["llama-3.1-8b"]);
     } finally {
       globalThis.fetch = originalFetch;
     }

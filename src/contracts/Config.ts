@@ -1,4 +1,5 @@
-import { DEEPSEEK_VISION_MODEL_ID, MAX_OUTPUT_TOKENS } from "./deepseek/Models";
+import { DEFAULT_USAGE_CURRENCY, type UsageCurrency } from "@/shared/usage/UsageCurrency";
+import { DEEPSEEK_FLASH_MODEL_ID, MAX_OUTPUT_TOKENS } from "./deepseek/Models";
 
 export type PermissionMode = "default" | "auto-approve" | "full-access";
 export type InterfaceLanguage = "auto" | "en" | "es" | "zh";
@@ -32,6 +33,8 @@ export interface AppConfig {
   historyRetentionDays: number;
   includeHomeAgents: boolean;
   usageBreakdown: boolean;
+  /** Display currency for estimated usage costs; aggregates stay priced in USD. */
+  usageCostCurrency: UsageCurrency;
   webSearchEnabled: boolean;
   /** @deprecated Preserved for persisted-config compatibility. */
   webSearchEngine: "searxng";
@@ -55,7 +58,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   interfaceLanguage: "auto",
   apiKey: "",
   baseUrl: "https://api.deepseek.com",
-  model: DEEPSEEK_VISION_MODEL_ID,
+  model: DEEPSEEK_FLASH_MODEL_ID,
   thinkingMode: true,
   reasoningEffort: "high",
   temperature: 1.0,
@@ -68,6 +71,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   historyRetentionDays: 30,
   includeHomeAgents: false,
   usageBreakdown: false,
+  usageCostCurrency: DEFAULT_USAGE_CURRENCY,
   webSearchEnabled: true,
   webSearchEngine: "searxng",
   searxngUrl: "http://127.0.0.1:8888",

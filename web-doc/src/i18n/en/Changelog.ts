@@ -4,8 +4,45 @@ export const changelog: PageContent = {
   navTitle: "Changelog",
   title: "Changelog",
   description: "Relevant changes and preview status.",
-  lead: "Preview 0.1.12 removes the DSML text-recovery workaround, simplifies internal boundaries, and adds automated dead-code enforcement to the production gates.",
+  lead: "Preview 0.1.14 moves the extension to DeepSeek V4.1 Flash and retires the model options that DeepSeek no longer serves.",
   sections: [
+    {
+      title: "0.1.14 DeepSeek V4.1 Flash migration",
+      items: [
+        "Moved the extension to deepseek-flash (DeepSeek-V4.1-Flash), which replaces the retired V4 Flash and V4 Flash Vision models and serves V4 Pro requests from September 14, 2026.",
+        "Removed the DeepSeek V4 Pro option, the analyze_images delegation tool, and the hidden Vision-to-Flash transport fallback: the current model reads DeepSeek Files API image references natively, in chat and in tool rounds.",
+        "Removed the retired-model compatibility map: the official endpoint accepts only deepseek-flash, so a model name left over from an earlier preview is rejected instead of rewritten and must be selected again in Settings.",
+        "Updated the official USD cost catalog to the current DeepSeek-V4.1-Flash rates, including the documented weekday peak and off-peak split.",
+        "Usage cost can be shown in US dollars or Chinese yuan from Settings. Each currency uses DeepSeek's own published table (off-peak per 1M tokens: $0.003/$0.15/$0.6 and ¥0.02/¥1/¥4 for cache hits, cache misses, and output, doubled inside the peak windows), so no exchange rate is invented. Saved totals stay canonical in USD and are repriced for display.",
+        "Fixed the largest avoidable cost of a long chat: the system message ended with a minute-precision timestamp, so the first request of every generation invalidated DeepSeek's prefix cache for the tool schemas and the entire history. The current date now travels with the newest user message, which is new anyway, and the serialized prefix stays byte-stable between rounds.",
+        "Reviewer guidance no longer costs a full cache miss: the progress checkpoint and the completion-recovery nudge are appended as the newest message instead of being spliced into the system prompt, which used to re-bill the whole transcript once per checkpoint. Both reviewers ignore that guidance when reading the user's request.",
+        "The coding prompt now budgets code comments: they state intent only where the code does not already say it, never restate the code, and match the file's existing density. A comment is output paid once and input paid again on every later round that re-reads the file.",
+        "The usage popover reports the conversation-wide total computed by the extension host instead of adding up the messages the webview currently holds, so a long chat no longer appears to spend less once history paging drops older messages from memory.",
+        "Auxiliary context compaction uses per-phase output ceilings (2,048 tokens for a prose summary, 512 for line-range selection) instead of one shared 4,096-token cap, the cache-hit ratio is visible per request phase, and model capability flags that were declared and set but never read by any consumer were removed.",
+        "Added the read_func tool, which returns only the functions, methods, or types named in a source file, chained through their enclosing declarations (Class.method, outer.inner), and reports ambiguous names by their candidates instead of guessing. Reading one function no longer pulls the whole document into the context. Symbols come from the editor's language providers instead of a text heuristic.",
+        "read_file reads a line range through offset and limit, the fallback for content the editor cannot name as a symbol: search_content locates the name and only those lines are read, with the range bounds, hasMore, and the whole-file hash.",
+        "The prompt and both read tools now state the same reading order: read_func for a named declaration, search_content plus a read_file range for what the editor cannot name, and a whole-file read only for context spanning declarations, so inspecting one function is no longer a whole-document dump. The preference travels with every request because it lives in the system prompt and in the tool descriptions, not in the habits of one conversation.",
+        "A finished turn now ends with an edited-files summary: one row per written file with its additions and deletions, Show N more files beyond the first three, and Review to open every change of the turn. The host keeps the exact before and after contents for the session, so a change stays fully reviewable even though the diff stored in a tool result is bounded for the model context. Reverting changes is not part of this release.",
+        "Pending edit_file and apply_patch previews no longer steal focus: the inline change preview reuses an editor that already shows the affected file and otherwise opens a transient preview tab that preserves focus, so a confirmation never interrupts chat input, terminal work, or typing elsewhere.",
+        "Attached images open an enlarged viewer from both the composer thumbnails and the images of a sent message. The viewer fits the image to the window, keeps its aspect ratio, and lets a zoomed image be dragged to pan instead of being squashed.",
+        "Long conversations render lazily: only the newest messages are mounted, earlier ones are revealed on demand while the message being read stays in place, and memoized rows keep typing responsive.",
+        "Reasoning blocks in the chat timeline now render Markdown, so code fences, lists, and emphasis read the same way in reasoning as in the final answer.",
+        "Added breathing room between the composer text area and its toolbar row, and fixed the expand chevron of a tool call so it points down once the call is expanded.",
+        "Safety decisions now start from machine-verifiable facts instead of a model round whenever the facts prove the action bounded. In the automatic modes, create_file, edit_file, and apply_patch run without a security review once the host proved the target inside the workspace and the path is not sensitive, so a routine workspace edit no longer stops for a confirmation; finite version, help, and availability queries such as dotnet --version && node --version && npm --version execute directly; and a workspace script runs unattended only when its path is contained, its bytes still match the agent-authored hash, and its declared effects stay bounded (localhost-only network, one owned child process, finite wait, exact-process cleanup, workspace-contained artifacts, no dynamic evaluation, policy change, escalation, credentials, interactive input, or background job). -ExecutionPolicy Bypass passed to powershell is treated as process-scoped rather than elevation. Everything unproven still goes to the independent review, which now also receives the body of a script the command runs, and a positive reviewer decision is cached only while the conversation, workspace, permission fingerprint, command, content hash, and effect profile stay identical.",
+        "A second incomplete verdict from the completion reviewer no longer discards the turn: the delivered answer is kept instead of being replaced with an error banner, and the reviewer is told explicitly that a reply waiting for a user confirmation, authorization, choice, or missing information is complete even when it names the action it will perform once the user answers. A borderline judgement about the user's own decision request can no longer turn a finished turn into a failure.",
+      ],
+    },
+    {
+      title: "0.1.13 on-demand compaction, long output, and composer layout",
+      items: [
+        "Added the compact_context tool, a read-only request for a tool-cycle context compaction that rolls over at the next round; the model is expected to trust prior successful outcomes and not repeat completed mutations.",
+        "Raised the default maximum output allowance to DeepSeek's documented 384K limit, so long reasoning and file-generation rounds are no longer truncated prematurely.",
+        "Replaced the native VS Code workspace-reassign prompt with an in-webview Workspace Mismatch modal offering Open here or Cancel, localized in English, Spanish, and Chinese.",
+        "run_terminal_command now reuses one dedicated VS Code integrated terminal across successive commands so its scrollback and history stay visible; the terminal closes only on timeout, cancellation, a working-directory mismatch, or extension shutdown.",
+        "Fixed generation-event scoping so protocol handlers that update conversation and generation refs before the next React render accept the first user message immediately after admission.",
+        "Reworked the chat composer footer around CSS grid and container queries: narrow sidebars collapse the model and permission pickers into a settings gear with an inline usage breakdown, and the activity and tool panels use a cleaner left-indented layout without status capsules.",
+      ],
+    },
     {
       title: "0.1.12 native tool calls and maintenance cleanup",
       items: [
@@ -112,6 +149,16 @@ export const changelog: PageContent = {
         "Added coordinated provider shutdown so active work is checkpointed, cancelled, and flushed during extension deactivation.",
         "Added host-only canonical DeepSeek tool transcripts with exact reasoning, JSON arguments, tool results, protocol ordering, checkpoint recovery, and safe replay.",
         "Added total request budgeting, atomic conversation summaries, and literal relevant-line extraction for large references, with at most four auxiliary DeepSeek calls and a deterministic local fallback.",
+      ],
+    },
+    {
+      title: "0.1.2 opt-in auto-approve, clearer settings, and the technical wiki",
+      items: [
+        "Added the opt-in auto-approve permission mode, which delegates approval to DeepSeek for every non-disabled tool while keeping tool schemas and workspace path validation enforced.",
+        "Reorganized Settings around a clearer General section and improved the English, Spanish, and Chinese interface translations.",
+        "Asked for an explicit confirmation before continuing when a conversation reaches the tool-call round limit, and aligned the maximum output-token setting with DeepSeek's 384K-token limit.",
+        "Fixed pending tool confirmations that stayed visible after cancellation, and the active conversation identity being lost when history was updated.",
+        "Added the in-repository technical wiki covering architecture, tools, storage, the DeepSeek API, testing, and maintenance.",
       ],
     },
     {

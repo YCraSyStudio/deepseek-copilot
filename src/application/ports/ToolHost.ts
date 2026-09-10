@@ -27,6 +27,18 @@ export interface ToolHostCommandResult {
   shell?: string;
 }
 
+export interface ToolHostDocumentSymbol {
+  name: string;
+  /** Editor symbol kind, lowercased, for example "function" or "class". */
+  kind: string;
+  /** 0-based inclusive line range of the declaration, body included. */
+  startLine: number;
+  endLine: number;
+  /** 0-based line holding the declared name, which may follow decorators or documentation. */
+  nameLine: number;
+  children: ToolHostDocumentSymbol[];
+}
+
 export interface ToolWorkspaceHost {
   getRootPath(): string | undefined;
   getWorkspaceId?(): string;
@@ -43,6 +55,7 @@ export interface ToolWorkspaceHost {
   stat(path: string): Promise<ToolWorkspaceStat>;
   createParentDirectory(path: string): Promise<void>;
   readDirectory(path: string): Promise<Array<[string, ToolWorkspaceEntryType]>>;
+  readDocumentSymbols?(path: string): Promise<ToolHostDocumentSymbol[]>;
   prepareFileDiff?(path: string, before: string, after: string): Promise<void>;
   clearFileDiffPreview?(): void;
 }

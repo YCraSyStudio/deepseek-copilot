@@ -1,5 +1,5 @@
 import type { ToolCall } from "../deepseek/Chat";
-import type { UsageAggregate } from "@/shared/usage/Usage";
+import type { ConversationUsageSnapshot, UsageAggregate } from "@/shared/usage/Usage";
 import type {
   AssistantTimelineEvent,
   AvailableToolInfo,
@@ -94,7 +94,7 @@ export type HandlerToWebviewMessage =
   | { type: "modelChanged"; modelId: string }
   | { type: "history"; conversations: ConversationSummary[] }
   | { type: "historyError"; requestId?: string; error: string }
-  | { type: "conversationLoaded"; requestId: string; conversation: Conversation }
+  | { type: "conversationLoaded"; requestId: string; conversation: Conversation; usage?: ConversationUsageSnapshot }
   | { type: "conversationPageLoaded"; requestId: string; id: string; messages: Conversation["messages"]; hasEarlierMessages: boolean; cursor?: string }
   | { type: "conversationLoadRejected"; requestId: string }
   | { type: "conversationDeleted"; id: string }
@@ -123,4 +123,5 @@ export type HandlerToWebviewMessage =
   | { type: "availableTools"; tools: AvailableToolInfo[] }
   | { type: "imageAttachmentsSelected"; requestId: string; attachments: ImageAttachment[]; error?: string }
   | { type: "imageAttachmentDeleted"; requestId: string; fileId: string; success: boolean; error?: string }
-  | { type: "assistantUsageUpdated"; generationId: string; conversationId: string; usage: UsageAggregate };
+  | { type: "assistantUsageUpdated"; generationId: string; conversationId: string; usage: UsageAggregate }
+  | { type: "conversationUsageUpdated"; conversationId: string; usage: ConversationUsageSnapshot };

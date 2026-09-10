@@ -39,6 +39,8 @@ export type StructuredToolResult =
       binary?: boolean;
       beforeSize?: number;
       afterSize?: number;
+      beforeHash?: string;
+      afterHash?: string;
     }
   | {
       toolResultVersion: number;
@@ -53,6 +55,8 @@ export type StructuredToolResult =
       };
       beforeSize?: number;
       afterSize?: number;
+      beforeHash?: string;
+      afterHash?: string;
     }
   | {
       toolResultVersion: number;

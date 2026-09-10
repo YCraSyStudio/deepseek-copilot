@@ -10,7 +10,7 @@ export const userManual: PageContent = {
       title: "Getting started",
       items: [
         "Open Yar's DeepSeek Copilot from the Activity Bar and enter the API key in Settings. Credentials are stored per normalized API origin in VS Code Secret Storage; reopening Settings shows only a masked placeholder preview.",
-        "Choose V4 Vision (Flash) or V4 Pro, thinking mode, reasoning effort, output allowance, and concurrent generation limit. Registered V4 capabilities use a 1M-token total context and 384K maximum output; the extension reserves 8,192 output tokens by default. Concurrency defaults to 8 and accepts values from 1 to 16.",
+        "Choose thinking mode, reasoning effort, output allowance, and concurrent generation limit. Chat runs on DeepSeek V4.1 Flash with a 1M-token total context and 384K maximum output; the output allowance defaults to 384,000 tokens. Concurrency defaults to 8 and accepts values from 1 to 16.",
         "Type ./ to autocomplete safe workspace paths. Parent traversal with ../ is never accepted. In multi-root workspaces, paths begin with a stable alias such as ./frontend/src/App.tsx.",
         "Use the single + attachment action or Explorer/editor commands for explicit context. Ordinary external files become bounded, read-only snapshots; images are uploaded to DeepSeek after their binary signature is verified.",
         "Use Stop generation to cancel the current request and any running terminal process tree. The submitted prompt, partial assistant timeline, and completed tool results remain in history as a terminal cancelled turn; completed side effects are not rolled back.",
@@ -20,10 +20,11 @@ export const userManual: PageContent = {
       title: "Images and vision",
       items: [
         "The same picker accepts context files and up to eight JPEG, PNG, GIF, or WebP images. Images can also be pasted with Ctrl+V or Cmd+V; clipboard images are limited to 16 MiB and picker images to DeepSeek's 64 MiB limit.",
-        "V4 Vision (Flash) receives DeepSeek file IDs directly. V4 Pro receives analyze_images only when the current prompt has images; that tool asks Vision for a bounded text description that Pro can read.",
-        "If experimental Vision becomes unavailable on the official API, text work retries once with stable V4 Flash. A direct image chat continues without the images and states that limitation; V4 Pro image analysis fails explicitly so a text-only model is never mistaken for vision.",
+        "DeepSeek V4.1 Flash receives DeepSeek file IDs directly, so the current prompt's images are read in the same generation as its text.",
+        "A provider failure is surfaced as-is: the extension never silently retries, drops already-sent image references, or rewrites the model name to make a failed image request look successful.",
         "Uploads use the DeepSeek Files API with purpose user_data and a 30-day expiry. Base64 is transient clipboard IPC only and is never stored in history or sent inside provider messages.",
         "Removing a draft image attempts local and remote deletion. Permanent conversation deletion cleans image resources only after the Undo window closes.",
+        "Clicking an attached image, a composer thumbnail or an image of a sent message, opens a full-window viewer. It fits the image to the window by default, keeps its aspect ratio, and lets a zoomed image be dragged to pan instead of being squashed. It offers zoom out, the fit percentage (click to fit), zoom in, and close, and also handles Escape, the backdrop, and the +, -, and 0 keys.",
       ],
     },
     {
@@ -54,6 +55,22 @@ export const userManual: PageContent = {
         "Conversation usage appears in a compact popover beside the permission selector, including per-model totals after model switches. If some DeepSeek requests omit usage, available reported requests still produce an explicitly marked lower-bound cost.",
         "A successful read_file call does not duplicate the file body in Chat. Use Open file to inspect it in the editor; failed reads still show their diagnostic result.",
         "Completed create_file, edit_file, and apply_patch calls expose View change when a complete diff is available. It opens the before and after content recorded for that specific tool execution, independent of later working-tree changes.",
+        "A finished turn ends with the edited-files summary: one row per written file with its additions and deletions, Show N more files beyond the first three, and Review to open every change of the turn. The host records the exact before and after contents for the session, so a large change still opens completely even though the diff stored in the tool result is bounded for the model context. Reverting an applied change is not implemented yet.",
+        "Usage cost can be displayed in US dollars or Chinese yuan from Settings → Usage & cost. Each currency uses DeepSeek's own published price table, so no exchange rate is invented; persisted totals stay canonical in USD and are repriced for display.",
+      ],
+    },
+    {
+      title: "Long conversations",
+      items: [
+        "A long transcript is not mounted whole. Only the newest 40 messages render on open, plus every history page the user loaded from disk; Show N earlier messages reveals 40 more of whatever is already in memory and keeps the message being read in place instead of jumping.",
+        "Tool-call reconciliation, usage totals, draft persistence, and history paging keep working on the full loaded conversation; only the rendered list is windowed, and memoized rows keep typing a draft responsive.",
+      ],
+    },
+    {
+      title: "Workspace overview",
+      items: [
+        "list_workspace renders the whole project as one indented tree in a single call, so a new chat does not have to chain list_directory calls. Hidden entries are included, and a folder that holds too much content is summarized as ... instead of being dumped or silently excluded.",
+        "Its optional path argument scopes the tree to one workspace folder. It reads at most 300 folders and stops after 400 entries or 48 KiB, summarizing a folder instead of listing it when it holds more than 25 entries, or 60 at the workspace root, or when its subtree does not fit the remaining line budget.",
       ],
     },
     {
@@ -78,7 +95,7 @@ export const userManual: PageContent = {
     {
       title: "Terminal execution",
       items: [
-        "Each agent command runs non-interactively and visibly in a dedicated VS Code integrated terminal through Shell Integration. The terminal closes after the command completes while the captured result remains in Chat.",
+        "Each agent command runs non-interactively and visibly in a dedicated VS Code integrated terminal through Shell Integration. The same terminal is reused for later commands so its scrollback and history stay visible, and it is closed only on timeout, cancellation, a working-directory mismatch, or extension shutdown, while the captured result remains in Chat.",
         "The result records bounded stdout/stderr, exit code, signal, timeout, cancellation, effective working directory, and shell.",
         "Output is bounded; when truncated, the beginning and end are retained and the omitted middle is marked.",
         "Detached and background process launchers are rejected. Agent terminals disable .NET build-server and node reuse so completed builds do not leave orphaned workers or locked project files.",

@@ -382,6 +382,14 @@
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
+.usagePhaseCache {
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  border-radius: 6px;
+  margin-right: 6px;
+  padding: 1px 4px;
+  font-size: 9px;
+}
 .modelReasoningSection {
   padding: 3px 0;
 

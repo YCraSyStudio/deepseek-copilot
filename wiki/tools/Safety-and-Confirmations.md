@@ -14,9 +14,21 @@ There is no per-tool permission matrix. Web search is the single capability togg
 
 VS Code Workspace Trust remains authoritative. An untrusted workspace captures a `default` permission snapshot and rejects mutating tools until the workspace is trusted.
 
+## Deterministic facts before any review
+
+When safety can be established from machine-verifiable facts, no review request is sent:
+
+- **Workspace-contained file mutations.** `create_file`, `edit_file`, and `apply_patch` are approved automatically in automatic modes only when the declared effect is `workspace-mutation`, the host proved the target inside the bound workspace, and the path is not a sensitive file. The payload never reaches a reviewer because it cannot change those facts.
+- **Finite version, help, and availability queries.** A command whose segments are all allowlisted diagnostics (`dotnet --version && node --version && npm --version`, `where node`, `command -v node`) runs directly. Any pipe, redirect, substitution, variable, background marker, inline-code flag (`-e`, `-c`), or non-allowlisted program falls back to the reviewer.
+- **Verified workspace scripts.** A single script invocation runs unattended only when four facts agree: the path resolves inside the workspace, the on-disk bytes still match the agent-authored content hash, the script declares no denied capability (dynamic evaluation, download-and-execute, machine policy changes, broad process termination, escalation, interactive input, credentials, external absolute paths, background jobs), and every network destination it names is local.
+
+`-ExecutionPolicy Bypass` passed to `powershell`/`pwsh` is a process-scoped fact and never read as elevation; `Set-ExecutionPolicy` without `-Scope Process` is treated as a machine policy change and always requires review. Missing or unreadable facts return to the reviewer: fail closed, never fail open.
+
+Manual modes are untouched. Deterministic facts replace the automatic review call only; in `default` mode every mutation still asks the user.
+
 ## Independent DeepSeek review
 
-Terminal commands and file mutations in automatic modes are prepared without a local danger classifier and sent to a separate DeepSeek review request. The reviewer receives the original user request, the proposed command or a content-free file-operation description, mechanical path/shell facts, and bounded non-sensitive context for explicitly named workspace files.
+Terminal commands and file mutations that the deterministic layer cannot prove in automatic modes are sent to a separate DeepSeek review request. The reviewer receives the original user request, the proposed command or a content-free file-operation description, mechanical path/shell facts, and bounded non-sensitive context for explicitly named workspace files — including the body of a script the command runs.
 
 The reviewer returns:
 
@@ -36,7 +48,17 @@ When the active mode requires confirmation:
 3. the backend accepts the response only for the pending `generationId` and `toolCallId`;
 4. the approved operation is revalidated immediately before execution, including optimistic file hashes when available.
 
-Confirmations are never remembered for the session. Every later mutation receives a fresh independent classification, so a previous approval cannot bypass a critical decision.
+Preparing a file mutation never interrupts the user. The inline change preview reuses the editor that already shows the affected file, and otherwise opens a transient preview tab that preserves focus, so the pending change is visible without moving focus out of the chat input, the terminal, or another editor.
+
+## Reviewing applied changes
+
+Every completed `create_file`, `edit_file`, or `apply_patch` records the exact before and after contents of the written file for the current session. `View change` on the tool call, each row of the end-of-turn edited-files summary, and the summary's `Review` action open the native VS Code diff from those snapshots, so a large change stays fully reviewable even though the diff inside a tool result is bounded for the model context.
+
+Snapshots live in memory only: they are evicted oldest-first (32 changes of up to 512 KiB per document), are never written to disk, and disappear with the window. When no snapshot matches the recorded document hashes — for example after a conversation is reopened from history — the change view falls back to reconstructing the excerpts stored in the tool result, and a change whose recorded diff was truncated cannot be compared.
+
+Reverting an applied change is not implemented yet.
+
+A positive reviewer decision is cached only when every justifying fact is reproducible: conversation, workspace binding, permission fingerprint, tool, normalized command or path, content hash, and effect profile. Changing the permission mode, editing the script, or running a different command produces a different key and a fresh review. User confirmations are never cached.
 
 Terminal commands remain finite, non-interactive, cancellable, and outside an OS sandbox. Mechanical validation, workspace binding, schema validation, mutation serialization, output bounds, and process-tree cancellation remain local enforcement rather than risk classification.
 

@@ -1,4 +1,5 @@
 import type { GeneralSectionProps } from "../model";
+import { isUsageCurrency, type UsageCurrency } from "@/shared/usage/Usage";
 import { Toggle } from "@webview/components/settingsView";
 import { t } from "@webview/i18n";
 
@@ -52,6 +53,23 @@ function GeneralSection({ config, updateConfig, saveOnBlur }: GeneralSectionProp
 
       <h3 className="sectionTitle">{t("settings.usage.title")}</h3>
 
+      <div className="settingRow">
+        <label htmlFor="usageCostCurrency">{t("settings.usage.currency")}</label>
+        <select
+          id="usageCostCurrency"
+          value={config.usageCostCurrency}
+          onChange={(event) => {
+            const currency = parseUsageCurrency(event.target.value);
+            if (!currency) {return;}
+            updateConfig("usageCostCurrency", currency);
+            saveOnBlur("usageCostCurrency", currency);
+          }}
+        >
+          <option value="usd">{t("settings.usage.currencyUsd")}</option>
+          <option value="cny">{t("settings.usage.currencyCny")}</option>
+        </select>
+      </div>
+
       <Toggle
         label={t("settings.usage.breakdown")}
         id="usageBreakdown"
@@ -75,4 +93,8 @@ function updateBoundedInteger(input: HTMLInputElement, min: number, max: number,
 
 function parseInterfaceLanguage(value: string): "auto" | "en" | "es" | "zh" | undefined {
   return value === "auto" || value === "en" || value === "es" || value === "zh" ? value : undefined;
+}
+
+function parseUsageCurrency(value: string): UsageCurrency | undefined {
+  return isUsageCurrency(value) ? value : undefined;
 }

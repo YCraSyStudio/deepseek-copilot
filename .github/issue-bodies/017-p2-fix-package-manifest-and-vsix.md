@@ -8,7 +8,7 @@ Publish one CI-built, verified stable artifact whose Marketplace, GitHub, docume
 
 ## To-Do List
 
-- [ ] Complete issue drafts 016, 020, 021, and 023 before stable publication.
+- [ ] Complete issue drafts 021 and 023 before stable publication.
 - [ ] Verify the CI-built VSIX in local, untrusted, multi-root, and virtual workspaces and attach the results to the release candidate.
 - [ ] Choose and commit the stable version and update changelog and website translations.
 - [ ] Remove `preview: true` only after every production and P1 gate passes.

@@ -4,10 +4,20 @@ import * as vscode from "vscode";
 import type { WorkspaceBinding } from "@/contracts";
 import { logError } from "@/shared/logging/Logger";
 import { validateWorkspaceFilePath } from "../EditorActions";
-import { reconstructDiffDocuments } from "./UnifiedDiffDocuments";
+import { MAX_RECORDED_DIFF_LINES } from "@/infrastructure/tools/builtins/fileSystem/StructuredResult";
+import { fileChangeRegistry } from "./FileChangeRegistry";
+import { reconstructDiffDocuments, type DiffDocuments } from "./UnifiedDiffDocuments";
 
 const CHANGE_SCHEME = "yrs-change";
 const MAX_RETAINED_DOCUMENTS = 24;
+
+interface ChangeDiffRequest {
+  path: string;
+  diff?: string;
+  beforeHash?: string;
+  afterHash?: string;
+  preview?: boolean;
+}
 
 export class ChangeDiffViewer implements vscode.Disposable {
   private readonly documents = new Map<string, string>();
@@ -27,16 +37,16 @@ export class ChangeDiffViewer implements vscode.Disposable {
     ];
   }
 
-  public async open(filePath: string, diff: string, binding: WorkspaceBinding): Promise<void> {
+  public async open(request: ChangeDiffRequest, binding: WorkspaceBinding): Promise<void> {
     try {
-      await validateWorkspaceFilePath(filePath, binding);
-      const documents = reconstructDiffDocuments(diff);
+      await validateWorkspaceFilePath(request.path, binding);
+      const documents = resolveDiffDocuments(request);
       if (!documents) {
         throw new Error("The saved change is incomplete and cannot be compared.");
       }
 
       const id = randomUUID();
-      const filename = sanitizeFilename(path.posix.basename(filePath.replace(/\\/g, "/")));
+      const filename = sanitizeFilename(path.posix.basename(request.path.replace(/\\/g, "/")));
       const beforeUri = vscode.Uri.from({ scheme: CHANGE_SCHEME, path: `/${id}/before/${filename}` });
       const afterUri = vscode.Uri.from({ scheme: CHANGE_SCHEME, path: `/${id}/after/${filename}` });
       this.retain(beforeUri, documents.before);
@@ -46,11 +56,11 @@ export class ChangeDiffViewer implements vscode.Disposable {
         "vscode.diff",
         beforeUri,
         afterUri,
-        `${filename} — tool change`,
-        { preview: true },
+        `${filename} — DeepSeek change`,
+        { preview: request.preview ?? true },
       );
     } catch (err) {
-      logError(`[ChangeDiffViewer] Error opening change for '${filePath}'`, err);
+      logError(`[ChangeDiffViewer] Error opening change for '${request.path}'`, err);
       await vscode.window.showErrorMessage(err instanceof Error ? err.message : "Unable to open the saved change.");
     }
   }
@@ -77,4 +87,32 @@ export class ChangeDiffViewer implements vscode.Disposable {
 function sanitizeFilename(filename: string): string {
   const sanitized = filename.replace(/[/?#\u0000-\u001f]/g, "_");
   return sanitized || "change.txt";
+}
+
+/**
+ * Prefers the exact before/after contents recorded for this write. Tool results keep a bounded
+ * diff, so large changes fall back to the excerpts they do contain, capped by the same budget
+ * used for recorded changes so an oversized payload never materializes huge documents.
+ */
+function resolveDiffDocuments(request: ChangeDiffRequest): DiffDocuments | null {
+  if (request.afterHash) {
+    const recorded = fileChangeRegistry.find(request.path, request.beforeHash, request.afterHash);
+    if (recorded) {
+      return { before: recorded.before, after: recorded.after };
+    }
+  }
+  if (!request.diff || countLines(request.diff) > MAX_RECORDED_DIFF_LINES) {
+    return null;
+  }
+  return reconstructDiffDocuments(request.diff);
+}
+
+function countLines(value: string): number {
+  let lines = 1;
+  for (const character of value) {
+    if (character === "\n") {
+      lines += 1;
+    }
+  }
+  return lines;
 }

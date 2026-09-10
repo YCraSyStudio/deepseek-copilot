@@ -12,7 +12,6 @@ import { createProviderTranscript } from "@/application/chat/ProviderTranscript"
 import { PartialStreamError } from "@/application/errors/PartialStreamError";
 import type { ToolRegistry } from "@/application/tools";
 import type { ModelProviderFactory, SecretStore, SettingsRepository } from "@/application/ports";
-import { createDelegatedVisionAnalyzer } from "@/infrastructure/deepseek/providers/deepseek/DelegatedVisionAnalyzer";
 import { runWithToolWorkspaceHost } from "@/infrastructure/tools/ToolWorkspace";
 import {
   createUsageAggregate,
@@ -257,8 +256,6 @@ export class GenerationExecutor {
         files: workspaceSnapshot.binding.capabilities.files,
         terminal: workspaceSnapshot.binding.capabilities.terminal,
         webSearchEnabled: providerConfig.webSearchEnabled,
-        modelId: requestedModel,
-        hasImageAttachments: (payload.imageAttachments?.length ?? 0) > 0,
       });
       appendToolAvailabilityContext(
         messages,
@@ -307,15 +304,10 @@ export class GenerationExecutor {
           isCancelling: () => signal.aborted,
           isWorkspaceTrusted: () => vscode.workspace.isTrusted,
           generationId,
+          conversationId: task.conversationId,
           trustedUserRequest: payload.text,
           authorizedUserUrls: extractHttpsUrls(payload.text),
           budgetManager: record.budgetManager,
-          analyzeImages: createDelegatedVisionAnalyzer({
-            attachments: payload.imageAttachments,
-            providerConfig,
-            modelProviderFactory: this.dependencies.modelProviderFactory,
-            usageAggregate,
-          }),
           onContextCompacted: ({ estimatedTokensBefore, estimatedTokensAfter }) =>
             recordToolCycleCompaction({
               state: runState,

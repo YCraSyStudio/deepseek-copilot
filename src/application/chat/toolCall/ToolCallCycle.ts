@@ -2,12 +2,13 @@ import { createSystemMessage, ensureSingleSystemPrompt } from "@/contracts/deeps
 import type { ChatMessage } from "@/contracts";
 import { createToolResultMessage, validateToolCall } from "./ToolCallMessages";
 import type {
-  ProgressReviewResult,
   RunToolCallCycleOptions,
   ToolCallCycleOptions,
   ToolCallCycleResult,
 } from "./ToolCallTypes";
+import { createCompletionRecoveryMessage, createProgressReviewCheckpointMessage } from "./TurnGuidance";
 import { fitToolResultForModel } from "./ToolResultBudget";
+import { logWarning } from "@/shared/logging/Logger";
 
 const DEFAULT_PROGRESS_REVIEW_INTERVAL = 20;
 const DEFAULT_PROGRESS_REVIEW_FOLLOW_UP_INTERVAL = 5;
@@ -60,13 +61,14 @@ export async function runToolCallCycle(options: RunToolCallCycleOptions): Promis
           recoveryAttempted: completionRecoveryUsed,
         });
         if (decision === "incomplete") {
-          if (completionRecoveryUsed) {
-            throw new Error("DeepSeek stopped again without completing the announced action.");
+          if (!completionRecoveryUsed) {
+            completionRecoveryUsed = true;
+            messages.push(createCompletionRecoveryMessage());
+            cycleOptions.onStreamChunk?.("\n\n");
+            continue;
           }
-          completionRecoveryUsed = true;
-          messages[0] = withCompletionRecoveryInstruction(messages[0]);
-          cycleOptions.onStreamChunk?.("\n\n");
-          continue;
+          // A second "incomplete" is a judgement, not a verdict: keeping the delivered answer costs a "continue", discarding it costs the turn.
+          logWarning("[ToolCallCycle] Completion review still reported an incomplete answer after recovery; keeping the delivered response.");
         }
       }
       transcript.push(structuredClone(message));
@@ -147,7 +149,7 @@ export async function runToolCallCycle(options: RunToolCallCycleOptions): Promis
       progressReviewsCompleted++;
 
       if (review.decision !== "unknown") {
-        messages[0] = withProgressReviewInstruction(messages[0], review, completedRounds);
+        messages.push(createProgressReviewCheckpointMessage(review, completedRounds));
       }
     }
   }
@@ -184,54 +186,6 @@ function assertUniqueToolCallIds(
     }
     current.add(toolCall.id);
   }
-}
-
-function withCompletionRecoveryInstruction(systemMessage: ChatMessage): ChatMessage {
-  return {
-    ...systemMessage,
-    content: `${systemMessage.content ?? ""}\n\n<completion_recovery>The previous response stopped after announcing an action without performing it. Continue the same turn now. Either issue the necessary tool call or provide the complete final answer in the language of the user's latest message. Do not announce another future action.</completion_recovery>`,
-  };
-}
-
-function withProgressReviewInstruction(
-  systemMessage: ChatMessage,
-  review: ProgressReviewResult,
-  completedRounds: number,
-): ChatMessage {
-  const content = removeProgressReviewInstruction(String(systemMessage.content ?? ""));
-  const evidence = JSON.stringify({
-    decision: review.decision,
-    confidence: review.confidence,
-    reason: sanitizeReviewText(review.reason),
-    ...(review.nextAction ? { nextAction: sanitizeReviewText(review.nextAction) } : {}),
-  });
-  const instruction =
-    `\n\n<progress_review_checkpoint completed_rounds="${completedRounds}">` +
-    `An independent progress reviewer assessed the completed work: ${evidence}. ` +
-    "Reassess the user's goal before the next tool call. Treat the bounded next action as the priority for the next block. Finish missing primary deliverables before deepening verification of an already working component, and do not repeat successful builds, tests, reads, endpoint matrices, or cleanup. " +
-    progressReviewGuidance(review) +
-    "</progress_review_checkpoint>";
-  return { ...systemMessage, content: `${content}${instruction}` };
-}
-
-function progressReviewGuidance(review: ProgressReviewResult): string {
-  if (review.decision === "blocked") {
-    return "The reviewer believes further work is blocked. Prefer a final response that summarizes completed work and asks only for the missing information or authorization. Use another tool only if the reviewer overlooked a concrete action that can actually remove the blocker. ";
-  }
-  if (review.decision === "finalize") {
-    return review.confidence === "high"
-      ? "The reviewer determined that the requested work is complete and remaining checks are unnecessary. Stop using tools now. Do not continue tests, cleanup, or optional verification; provide the concise final summary in this response. "
-      : "The reviewer believes the goal is complete. Prefer the final response now and avoid optional verification. Use another tool only when a concrete primary deliverable is demonstrably still missing. ";
-  }
-  return "If the goal is already complete or remaining work is optional, stop using tools and provide the final response. ";
-}
-
-function removeProgressReviewInstruction(content: string): string {
-  return content.replace(/\n\n<progress_review_(?:checkpoint|final)[\s\S]*?<\/progress_review_(?:checkpoint|final)>/g, "");
-}
-
-function sanitizeReviewText(value: string): string {
-  return value.replace(/[<>]/g, "").replace(/\s+/g, " ").trim().slice(0, 1_000);
 }
 
 function normalizeProgressReviewInterval(value: number | undefined): number {

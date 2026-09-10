@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useVsCode } from "../contexts";
 import { MODEL_OPTIONS } from "@/contracts/deepseek/Models";
 import type { HandlerToWebviewMessage, PermissionMode } from "@/contracts";
+import type { UsageCurrency } from "@/shared/usage/Usage";
 import { shouldApplyConfigRevision } from "@webview/config/ConfigRevision";
 
 /**
@@ -24,6 +25,7 @@ export function useChatConfig() {
   const [permissionMode, setPermissionMode] = useState<PermissionMode>("default");
   const [historyEnabled, setHistoryEnabled] = useState<boolean | undefined>(undefined);
   const [usageBreakdown, setUsageBreakdown] = useState(false);
+  const [usageCostCurrency, setUsageCostCurrency] = useState<UsageCurrency>("usd");
   const [isPermissionUpdatePending, setPermissionUpdatePending] = useState(false);
   const [configUpdateError, setConfigUpdateError] = useState<string | null>(null);
 
@@ -41,7 +43,7 @@ export function useChatConfig() {
   /**
    * Applies saved config from configLoaded without side effects inside useEffect.
    */
-  const applySavedConfig = useCallback((config: { reasoning?: string; model?: string; permissionMode?: PermissionMode; historyEnabled?: boolean; usageBreakdown?: boolean }, revision?: number) => {
+  const applySavedConfig = useCallback((config: { reasoning?: string; model?: string; permissionMode?: PermissionMode; historyEnabled?: boolean; usageBreakdown?: boolean; usageCostCurrency?: UsageCurrency }, revision?: number) => {
     if (revision !== undefined) {
       if (!shouldApplyConfigRevision(revisionRef.current, revision)) {
         return;
@@ -65,8 +67,10 @@ export function useChatConfig() {
     if (config.usageBreakdown !== undefined) {
       setUsageBreakdown(config.usageBreakdown);
     }
+    if (config.usageCostCurrency !== undefined) {
+      setUsageCostCurrency(config.usageCostCurrency);
+    }
   }, []);
-
   const applyConfigUpdateResult = useCallback((message: Extract<HandlerToWebviewMessage, { type: "configUpdateResult" }>) => {
     applySavedConfig({
       reasoning: message.config.thinkingMode === false ? "off" : message.config.reasoningEffort === "max" ? "max" : "high",
@@ -74,6 +78,7 @@ export function useChatConfig() {
       permissionMode: message.config.permissionMode,
       historyEnabled: message.config.historyEnabled,
       usageBreakdown: message.config.usageBreakdown,
+      usageCostCurrency: message.config.usageCostCurrency,
     }, message.revision);
     if (pendingPermissionRequestRef.current === message.requestId) {
       pendingPermissionRequestRef.current = undefined;
@@ -120,6 +125,7 @@ export function useChatConfig() {
     permissionMode,
     historyEnabled,
     usageBreakdown,
+    usageCostCurrency,
     isPermissionUpdatePending,
     configUpdateError,
     selectedModelRef,

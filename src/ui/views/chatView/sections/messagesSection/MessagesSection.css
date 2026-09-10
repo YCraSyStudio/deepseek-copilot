@@ -23,6 +23,24 @@
     user-select: none;
   }
 }
+.showEarlierMessages {
+  flex: none;
+  border: 1px solid var(--border-color);
+  background: var(--button-secondary-bg);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font: inherit;
+  border-radius: 999px;
+  align-self: center;
+  padding: 5px 12px;
+  font-size: 11px;
+
+  &:hover,
+  &:focus-visible {
+    background: var(--button-secondary-hover);
+    color: var(--text-primary);
+  }
+}
 .jumpToLatest {
   z-index: 10;
   border: 1px solid var(--vscode-button-border, transparent);

@@ -2,6 +2,7 @@ import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef,
 import { WEBVIEW_INPUT_LIMITS, type ImageAttachment, type ReferencedFile } from "@/contracts";
 import "./InputCtrl.css";
 import { FileSelector } from "@webview/components/chatView";
+import ImageLightbox, { type LightboxImage } from "@webview/components/shared/imageLightbox/ImageLightbox";
 import { useVsCode } from "@webview/views/chatView/contexts";
 import { t } from "@webview/i18n";
 import { usePathCompletions } from "./UsePathCompletions";
@@ -52,6 +53,7 @@ const InputCtrl = forwardRef<HTMLTextAreaElement, Props>(
     const taRef = useRef<HTMLTextAreaElement | null>(null);
     const vscode = useVsCode();
     const [isControlPressed, setIsControlPressed] = useState(false);
+    const [enlargedImage, setEnlargedImage] = useState<LightboxImage | null>(null);
     const hasTextContent = input.trim().length > 0;
     const {
       activeIndex,
@@ -226,19 +228,33 @@ const InputCtrl = forwardRef<HTMLTextAreaElement, Props>(
       <div className="inputComposer">
         {imageAttachments.length > 0 ? (
           <div className="composerImageAttachments">
-            {imageAttachments.map((attachment) => (
-              <div className="composerImageAttachment" key={attachment.id} title={attachment.name}>
-                {attachment.previewUri ? <img src={attachment.previewUri} alt={attachment.name} /> : <span className="codicon codicon-file-media" aria-hidden="true" />}
-                <button
-                  type="button"
-                  className="composerImageRemove"
-                  onClick={() => onRemoveImageAttachment?.(attachment)}
-                  aria-label={t("chat.removeImage")}
-                >
-                  <span className="codicon codicon-close" aria-hidden="true" />
-                </button>
-              </div>
-            ))}
+            {imageAttachments.map((attachment) => {
+              const previewUri = attachment.previewUri;
+              return (
+                <div className="composerImageAttachment" key={attachment.id} title={attachment.name}>
+                  {previewUri
+                    ? (
+                      <button
+                        type="button"
+                        className="composerImagePreview"
+                        onClick={() => setEnlargedImage({ id: attachment.id, src: previewUri, name: attachment.name })}
+                        aria-label={t("chat.enlargeImage", { name: attachment.name })}
+                      >
+                        <img src={previewUri} alt={attachment.name} />
+                      </button>
+                    )
+                    : <span className="codicon codicon-file-media" aria-hidden="true" />}
+                  <button
+                    type="button"
+                    className="composerImageRemove"
+                    onClick={() => onRemoveImageAttachment?.(attachment)}
+                    aria-label={t("chat.removeImage")}
+                  >
+                    <span className="codicon codicon-close" aria-hidden="true" />
+                  </button>
+                </div>
+              );
+            })}
           </div>
         ) : null}
         <div className="inputCtrl">
@@ -309,6 +325,7 @@ const InputCtrl = forwardRef<HTMLTextAreaElement, Props>(
             )}
           </div>
         </div>
+        <ImageLightbox image={enlargedImage} onClose={() => setEnlargedImage(null)} />
       </div>
     );
   },

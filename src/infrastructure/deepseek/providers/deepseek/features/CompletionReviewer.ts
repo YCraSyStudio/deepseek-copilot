@@ -3,6 +3,7 @@ import type {
   CompletionReviewContext,
   CompletionReviewDecision,
 } from "@/application/chat/toolCall/ToolCallTypes";
+import { isTurnGuidanceMessage } from "@/application/chat/toolCall/TurnGuidance";
 import { getTextContent } from "@/contracts/deepseek/Chat";
 import { chatCompletion } from "./Chat";
 import type { ProviderUsage } from "@/shared/usage/Usage";
@@ -24,7 +25,9 @@ Return only JSON: {"decision":"complete"|"incomplete","reason":"short explanatio
 
 Choose incomplete when the candidate stops after announcing, promising, or describing an action that still needs to be performed, or when it otherwise clearly expects another agent/tool turn to fulfill the request.
 Choose complete when it provides the requested result, asks for genuinely missing information or a material user decision, reports a real blocker or limit, or gives a self-contained answer to an informational request.
-Optional recommendations or next steps after a completed result do not make it incomplete. Judge whether more agent execution is required, not whether the answer could be improved.`;
+Optional recommendations or next steps after a completed result do not make it incomplete. Judge whether more agent execution is required, not whether the answer could be improved.
+
+Ask what the next turn would be. When the next turn must come from the user - a confirmation, an authorization, a choice between options, or missing information - the candidate is complete, even if it also names the action it will perform once the user answers or reports that it cannot proceed without that answer. Choose incomplete only when the next turn would be another agent turn that needs no user input.`;
 
 export interface ReviewCompletionOptions extends CompletionReviewContext {
   providerConfig: AppConfig;
@@ -86,9 +89,11 @@ export function parseCompletionReview(content: string | null | undefined): Compl
 }
 
 function buildCompletionEvidence(options: CompletionReviewContext): Record<string, unknown> {
-  const latestUserMessage = [...options.messages].reverse().find((message) => message.role === "user");
+  const latestUserMessage = [...options.messages]
+    .reverse()
+    .find((message) => message.role === "user" && !isTurnGuidanceMessage(message));
   const recentEvents = options.messages
-    .filter((message) => message.role !== "system" && message !== latestUserMessage)
+    .filter((message) => message.role !== "system" && message !== latestUserMessage && !isTurnGuidanceMessage(message))
     .slice(-MAX_RECENT_EVENTS)
     .map(summarizeMessage);
 

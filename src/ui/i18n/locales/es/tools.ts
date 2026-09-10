@@ -21,6 +21,10 @@ export const tools = {
     cancelled: "Cancelada",
     openFile: "Abrir archivo",
     viewChange: "Ver cambio",
+    editedFilesOne: "Se editó 1 archivo",
+    editedFilesMany: "Se editaron {count} archivos",
+    showMoreFiles: "Mostrar {count} archivos más",
+    hideExtraFiles: "Mostrar menos archivos",
     copy: "Copiar",
     insert: "Insertar",
   }

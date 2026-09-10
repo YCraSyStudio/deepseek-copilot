@@ -2,8 +2,8 @@ import type { GenerationEventSink } from "@/application/ports";
 import { getGenerationStopReason } from "@/application/chat/GenerationCoordinator";
 import { logInfo } from "@/shared/logging/Logger";
 import {
-  aggregateUsageAggregates,
   formatUsageSummary,
+  summarizeConversationUsage,
   type UsageAggregate,
 } from "@/shared/usage/Usage";
 import type { GenerationCheckpointStore } from "@/platform/vscode/storage";
@@ -98,11 +98,19 @@ export class GenerationRunFinalizer {
       generationId: record.generationId,
       conversationId: record.conversationId,
     });
-    const conversationUsage = aggregateUsageAggregates(
-      record.state.getConversation()?.messages.flatMap((message) => message.usage ? [message.usage] : []) ?? [],
+    const conversationUsage = summarizeConversationUsage(
+      record.state.getConversation()?.messages ?? [],
+      { generationId: record.generationId, usage },
     );
-    if (conversationUsage) {
-      logInfo(`[usage:conversation] ${formatUsageSummary(conversationUsage)}`, undefined, {
+    // The webview only holds the transcript it paged in, so it cannot total a
+    // conversation by itself: it renders this snapshot instead.
+    eventSink.publish({
+      type: "conversationUsageUpdated",
+      conversationId: record.conversationId,
+      usage: structuredClone(conversationUsage),
+    });
+    if (conversationUsage.total) {
+      logInfo(`[usage:conversation] ${formatUsageSummary(conversationUsage.total)}`, undefined, {
         conversationId: record.conversationId,
       });
     }

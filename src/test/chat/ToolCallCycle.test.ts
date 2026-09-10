@@ -60,8 +60,8 @@ suite("tool call cycle completion", () => {
     assert.deepStrictEqual(reviewContexts.map(({ completedRounds, toolCallsExecuted }) => ({ completedRounds, toolCallsExecuted })), [
       { completedRounds: 1, toolCallsExecuted: 1 },
     ]);
-    assert.match(String(requests[1][0]?.content), /progress_review_checkpoint/);
-    assert.match(String(requests[1][0]?.content), /Run only the final check/);
+    assert.match(String(requests[1].at(-1)?.content), /progress_review_checkpoint/);
+    assert.match(String(requests[1].at(-1)?.content), /Run only the final check/);
     assert.strictEqual(result.rounds, 2);
   });
 
@@ -197,8 +197,8 @@ suite("tool call cycle completion", () => {
         completeRound: async ({ messages, tools }) => {
           requestedToolCounts.push(tools.length);
           if (requestedToolCounts.length === 2) {
-            assert.match(String(messages[0]?.content), /progress_review_checkpoint/);
-            assert.match(String(messages[0]?.content), /Stop using tools now/);
+            assert.match(String(messages.at(-1)?.content), /progress_review_checkpoint/);
+            assert.match(String(messages.at(-1)?.content), /Stop using tools now/);
           }
           return responses.shift()!;
         },
@@ -293,15 +293,15 @@ suite("tool call cycle completion", () => {
     });
 
     assert.strictEqual(requests.length, 2);
-    assert.match(String(requests[1][0]?.content ?? ""), /completion_recovery/);
+    assert.match(String(requests[1].at(-1)?.content ?? ""), /completion_recovery/);
     assert.deepStrictEqual(streamed, ["\n\n"]);
     assert.strictEqual(result.finalMessage.content, "done");
     assert.strictEqual(result.rounds, 2);
   });
 
-  test("does not mark the response complete when recovery also stops prematurely", async () => {
+  test("keeps the delivered answer when recovery also stops prematurely", async () => {
     let requests = 0;
-    await assert.rejects(runToolCallCycle({
+    const result = await runToolCallCycle({
       initialMessages: [{ role: "user", content: "search" }],
       tools: [toolDefinition],
       model: "model",
@@ -314,9 +314,13 @@ suite("tool call cycle completion", () => {
       },
       executeToolCall: async () => "unused",
       cycleOptions: { reviewCompletion: async () => "incomplete" },
-    }), /stopped again without completing/);
+    });
 
+    // The reviewer is a best-effort signal: after the single recovery round a
+    // second "incomplete" must not discard the answer the user already paid for.
     assert.strictEqual(requests, 2);
+    assert.strictEqual(result.rounds, 2);
+    assert.strictEqual(result.finalMessage.content, stalledResponse.choices[0].message.content);
   });
 
   test("treats tool-shaped assistant text as ordinary content without executing or retrying", async () => {
@@ -343,6 +347,102 @@ suite("tool call cycle completion", () => {
     assert.strictEqual(executions, 0);
     assert.strictEqual(result.rounds, 1);
     assert.strictEqual(result.finalMessage.content, toolShapedAssistantResponse.choices[0].message.content);
+  });
+
+  test("appends to the serialized prefix across tool rounds instead of rewriting it", async () => {
+    const responses = [toolResponse("call-1", "README.md"), toolResponse("call-2", "CHANGELOG.md"), finalResponse];
+    const requests: ChatMessage[][] = [];
+    const toolOrders: string[][] = [];
+
+    await runToolCallCycle({
+      initialMessages: [
+        { role: "system", content: "static instructions" },
+        { role: "user", content: "read both files" },
+      ],
+      tools: [toolDefinition, terminalToolDefinition],
+      model: "model",
+      modelClient: {
+        completeRound: async ({ messages, tools }) => {
+          // The cycle appends to one array in place, so snapshot each round.
+          requests.push(structuredClone(messages));
+          toolOrders.push(tools.map((tool) => tool.function.name));
+          return responses.shift()!;
+        },
+        streamRound: async () => {throw new Error("unexpected streaming round");},
+      },
+      executeToolCall: async () => "contents",
+    });
+
+    // DeepSeek discounts a matching input prefix, so every earlier message and
+    // the tool ordering must stay byte-identical: a rewritten message anywhere
+    // in that prefix makes the rest of the request a full cache miss.
+    assert.strictEqual(requests.length, 3);
+    for (let index = 1; index < requests.length; index += 1) {
+      const previous = requests[index - 1];
+      const current = requests[index];
+      assert.ok(current.length > previous.length, `round ${index} replaced instead of appending messages`);
+      assert.deepStrictEqual(
+        current.slice(0, previous.length),
+        previous,
+        `round ${index} rewrote an earlier message instead of appending to it`,
+      );
+    }
+    assert.deepStrictEqual(toolOrders, [
+      ["read_file", "run_terminal_command"],
+      ["read_file", "run_terminal_command"],
+      ["read_file", "run_terminal_command"],
+    ]);
+  });
+
+  test("appends reviewer checkpoints to the tail instead of rewriting the cached prefix", async () => {
+    const responses = [toolResponse("call-1", "README.md"), toolResponse("call-2", "CHANGELOG.md"), finalResponse];
+    const requests: ChatMessage[][] = [];
+
+    await runToolCallCycle({
+      initialMessages: [
+        { role: "system", content: "static instructions" },
+        { role: "user", content: "finish the task" },
+      ],
+      tools: [toolDefinition],
+      model: "model",
+      modelClient: {
+        completeRound: async ({ messages }) => {
+          requests.push(structuredClone(messages));
+          return responses.shift()!;
+        },
+        streamRound: async () => {throw new Error("unexpected streaming round");},
+      },
+      executeToolCall: async () => "contents",
+      cycleOptions: {
+        progressReviewInterval: 1,
+        reviewProgress: async () => ({
+          decision: "continue",
+          confidence: "high",
+          reason: "One check remains.",
+        }),
+      },
+    });
+
+    // Reviewer guidance used to be spliced into the system message, which made
+    // every request after a checkpoint a full cache miss. It must only ever be
+    // appended: DeepSeek discounts a matching prefix, and the prefix here stays
+    // byte-identical across the injected rounds.
+    assert.strictEqual(requests.length, 3);
+    for (let index = 1; index < requests.length; index += 1) {
+      assert.deepStrictEqual(
+        requests[index].slice(0, requests[index - 1].length),
+        requests[index - 1],
+        `round ${index} rewrote an earlier message instead of appending to it`,
+      );
+    }
+    assert.deepStrictEqual(
+      requests.map((request) => request[0]?.content),
+      ["static instructions", "static instructions", "static instructions"],
+    );
+    assert.strictEqual(requests[1].at(-1)?.role, "user");
+    assert.match(String(requests[1].at(-1)?.content), /^<progress_review_checkpoint/);
+    assert.match(String(requests[1].at(-1)?.content), /completed_rounds="1"/);
+    assert.match(String(requests[2].at(-1)?.content), /completed_rounds="2"/);
   });
 });
 

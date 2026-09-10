@@ -8,7 +8,14 @@ import { takeUtf8Head, takeUtf8Tail } from "@/shared/utils/BoundedText";
 import { assessRequestBudget } from "./ContextBudget";
 import { getTextContent } from "@/contracts/deepseek/Chat";
 
-const AUXILIARY_MAX_TOKENS = 4096;
+/**
+ * Output ceilings per auxiliary phase. A summary returns bounded prose, while
+ * range selection returns at most `MAX_RANGE_COUNT` short ranges, so a smaller
+ * ceiling bounds the billed output without cutting a valid answer. Invalid or
+ * truncated JSON already falls back to the local range selector.
+ */
+const SUMMARY_MAX_TOKENS = 2_048;
+const RANGE_SELECTION_MAX_TOKENS = 512;
 const MAX_RANGE_COUNT = 12;
 const MAX_SUMMARY_BYTES = 24_000;
 const MAX_AUXILIARY_SOURCE_BYTES = 192 * 1024;
@@ -53,11 +60,11 @@ export class ContextCompactor {
           partials.push(truncateUtf8(chunk, MAX_SUMMARY_BYTES));
           continue;
         }
-        partials.push(await this.complete("context_summary", summaryMessages(chunk)));
+        partials.push(await this.complete("context_summary", summaryMessages(chunk), SUMMARY_MAX_TOKENS));
       }
       const combined = partials.join("\n\n");
       const content = partials.length > 1 && this.calls < this.maxCalls
-        ? await this.complete("context_summary", summaryMessages(combined))
+        ? await this.complete("context_summary", summaryMessages(combined), SUMMARY_MAX_TOKENS)
         : combined;
       if (!content.trim()) {
         throw new Error("Empty compaction response");
@@ -107,7 +114,7 @@ export class ContextCompactor {
           role: "user",
           content: `Request:\n${prompt}\n\nFile: ${path}\n\n${numbered}`,
         },
-      ]);
+      ], RANGE_SELECTION_MAX_TOKENS);
       return parseRanges(raw, lines.length);
     } catch (error) {
       if (this.signal.aborted) {
@@ -117,7 +124,11 @@ export class ContextCompactor {
     }
   }
 
-  private async complete(phase: UsagePhase, messages: ChatCompletionRequest["messages"]): Promise<string> {
+  private async complete(
+    phase: UsagePhase,
+    messages: ChatCompletionRequest["messages"],
+    maxTokens: number,
+  ): Promise<string> {
     if (this.calls >= this.maxCalls) {
       throw new Error("Auxiliary compaction call limit reached");
     }
@@ -125,7 +136,7 @@ export class ContextCompactor {
       throw createAbortError();
     }
     this.calls += 1;
-    const assessment = assessRequestBudget(messages, [], this.model, AUXILIARY_MAX_TOKENS);
+    const assessment = assessRequestBudget(messages, [], this.model, maxTokens);
     if (assessment.status !== "within_budget") {
       throw new Error("Auxiliary compaction request exceeded its preventive context budget");
     }
@@ -136,7 +147,7 @@ export class ContextCompactor {
         messages,
         thinking: { type: "disabled" },
         tool_choice: "none",
-        max_tokens: AUXILIARY_MAX_TOKENS,
+        max_tokens: maxTokens,
       }, this.signal);
       usage = response.usage;
       if (this.signal.aborted) {

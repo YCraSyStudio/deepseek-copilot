@@ -1,12 +1,12 @@
 ---
 import {
-  anchorId,
   docsPath,
   languageLabels,
   languages,
   navLabels,
   pageContent,
   pageSlugs,
+  sectionAnchor,
   type Language,
   type PageSlug,
 } from "../i18n";
@@ -21,7 +21,7 @@ const { title, description, lang = "en", currentSlug } = Astro.props as {
 
 const tocItems = currentSlug
   ? pageContent[lang][currentSlug].sections.map((section) => ({
-      href: `#${anchorId(section.title)}`,
+      href: `#${sectionAnchor(section.title)}`,
       label: section.title,
     }))
   : pageSlugs.map((slug) => ({

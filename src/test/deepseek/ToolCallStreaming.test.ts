@@ -22,7 +22,7 @@ suite("native tool-call streaming", () => {
             parameters: { type: "object", properties: { path: { type: "string" } }, required: ["path"] },
           },
         }],
-        model: "deepseek-v4-flash",
+        model: "deepseek-flash",
         cycleOptions: { onStreamChunk: (content) => streamed.push(content) },
       });
 

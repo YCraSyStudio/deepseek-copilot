@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { VsCodeApi } from "@webview/VsCodeApi";
 import { WEBVIEW_PROTOCOL_VERSION, type AssistantTimelineEvent, type ConversationMessage, type HandlerToWebviewMessage, type AppConfig, type ImageAttachment, type StoredToolCall, type ToolCall } from "@/contracts";
-import type { UsageAggregate } from "@/shared/usage/Usage";
+import type { ConversationUsageSnapshot, UsageAggregate } from "@/shared/usage/Usage";
 import type { ApiKeyStatus, DangerConfirmationData, ToolCallStatus } from "../ChatViewTypes";
 import { setInterfaceLanguage } from "@webview/i18n";
 import { acceptMessageForScope, type GenerationEventScopeSource } from "./GenerationEventScope";
@@ -51,6 +51,7 @@ export type MessageDispatcher = {
   onResourceLimitReached?: (data: { generationId?: string; resource: string; error: string }) => void;
   onGenerationSnapshot?: (message: Extract<HandlerToWebviewMessage, { type: "generationSnapshot" }>) => void;
   onAssistantUsageUpdated?: (data: { generationId?: string; usage: UsageAggregate }) => void;
+  onConversationUsageUpdated?: (data: { conversationId: string; usage: ConversationUsageSnapshot }) => void;
 };
 
 /**
@@ -185,6 +186,10 @@ export function useMessageHandler(
 
         case "assistantUsageUpdated":
           dispatcherRef.current.onAssistantUsageUpdated?.({ generationId: message.generationId, usage: message.usage });
+          break;
+
+        case "conversationUsageUpdated":
+          dispatcherRef.current.onConversationUsageUpdated?.({ conversationId: message.conversationId, usage: message.usage });
           break;
       }
     };

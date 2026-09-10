@@ -33,7 +33,7 @@ function conversation(stopReason: "steered" | "user_cancelled"): StoredConversat
     title: "Steering",
     createdAt: 1,
     updatedAt: 2,
-    model: "deepseek-v4-pro",
+    model: "deepseek-flash",
     workspaceUri: "file:///workspace",
     workspaceBinding: {
       schemaVersion: 1,

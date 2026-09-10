@@ -82,11 +82,22 @@ export function docsPath(lang: Language, slug?: PageSlug): string {
   return sitePath(slug ? `${lang}/${slug}/` : `${lang}/`);
 }
 
-export function anchorId(value: string): string {
+function anchorId(value: string): string {
   return value
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9\u4e00-\u9fff]+/g, "-")
     .replace(/^-+|-+$/g, "");
+}
+
+/**
+ * Anchor of a documentation section. A section whose title starts with a version
+ * ("0.1.14 DeepSeek V4.1 Flash migration") receives a stable, version-only anchor
+ * such as `v0-1-14`, so links from outside the site keep working when the
+ * descriptive part of the title changes.
+ */
+export function sectionAnchor(title: string): string {
+  const version = /^(\d+)\.(\d+)\.(\d+)/.exec(title);
+  return version ? `v${version[1]}-${version[2]}-${version[3]}` : anchorId(title);
 }

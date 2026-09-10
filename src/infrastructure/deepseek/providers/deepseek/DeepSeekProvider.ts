@@ -5,16 +5,9 @@ import {
   type ChatCompletionResponse,
   type StreamChunk,
 } from "@/contracts";
-import { DEEPSEEK_FLASH_FALLBACK_MODEL_ID } from "@/contracts/deepseek/Models";
 import type { ModelProvider } from "@/application/ports";
 import { chatCompletion, chatCompletionStream, buildChatBody, type ChatRequest } from "./features/Chat";
 import { listModels } from "./Models";
-import {
-  buildFlashFallbackRequest,
-  requestContainsImages,
-  shouldFallbackFromVision,
-  VisionFallbackUnavailableError,
-} from "./VisionFallback";
 
 export class DeepSeekModelProvider implements ModelProvider {
   public readonly name = "DeepSeek";
@@ -27,14 +20,7 @@ export class DeepSeekModelProvider implements ModelProvider {
     const chatRequest = this._applyDefaults(request);
     const body = buildChatBody(chatRequest, this.config);
     const preparedRequest = { ...chatRequest, ...body } as ChatRequest;
-    try {
-      return await chatCompletion(preparedRequest, this.config.apiKey, this.config.baseUrl, signal);
-    } catch (error) {
-      if (!shouldFallbackFromVision(error, preparedRequest, this.config.baseUrl)) {throw error;}
-      if (requestContainsImages(preparedRequest)) {throw new VisionFallbackUnavailableError();}
-      const fallback = buildFlashFallbackRequest(preparedRequest);
-      return chatCompletion(fallback.request, this.config.apiKey, this.config.baseUrl, signal);
-    }
+    return chatCompletion(preparedRequest, this.config.apiKey, this.config.baseUrl, signal);
   }
 
   async chatCompletionStream(request: ChatCompletionRequest, onChunk: (chunk: StreamChunk) => void, signal?: AbortSignal): Promise<void> {
@@ -43,13 +29,7 @@ export class DeepSeekModelProvider implements ModelProvider {
     const body = buildChatBody(chatRequest, this.config);
 
     const preparedRequest = { ...chatRequest, ...body } as ChatRequest;
-    try {
-      await this._stream(preparedRequest, onChunk, signal);
-    } catch (error) {
-      if (!shouldFallbackFromVision(error, preparedRequest, this.config.baseUrl)) {throw error;}
-      const fallback = buildFlashFallbackRequest(preparedRequest);
-      await this._stream(fallback.request, onChunk, signal);
-    }
+    await this._stream(preparedRequest, onChunk, signal);
   }
 
   async testConnection(): Promise<{ success: boolean; error?: string }> {
@@ -111,7 +91,7 @@ export function assertCompatibleModel(model: string, baseUrl: string): void {
   if (url.origin !== "https://api.deepseek.com") {
     return;
   }
-  if (model !== DEEPSEEK_FLASH_FALLBACK_MODEL_ID && !MODEL_REGISTRY.some((entry) => entry.id === model)) {
+  if (!MODEL_REGISTRY.some((entry) => entry.id === model)) {
     throw new Error(`Model "${model}" is not supported by the official DeepSeek API configuration.`);
   }
 }

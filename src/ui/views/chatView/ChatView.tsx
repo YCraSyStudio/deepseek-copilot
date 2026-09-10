@@ -8,8 +8,7 @@ import type { ApiKeyStatus, ChatMessage } from "./ChatViewTypes";
 import { getVsCodeApi } from "@webview/VsCodeApi";
 import type { Conversation, ImageAttachment, PermissionMode, QueuedGenerationMessage, ReferencedFile, WorkspaceContextStatus } from "@/contracts";
 import { t } from "@webview/i18n";
-import { beginNavigationRequest } from "@webview/NavigationRequests";
-import { aggregateUsageAggregates, aggregateUsageByModel } from "@/shared/usage/Usage";
+import { summarizeConversationUsage, type ConversationUsageSnapshot, type UsageCurrency } from "@/shared/usage/Usage";
 import { useChatCommandMessages, type PendingChatRequest } from "./hooks/UseChatCommandMessages";
 
 interface PersistentChatViewState {
@@ -28,7 +27,9 @@ interface IncognitoChatViewState {
 
 interface ChatViewProps {
   loadedConversation?: Conversation | null;
+  conversationUsage?: ConversationUsageSnapshot;
   navigationPending?: boolean;
+  earlierMessagesLoaded?: number;
   onCancelWorkspaceMismatch?: () => void;
 }
 
@@ -37,7 +38,7 @@ interface WorkspaceMismatch {
   workspaceName: string;
 }
 
-function ChatView({ loadedConversation, navigationPending = false, onCancelWorkspaceMismatch }: ChatViewProps) {
+function ChatView({ loadedConversation, conversationUsage, navigationPending = false, earlierMessagesLoaded = 0, onCancelWorkspaceMismatch }: ChatViewProps) {
   const [apiKeyStatus, setApiKeyStatus] = useState<ApiKeyStatus>("missing");
   const [isProcessing, setIsProcessing] = useState(false);
   const [draft, setDraft] = useState("");
@@ -61,18 +62,22 @@ function ChatView({ loadedConversation, navigationPending = false, onCancelWorks
   const referencedFilesRef = useRef(referencedFiles);
   const imageAttachmentsRef = useRef(imageAttachments);
   const [requestError, setRequestError] = useState<string>();
+  // Seeded from the loaded conversation and refreshed by the host after every
+  // generation; the chat remounts on navigation, so the prop is always current.
+  const [hostUsage, setHostUsage] = useState(conversationUsage);
   const initialConfigHandledRef = useRef(false);
   const workspaceRequestIdRef = useRef<string | undefined>(undefined);
   const workspaceMismatchRef = useRef<string | undefined>(undefined);
 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const usageSummary = useMemo(() => {
-    const generationUsages = messages.flatMap((message) => message.usage ? [message.usage] : []);
-    return {
-      total: aggregateUsageAggregates(generationUsages),
-      byModel: aggregateUsageByModel(generationUsages),
-    };
-  }, [messages]);
+    // The host totals the whole conversation. Adding up the rendered messages
+    // would under-report as soon as history paging drops messages from memory.
+    if (hostUsage) {
+      return { total: hostUsage.total, byModel: hostUsage.byModel };
+    }
+    return summarizeConversationUsage(messages);
+  }, [hostUsage, messages]);
 
   useEffect(() => {
     conversationIdRef.current = conversationId;
@@ -109,10 +114,11 @@ function ChatView({ loadedConversation, navigationPending = false, onCancelWorks
     handleModelChange,
     handlePermissionModeChange,
     usageBreakdown,
+    usageCostCurrency,
   } = useChatConfig();
 
   const handleConfigLoaded = useMemo(
-    () => (config: { revision: number; reasoning?: string; model?: string; permissionMode?: PermissionMode; historyEnabled?: boolean; usageBreakdown?: boolean }) => {
+    () => (config: { revision: number; reasoning?: string; model?: string; permissionMode?: PermissionMode; historyEnabled?: boolean; usageBreakdown?: boolean; usageCostCurrency?: UsageCurrency }) => {
       applySavedConfig(config, config.revision);
     },
     [applySavedConfig],
@@ -289,23 +295,10 @@ function ChatView({ loadedConversation, navigationPending = false, onCancelWorks
           onCancel={handleCancelWorkspaceMismatch}
         />
       ) : null}
-      {loadedConversation?.hasEarlierMessages && loadedConversation.historyCursor ? (
-        <button
-          type="button"
-          className="btn-secondary"
-          onClick={() => getVsCodeApi()?.postMessage({
-            type: "loadConversationPage",
-            requestId: beginNavigationRequest(),
-            id: loadedConversation.id,
-            cursor: loadedConversation.historyCursor!,
-          })}
-        >
-          {t("chat.loadEarlierMessages")}
-        </button>
-      ) : null}
       <MessagesSection
         getGenerationScope={getGenerationScope}
         conversationId={conversationId}
+        historyCursor={loadedConversation?.hasEarlierMessages ? loadedConversation.historyCursor : undefined}
         activeGenerationId={activeGenerationId}
         messages={messages}
         onMessagesChange={setMessages}
@@ -314,8 +307,10 @@ function ChatView({ loadedConversation, navigationPending = false, onCancelWorks
         onConfigLoaded={handleConfigLoaded}
         onConfigUpdateResult={applyConfigUpdateResult}
         permissionUpdatePending={isPermissionUpdatePending}
+        earlierMessagesLoaded={earlierMessagesLoaded}
         onModelChanged={handleModelChanged}
         onProcessingChange={setIsProcessing}
+        onConversationUsageUpdated={setHostUsage}
         onFocusInput={focusInput}
       />
       {apiKeyStatus === "missing" ? <div className="statusMessage warning">{t("chat.apiKeyMissing")}</div> : null}
@@ -384,6 +379,7 @@ function ChatView({ loadedConversation, navigationPending = false, onCancelWorks
               conversationId={conversationId}
               usage={usageSummary.total}
               usageByModel={usageSummary.byModel}
+              usageCurrency={usageCostCurrency}
               showUsage={usageBreakdown}
             />
           )}

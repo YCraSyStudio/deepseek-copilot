@@ -1,137 +1,117 @@
 # Change Log
 
-## [0.1.13] - 2026-09-09
+Each release links to its extended notes in the [documentation](https://yarcrasy.github.io/deepseek-copilot/en/changelog/).
 
-- Added the `compact_context` tool to request a tool-cycle context compaction on demand. Its handler is a read-only no-op that forces the active tool protocol to roll over into a compacted continuation at the next round, and the model is expected to trust prior successful tool outcomes without repeating completed mutations.
-- Raised the default maximum output tokens to DeepSeek's documented 384K limit instead of the conservative 8192 token allowance, so long reasoning and file-generation rounds are no longer prematurely truncated.
-- Replaced the native VS Code workspace-reassign prompt with an in-webview Workspace Mismatch modal offering `Open here` (rebind) or `Cancel`, backed by a new `conversationLoadRejected` protocol message and English, Spanish, and Chinese localization.
-- `run_terminal_command` now reuses one dedicated VS Code integrated terminal across successive commands so its scrollback and history remain visible; the terminal is closed only on timeout, cancellation, a working-directory mismatch, or extension shutdown, never right after a successful command.
-- Fixed generation-event scoping so protocol handlers that update conversation/generation refs before the next React render accept the first user message immediately after admission.
-- Reworked the chat composer footer around CSS grid and container queries: narrow sidebars collapse the model/reasoning/permission picker into a settings gear with an inline usage breakdown, and the activity and tool panels use a cleaner left-indented layout without status capsules.
+## [0.1.14] - 2026-09-10 [details](https://yarcrasy.github.io/deepseek-copilot/en/changelog/#v0-1-14)
 
-## [0.1.12] - 2026-08-28
+- Moved to `deepseek-flash` (DeepSeek-V4.1-Flash) and removed the **DeepSeek V4 Pro** option, the `analyze_images` delegation tool, the hidden Vision-to-Flash fallback, and the retired-model compatibility map.
+- Updated the cost catalog to the current rates with the documented peak/off-peak split, and let usage cost be displayed in USD or CNY.
+- Fixed the largest avoidable cost of a long chat: a minute-precision timestamp in the system message invalidated DeepSeek's prefix cache on the first request of every generation.
+- Reviewer guidance is appended as the newest message instead of being spliced into the system message, so a progress checkpoint or a completion recovery no longer re-bills the whole transcript as a cache miss. Both reviewers ignore that guidance when they read the user's request.
+- The coding prompt now budgets code comments: intent that the code does not already state, never a restatement, and matching the file's existing density, since a comment costs output once and input on every later round that re-reads the file.
+- The usage popover reports the conversation-wide total computed by the extension host instead of the messages the webview happens to hold.
+- Auxiliary compaction uses per-phase output ceilings, the cache-hit ratio is shown per phase, and model capability flags nobody read were removed.
+- A finished turn ends with an edited-files summary whose rows open the native change diff; reverting changes is out of scope.
+- Pending `edit_file` and `apply_patch` previews no longer steal focus.
+- Long conversations render lazily, with memoized message rows.
+- Added the `list_workspace` tool; reasoning blocks render Markdown and collapse like the tool lists; fixed the tool-call chevron; attached images open a zoomable, draggable viewer; and the composer gained spacing above its toolbar.
+- Added the `read_func` tool, which returns only the functions, methods, or types named in a source file, chained through their enclosing declarations, so reading one function no longer pulls the whole document into the context. Symbol ranges come from the editor's own language providers, so the tool follows the language instead of a text pattern. Module-level `const` bindings are resolvable, and an empty answer is believed only after the file has been loaded and the provider has repeated it across a short backoff.
+- `read_file` reads a line range through `offset` and `limit`, the fallback for content the editor cannot name as a symbol: `search_content` locates the name and only those lines are read, with the range bounds, `hasMore`, and the whole-file hash.
+- The prompt and both read tools state one reading order — `read_func` for a named declaration, `search_content` plus a `read_file` range for what the editor cannot name, and a whole-file read only for context spanning declarations — so every chat follows it instead of one conversation's habit.
+- Safety decisions start from machine-verifiable facts, so a routine workspace edit or a finite diagnostic command runs without a review round; everything unproven still goes to the independent review.
+- A second `incomplete` verdict from the completion reviewer keeps the delivered answer instead of replacing it with an error.
 
-- Removed the provider-specific DSML text detector, streaming buffer, hidden retry, and recovery prompt. Tool execution now depends exclusively on native API `tool_calls`; tool-shaped assistant text remains ordinary content.
-- Split chat generation, history, settings, webview protocol, attachments, usage accounting, tool-call completion, and SearXNG installation into focused services while preserving their external behavior.
-- Removed obsolete compatibility shims, forwarding modules, unused provider and FIM paths, and redundant tool-result aliases. Restored and hardened the immutable SearXNG runtime publication workflow with pre-publish metadata and checksum gates.
-- Enabled TypeScript unused-code checks and a Knip production gate, then removed trivial implementation-detail tests while retaining 269 behavioral unit tests and nine VS Code integration tests.
-- Simplified the interface-language automatic option to `Auto` in every supported locale.
+## [0.1.13] - 2026-09-09 [details](https://yarcrasy.github.io/deepseek-copilot/en/changelog/#v0-1-13)
 
-## [0.1.11] - 2026-08-27
+- Added the `compact_context` tool and raised the default output allowance to DeepSeek's documented 384K limit.
+- Replaced the native workspace-reassign prompt with an in-webview Workspace Mismatch modal offering `Open here` or `Cancel`.
+- `run_terminal_command` reuses one dedicated integrated terminal instead of closing it after every command.
+- Fixed generation-event scoping and reworked the composer footer for narrow sidebars.
 
-- Replaced Chromium-driven search with an extension-managed local SearXNG runtime that starts on demand, exposes the available engine catalog, supports custom engine selection, and requires no system Python, Docker, Podman, or browser installation.
-- Reject DeepSeek DSML serialized inside assistant text, suppress protocol markup across streaming chunk boundaries, and retry once through the native tool-call path instead of accepting malformed assistant content.
-- Run agent terminal commands in a visible, per-command VS Code integrated terminal through shell integration, closing it after completion while retaining captured output, exit codes, timeouts, and cancellation.
-- Reject detached process launchers and disable .NET build-server/node reuse inside agent terminals so synthetic-test workspaces are not left locked by orphaned `dotnet` processes.
-- Scope duplicate tool-call suppression to the current workspace mutation epoch, and review progress every five rounds after the initial 20-round soft limit so legitimate rebuilds can run without encouraging verification detours.
-- Replaced language-specific stalled-response matching with a bounded, tool-free DeepSeek completion review. Premature stops retry once; a second incomplete stop is retained as a failed/incomplete generation instead of becoming a false final answer.
-- Removed the configurable tool-round checkpoint, per-block tool-call budget, continuation modal, and related protocol messages. Tool cycles now continue until a real final response, cancellation, context/output boundary, or error.
-- Added a progress review every 20 completed tool rounds. Its decision guides the next normal round without disabling tools or forcing a separate final response; uncertain or unavailable reviews fail open.
-- Progress reviews now receive a compact cumulative activity history and explicitly stop self-initiated test/debug loops once the requested deliverables already build, instead of treating optional verification failures as unfinished product work.
-- Moved usage observability out of individual messages into a compact conversation-level popover beside the chat permission selector, including per-model totals when a conversation switches models. When DeepSeek omits usage for some requests, the popover shows the calculable reported-request cost as a lower bound instead of hiding all cost data.
-- Removed legacy conversation and checkpoint compatibility tracked by [issue #61](https://github.com/YCraSyStudio/deepseek-copilot/issues/61). History now accepts only schema-v2 conversations, checkpoints require schema 3, and incompatible files are deleted during activation instead of migrated or quarantined.
+## [0.1.12] - 2026-08-28 [details](https://yarcrasy.github.io/deepseek-copilot/en/changelog/#v0-1-12)
 
-## [0.1.10] - 2026-08-22
+- Tool execution now depends exclusively on native API `tool_calls`; the DSML text detector, streaming buffer, hidden retry, and recovery prompt were removed.
+- Split chat generation, history, settings, webview protocol, attachments, usage accounting, tool-call completion, and SearXNG installation into focused services.
+- Removed obsolete compatibility shims and unused provider and FIM paths, hardened the SearXNG publication workflow, and added unused-code and Knip gates.
+- Simplified the automatic interface-language option to `Auto`.
 
-- Simplified permissions to `default`, `auto-approve`, and `full-access`; removed the per-tool matrix, read-only/custom profiles, and session trust shortcuts.
-- Replaced local terminal danger analysis with an independent DeepSeek review that classifies mutations as routine, elevated, or critical. Auto-approve confirms elevated and critical actions; full-access confirms only critical actions that could make the computer unusable or cause broad irreversible loss.
-- Moved Web search into Tools below Permission mode and added a global switch that removes `search_web` and `read_web` from model requests while disabled.
-- Migrated retired settings and checkpoints to the new three-mode contract and advanced the webview protocol to version 5.
-- Unified the chat textarea, compact model/reasoning picker, attachments, permission mode, and send actions into one rounded composer, and removed the redundant settings-saved notification. During generation, one contextual button now switches between Stop when the draft is empty, Interrupt and guide for `Enter`, and Queue message while `Ctrl` is held (`Ctrl+Enter`).
-- Kept tool calling available in non-thinking mode while honoring `thinking: disabled` throughout every tool round, matching the current DeepSeek API contract.
-- Replaced the non-visual Flash option with `DeepSeek V4 Vision (Flash)` (`deepseek-v4-flash-vision-exp`). Vision receives image file IDs directly, while Pro can request the new `analyze_images` tool to delegate image interpretation to Vision and consume its text description.
-- Added a provider-local fallback from unavailable experimental Vision to stable `deepseek-v4-flash`. Text requests and connection tests retry once; direct Vision chats omit images and disclose the limitation, while Pro's delegated analyzer fails explicitly instead of returning invented visual analysis. Authentication, rate-limit, generic provider, and custom-endpoint failures never trigger the fallback.
-- Unified image and context-file attachment behind one native picker. Binary signatures, rather than file extensions, identify JPEG, PNG, GIF, and WebP images; pasted clipboard images are supported with `Ctrl+V`/`Cmd+V`.
-- Added DeepSeek Files API upload and deletion, 30-day remote expiry, bounded local preview caching, attachment limits, and deferred cleanup so history Undo can restore deleted conversations without losing their images. Base64 is used only transiently for clipboard IPC and is never persisted or sent in chat requests.
-- Redesigned explicit cancellation as a stable terminal outcome: Stop preserves the original prompt, partial assistant timeline, and completed tool results as `cancelled`, emits one terminal event, never rolls back completed side effects, and cannot leak stale cancellation state into the next message. Steering remains internally `interrupted`, but now carries a verified link to the source generation, explicitly continues the original task under the latest guidance, and hides the misleading interruption warning.
+## [0.1.11] - 2026-08-27 [details](https://yarcrasy.github.io/deepseek-copilot/en/changelog/#v0-1-11)
 
-## [0.1.9] - 2026-08-11
+- Replaced Chromium-driven search with an extension-managed local SearXNG runtime that needs no system Python, Docker, Podman, or browser.
+- Terminal commands run in a visible per-command integrated terminal; detached process launchers are rejected.
+- Tool cycles continue to a real terminal condition, with progress reviews and duplicate-call suppression scoped to the workspace mutation epoch.
+- Added a bounded completion review for premature stops, a conversation-level usage popover, and removal of legacy history and checkpoint compatibility.
 
-- Publish Marketplace builds through its normal release channel while retaining the extension's `preview: true` product status, and mark GitHub releases as prereleases.
-- Start a new chat automatically when restored conversation state belongs to another VS Code workspace or window.
-- Isolated concurrent chat generations with protocol-v3 conversation/generation correlation, navigation request IDs, background activity status, and snapshot-based restoration when returning to a running chat.
-- Changed explicit **Stop** to atomically remove the complete cancelled turn from UI and persisted context and restore its prompt as a per-conversation draft; steering and lifecycle interruptions retain their distinct recovery behavior.
-- Centralized terminal generation ownership so each run emits exactly one completion or error, added `cancelling`/`cancelled` states and typed stop reasons, and made repeated or stale cancellation idempotent.
-- Propagated cancellation through context discovery, project instructions, compaction, provider streaming, browser work, confirmations, mutation locks, tools, and descendant processes.
-- Removed tool-round checkpoints and per-block tool-call budgets from `auto-approve` and `full-access`; the configured limit now applies only to default, read-only, and custom modes.
-- Reworked automatic context compaction around calibrated generation budgets, with a valid `starting -> compacting -> streaming` lifecycle and safe rollover after closed tool rounds even when usage jumps directly to the hard limit.
-- Compaction now consumes its quota and emits one localized, persisted marker only when it actually reduces the request; provider-reported prompt usage calibrates primary, auxiliary, and tool-request estimates.
-- Centralized Unicode-safe UTF-8 text bounding, merged overlapping file ranges, bounded large references and summaries, and persisted only newly covered generation IDs per compaction boundary to avoid quadratic history growth.
-- Added preventive output-overflow recovery for reasoning-heavy responses while keeping incomplete completion states visible, and removed redundant budget events and checkpoint fields without breaking schema 1 or 2 recovery.
-- Added regression coverage for initial compaction, cancellation, calibrated hard limits, tool-cycle rollover, compaction quotas, Unicode byte boundaries, range normalization, incremental markers, legacy checkpoints, and extension-host state transitions.
+## [0.1.10] - 2026-08-22 [details](https://yarcrasy.github.io/deepseek-copilot/en/changelog/#v0-1-10)
 
-## [0.1.8] - 2026-08-08
+- Simplified permissions to `default`, `auto-approve`, and `full-access`, with an independent DeepSeek review classifying mutations as routine, elevated, or critical.
+- Replaced the non-visual Flash option with `DeepSeek V4 Vision (Flash)`, added the delegated `analyze_images` tool for Pro, and added a provider-local fallback to stable V4 Flash.
+- Unified the textarea, model and reasoning picker, attachments, permission mode, and send actions into one composer.
+- Rebuilt cancellation as a stable terminal outcome that preserves the prompt, partial timeline, and completed tool results.
 
-- Replaced provider URL requests and automatic fallback with human-style headless navigation on the selected Bing, Google, or Baidu home page. Bing is the default; CAPTCHA, blocking, and timeout failures are terminal and never open a visible browser or retry automatically.
-- Search now returns at most ten normalized organic HTTPS URL strings. `read_web` accepts an exact URL registered to its `search_id`, while direct URLs remain restricted to addresses explicitly supplied by the user.
-- Rebuilt page extraction around `document.body`: hidden and active elements are removed, headings and adjacent paragraphs are grouped into stable numbered sections, oversized sections split between paragraphs, and pagination uses opaque cursors without renumbering content.
-- Added a fresh cryptographic 128-bit nonce to every web read, JSON-safe untrusted-content boundaries, prompt-injection reminders before and after page data, collision regeneration, and informative injection-risk detection.
-- Added dedicated API and Web search Settings tabs, migrated and removed obsolete native web-search settings, and removed the visible-browser and configurable usage-warning flows. The isolated HTTPS proxy, DNS pinning, SSRF protection, session profile cleanup, serialized browsing, and resource limits remain enforced.
+## [0.1.9] - 2026-08-11 [details](https://yarcrasy.github.io/deepseek-copilot/en/changelog/#v0-1-9)
 
-## [0.1.7] - 2026-08-07
+- Isolated concurrent generations with conversation and generation correlation, navigation IDs, and snapshot-based restoration.
+- Changed **Stop** to remove the cancelled turn atomically and restore its prompt as a draft, with idempotent cancellation propagated to descendants.
+- Centralized terminal generation ownership and calibrated automatic compaction with safe rollover at the hard context limit.
+- Kept Marketplace builds on the normal channel while the package retains `preview: true` and GitHub releases stay prereleases.
 
-- Replaced VS Code's integrated-browser tools with an isolated `puppeteer-core` runtime that reuses compatible Edge or Chrome installations and offers a pinned, extension-managed Chromium Headless Shell fallback.
-- Added an ephemeral HTTPS-only proxy with DNS pinning, public-address validation, SSRF and rebinding protection, registrable-domain concessions, request/transfer/concurrency limits, and sanitized aggregate diagnostics.
-- Added localized DuckDuckGo, Bing, Google, and Yahoo fallback; organic-result parsing; compact 8 KiB responses; semantic active-content-free extraction; prompt-injection markers; and generation-scoped in-memory caches.
-- Added web-tainted generation tracking: workspace mutations receive a content-free automatic safety review, while network, credential, publication, remote, external, or ambiguous effects require manual confirmation.
-- Replaced model-visible page IDs, DOM references, arbitrary navigation, and generic link following with opaque search/document IDs and only two constrained tools: `search_web` and the multi-mode `read_web`.
-- Compact completed conversation context to user/final-answer pairs, retain full provider transcripts only for active or incomplete recovery, and lazily compact duplicate legacy web output when history is saved again.
+## [0.1.8] - 2026-08-08 [details](https://yarcrasy.github.io/deepseek-copilot/en/changelog/#v0-1-8)
 
-## [0.1.6] - 2026-08-04
+- Search opens the selected Bing, Google, or Baidu home page and types like a human; CAPTCHA, blocking, and timeouts are terminal.
+- Search returns at most ten organic HTTPS URLs, and `read_web` accepts only a URL registered to its `search_id`.
+- Rebuilt page extraction around `document.body` with numbered sections, opaque cursors, and a fresh cryptographic nonce around untrusted content.
+- Added dedicated API and Web search Settings tabs and removed the visible-browser and usage-warning flows.
 
-- Added provider-reported token and cache observability: every attempted request is counted exactly once, valid usage is attributed to `primary`, `tool_round`, `security_review`, `context_summary`, or `file_compaction`, and redacted totals are available per generation and conversation. Missing fields remain unavailable instead of becoming zero. Official DeepSeek V4 Flash/Pro costs use a persisted versioned USD catalog; custom endpoints never receive guessed prices. Optional local breakdowns, auxiliary-call/cache-miss/output/cost warnings, and redacted generation and conversation diagnostics were added.
-- Added Incognito mode as the privacy boundary for disabled history: active work requires confirmation, chat and referenced content stay out of history, checkpoints, and webview persistence, and leaving the mode requires an explicit save-or-discard decision.
-- Hardened production behavior across tool-call integrity, unsaved editor buffers, concurrent JSON storage, partial SSE streams, process-tree shutdown, protocol negotiation, official DeepSeek model validation, managed diagnostics, and removal of legacy conversation migration.
-- Added production CI and packaged-VSIX gates, deterministic release artifacts and checksums, package-content assertions, recursive unit coverage, and extension-host smoke tests.
+## [0.1.7] - 2026-08-07 [details](https://yarcrasy.github.io/deepseek-copilot/en/changelog/#v0-1-7)
 
-## [0.1.5] - 2026-07-30
+- Replaced the integrated-browser tools with an isolated `puppeteer-core` runtime and a pinned Chromium Headless Shell fallback.
+- Added an ephemeral HTTPS-only proxy with DNS pinning, SSRF and rebinding protection, and request, transfer, and concurrency limits.
+- Restricted the model to `search_web` and the multi-mode `read_web` and added web-tainted generation tracking for workspace mutations.
+- Compacted completed conversation context to user and final-answer pairs.
+
+## [0.1.6] - 2026-08-04 [details](https://yarcrasy.github.io/deepseek-copilot/en/changelog/#v0-1-6)
+
+- Added provider-reported token and cache observability per request phase, generation, and conversation, with a versioned USD catalog for official DeepSeek costs.
+- Added Incognito mode as the privacy boundary for disabled history.
+- Hardened tool-call integrity, unsaved buffers, concurrent storage, partial streams, process shutdown, protocol negotiation, and model validation.
+- Added production CI and packaged-VSIX release gates with deterministic artifacts and checksums.
+
+## [0.1.5] - 2026-07-30 [details](https://yarcrasy.github.io/deepseek-copilot/en/changelog/#v0-1-5)
 
 - Packaging hotfix: excluded `*.log` files from VSIX artifacts.
 
-## [0.1.4] - 2026-07-30
+## [0.1.4] - 2026-07-30 [details](https://yarcrasy.github.io/deepseek-copilot/en/changelog/#v0-1-4)
 
-- Protected DeepSeek credentials per API origin in VS Code Secret Storage, including automatic migration of the legacy key, explicit confirmation before changing credential destinations, same-origin redirect enforcement, redacted errors, and a masked placeholder preview that never places the stored key in webview configuration.
-- Added a two-stage `auto-approve` command gate: conservative local analysis runs first, uncertain workspace-contained commands receive a bounded DeepSeek security review with the original user request and safe read-only file context, and genuine ambiguity falls back to manual confirmation.
-- Added reviewer outcomes for automatic approval, safe replanning, and manual confirmation with confidence levels from `very_low` through `very_high`; automatic decisions require at least `medium_high`, while credentials, elevation, external mutation, broad process termination, and destructive operations remain non-delegable.
-- Grouped adjacent reasoning and tool calls into compact expandable Activity panels, hid successful `read_file` contents from Chat, and replaced generic copy actions on file tools with `Open file` and `View change`.
-- Added native per-tool change diffs reconstructed from the recorded operation, so a completed create, edit, or patch can be reviewed independently from later working-tree changes.
-- Reworked confirmation panels, Settings, tool controls, and the chat composer for narrow and wide sidebars; the API-key preview now appears correctly on first open.
-- Reorganized contracts, built-in tools, command review, chat orchestration, VS Code workspace adapters, Settings, Chat UI, and tests by domain while preserving public messages, tool names, stored configuration, and history compatibility.
-- Added enforced architecture boundaries, recursive unit-test discovery, dedicated integration tests, and coverage for credential redaction, API origins, command review, activity grouping, and file-tool presentation.
+- Protected DeepSeek credentials per API origin in VS Code Secret Storage, with automatic legacy migration and redacted errors.
+- Added the two-stage `auto-approve` gate: conservative local analysis first, then a bounded DeepSeek review for uncertain workspace-contained commands.
+- Added reviewer outcomes for automatic approval, safe replanning, and manual confirmation, keeping credentials, elevation, external mutation, broad termination, and destructive operations non-delegable.
+- Grouped reasoning and tool calls into expandable Activity panels and added native per-tool change diffs with `Open file` and `View change`.
+- Reorganized contracts, tools, command review, chat orchestration, VS Code adapters, Settings, Chat UI, and tests by domain with enforced architecture boundaries.
 
-## [0.1.3] - 2026-07-27
-- Improved history storage with automatic legacy-conversation migration during the compatibility period tracked by [issue #61](https://github.com/YCraSyStudio/deepseek-copilot/issues/61).
+## [0.1.3] - 2026-07-27 [details](https://yarcrasy.github.io/deepseek-copilot/en/changelog/#v0-1-3)
+
 - Added concurrent generations across conversations, per-conversation queues, targeted interruption, and atomic checkpoint recovery after restart.
-- Bound conversations and tool execution to immutable logical workspaces, with safe multi-root paths, external read-only attachments, and hardened content search.
-- Redesigned permissions around `default`, `read-only`, `auto-approve`, `full-access`, and editable `custom` profiles, with revisioned host-authoritative updates.
-- Hardened terminal and filesystem execution with workspace containment, external-access confirmation, shell-aware danger analysis, and serialized mutations.
-- Auto context compacting in large chat sessions.
-- Turned the tool-round limit into a checkpoint where unattended modes ask DeepSeek whether to continue, request instructions, or stop.
-- Improved css designs making the extension more responsive.
+- Bound conversations and tool execution to immutable logical workspaces with safe multi-root paths and hardened content search.
+- Redesigned permissions around `default`, `read-only`, `auto-approve`, `full-access`, and editable `custom` profiles.
+- Hardened terminal and filesystem execution with workspace containment and serialized mutations, and added automatic context compaction.
 
-## [0.1.2] - 2026-07-23
+## [0.1.2] - 2026-07-23 [details](https://yarcrasy.github.io/deepseek-copilot/en/changelog/#v0-1-2)
 
-- Added the opt-in `auto-approve` permission mode, which delegates approval to DeepSeek for all non-disabled tools while retaining schemas and workspace path validation.
-- Reorganized settings into a clearer General section and improved the English, Spanish, and Chinese interface translations.
-- Added an explicit confirmation before continuing when a conversation reaches the tool-call round limit.
-- Fixed pending tool confirmations remaining visible after cancellation.
-- Fixed active conversation identity being lost when history was updated.
-- Aligned the maximum output-token setting with DeepSeek's 384K-token limit.
-- Added an in-repository technical wiki covering architecture, tools, storage, the DeepSeek API, testing, and maintenance.
+- Added the opt-in `auto-approve` permission mode and reorganized settings around a clearer General section.
+- Added an explicit confirmation at the tool-call round limit and aligned the maximum output-token setting with DeepSeek's 384K limit.
+- Fixed pending tool confirmations surviving cancellation and the active conversation identity being lost when history was updated.
+- Added the in-repository technical wiki.
 
-## [0.1.1] - 2026-07-17
+## [0.1.1] - 2026-07-17 [details](https://yarcrasy.github.io/deepseek-copilot/en/changelog/#v0-1-1)
 
-- Replaced text markers with a native chronological timeline for reasoning, content, and tool groups.
-- Unified tool states and fixed rejection, cancellation, host acknowledgement, duplicate calls, stale pending calls, and maximum-round termination.
-- Added structured non-interactive terminal results, bounded output, process-tree cancellation, and platform-aware danger analysis.
-- Hardened DeepSeek SSE parsing, response validation, URL handling, timeouts, and bounded retries.
-- Added multi-root conversation association, bounded context, staged Git context, binary detection, delimited references, `AGENTS.md` limits, and optimistic file hashes.
-- Moved settings and per-conversation history to `~/.yrs-dpsk-copilot/` with atomic writes, validation, retention, quotas, corruption isolation, pagination, bulk deletion, and Undo.
-- Completed the accessible chat, confirmation, settings, and history flows; added English, Spanish, and Chinese webview localization.
-- Fixed history deletion and new-chat state synchronization, including clearing Chat view when the active conversation is removed.
-- Updated the extension and documentation icons to the purple and green preview palette.
-- Fixed the Windows integration-test runner and verified activation against VS Code 1.129.0.
+- Replaced text markers with a native chronological timeline for reasoning, content, and tool groups, and unified tool states.
+- Added structured non-interactive terminal results with bounded output, process-tree cancellation, and platform-aware danger analysis.
+- Moved settings and per-conversation history to `~/.yrs-dpsk-copilot/` with atomic writes, validation, quotas, pagination, bulk deletion, and Undo.
+- Completed the accessible chat, confirmation, settings, and history flows with English, Spanish, and Chinese localization.
+- Hardened SSE parsing, response validation, URL handling, timeouts, and bounded retries, and added multi-root association, staged Git context, and `AGENTS.md` limits.
+- Refreshed the preview icon palette and fixed the Windows integration-test runner.
 
-## [0.1.0] - 2026-07-12
+## [0.1.0] - 2026-07-12 [details](https://yarcrasy.github.io/deepseek-copilot/en/changelog/#v0-1-0)
 
 - Initial preview release for the VS Code Marketplace.

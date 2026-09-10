@@ -11,6 +11,7 @@ export type {
   RealPathResolver,
   ResolvedWorkspacePath,
   ResolveWorkspacePathOptions,
+  ToolHostDocumentSymbol,
   ToolWorkspaceEntryType,
   ToolWorkspaceFilePreview,
   ToolWorkspaceFindOptions,
@@ -152,6 +153,9 @@ function createValidatingWorkspaceHost(host: ToolWorkspaceHost): ToolWorkspaceHo
     stat: async (rawPath: string) => host.stat(await validate(rawPath)),
     createParentDirectory: async (rawPath: string) => host.createParentDirectory(await validate(rawPath, true)),
     readDirectory: async (rawPath: string) => host.readDirectory(await validate(rawPath)),
+    readDocumentSymbols: host.readDocumentSymbols
+      ? async (rawPath: string) => host.readDocumentSymbols!(await validate(rawPath))
+      : undefined,
     prepareFileDiff: host.prepareFileDiff
       ? async (rawPath: string, before: string, after: string) => host.prepareFileDiff!(await validate(rawPath), before, after)
       : undefined,

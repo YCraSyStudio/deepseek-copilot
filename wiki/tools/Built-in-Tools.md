@@ -4,8 +4,10 @@
 
 ## Workspace tools
 
-- `read_file`: reads bounded workspace content.
+- `read_file`: reads bounded workspace content, or only the lines of an `offset`/`limit` range. A whole-file read is the last resort of the reading order the system prompt and both read tools state: `read_func` for a named declaration, `search_content` plus a range for what the editor cannot name, and context that spans declarations for the whole file. The range form locates the name with `search_content`, so its lines are read without the rest of the file. A range answers `startLine`, `endLine`, `totalLines`, and `hasMore`, keeps the whole-file SHA-256 so a later edit can guard its revision, returns at most 600 lines or 48 KiB, and refuses a file over 8 MiB.
+- `read_func`: the preferred read whenever a declaration is the target. Reads only the named functions, methods, or types of one source file. A name may be chained through its enclosing declaration (`ToolCallCycle.run`, `outer.inner`, `Repo.Save`), several names travel in one call, and `["*"]` selects every top-level declaration. Each match returns its exact source, its line range, its signature, and the file SHA-256, so a later edit can guard against a changed revision; an ambiguous bare name is answered with its qualified candidates instead of a guess, and an unknown name with the available symbol list. `mode: "outline"` reports structure without bodies, including the direct members of a class, interface, struct, or `impl` block. Symbols come from the editor's language providers, so every file type the editor can outline works, including TypeScript, JavaScript, Java, C#, C/C++, Kotlin, Swift, Scala, Dart, PHP, Go, Rust, and Python. Module-level `const` bindings resolve as well, and an empty provider answer is re-asked across a short backoff after the file has been loaded, because an activating language service reports no symbols at first; members of an object literal are not declarations and so are not reported, which is the one shape a chained name cannot reach; binary files and files larger than 4 MiB are refused, and a file whose language has no symbol provider is answered with a hint to locate the name with `search_content` and read its lines through a `read_file` range.
 - `list_directory`: lists a workspace directory.
+- `list_workspace`: renders the whole project as one indented tree in a single call, so a new chat does not have to chain `list_directory` calls. Hidden entries are included and a folder that holds too much content is summarized as `...` instead of being dumped or silently excluded; it reads at most 300 folders and stops after 400 entries or 48 KiB. A folder is summarized instead of listed when it holds more than 25 entries (60 at the workspace root) or when its subtree does not fit the remaining line budget.
 - `search_content`: searches literal text case-insensitively without invoking a shell or interpreting regular expressions.
 - `create_file`: creates or overwrites a file after permission and stale-content checks.
 - `edit_file`: applies structured edits with optimistic SHA-256 guards.
@@ -26,10 +28,6 @@ Detached/background launchers are rejected because they can outlive the owned te
 - `read_web`: reads only a URL registered to a search ID or explicitly supplied by the user, and returns bounded inert page sections.
 
 The Web search toggle controls both definitions. When disabled, neither tool is sent to DeepSeek.
-
-## Vision tool
-
-- `analyze_images`: available to V4 Pro only when the current prompt has image attachments. It delegates trusted DeepSeek file IDs and a question to V4 Vision, then returns a bounded textual analysis. V4 Vision reads the same images directly and therefore does not receive this tool.
 
 ## Execution rules
 

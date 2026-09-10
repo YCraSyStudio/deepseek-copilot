@@ -4,6 +4,7 @@ import type { StoredConversation } from "@/application/chat/ProviderTranscript";
 import { toPresentationConversation } from "@/application/chat/ProviderTranscript";
 import { HistoryManager } from "@/platform/vscode/storage";
 import { logWarning } from "@/shared/logging/Logger";
+import { summarizeConversationUsage } from "@/shared/usage/Usage";
 
 const HISTORY_PAGE_MESSAGES = 200;
 const HISTORY_PAGE_BYTES = 4 * 1024 * 1024;
@@ -139,6 +140,9 @@ export class HistoryHandler {
     await webviewView.webview.postMessage({
       type: "conversationLoaded",
       requestId,
+      // The page below holds only the transcript tail, so the usage popover needs
+      // the total of every message the conversation stored.
+      usage: summarizeConversationUsage(presentation.messages),
       conversation: {
         ...presentation,
         messages: page.messages,

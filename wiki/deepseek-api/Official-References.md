@@ -14,7 +14,7 @@ Primary source: [DeepSeek API Docs](https://api-docs.deepseek.com/).
 
 ## Guides
 
-- [Vision](https://api-docs.deepseek.com/guides/vision): `deepseek-v4-flash-vision-exp`, supported images, Files API references, and file content blocks.
+- [Vision](https://api-docs.deepseek.com/guides/vision): `deepseek-flash`, supported images, Files API references, and file content blocks.
 - [Thinking Mode](https://api-docs.deepseek.com/guides/thinking_mode): `thinking`, reasoning effort, `reasoning_content`, and tool interaction.
 - [Tool Calls](https://api-docs.deepseek.com/guides/tool_calls): function calls and beta strict mode.
 - [Multi-round Conversation](https://api-docs.deepseek.com/guides/multi_round_chat): message concatenation.

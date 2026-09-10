@@ -75,6 +75,26 @@
   }
 }
 
+.messageImageButton {
+  background: none;
+  border: 0;
+  border-radius: 8px;
+  line-height: 0;
+  padding: 0;
+  cursor: zoom-in;
+  display: block;
+  overflow: hidden;
+
+  &:hover img {
+    border-color: var(--input-focus-border);
+  }
+
+  &:focus-visible {
+    outline: 1px solid var(--vscode-focusBorder, var(--accent-color));
+    outline-offset: 1px;
+  }
+}
+
 .messageImageFallback {
   border: 1px solid var(--border-color);
   color: var(--text-secondary);
@@ -169,7 +189,9 @@
   font-weight: 500;
 }
 
-.activity-block .activityToolList .collapsiblePanelChevron {
+.activity-block .activityToolList .collapsiblePanelChevron,
+.activity-block .activityReasoning .collapsiblePanelChevron,
+.activity-block .toolCallItem .collapsiblePanelChevron {
   border: solid currentColor;
   border-width: 0 1.5px 1.5px 0;
   width: 5px;
@@ -177,7 +199,9 @@
   transform: rotate(-45deg);
 }
 
-.activity-block .activityToolList[open] > .collapsiblePanelSummary .collapsiblePanelChevron {
+.activity-block .activityToolList[open] > .collapsiblePanelSummary .collapsiblePanelChevron,
+.activity-block .activityReasoning[open] > .collapsiblePanelSummary .collapsiblePanelChevron,
+.activity-block .toolCallItem[open] > .collapsiblePanelSummary .collapsiblePanelChevron {
   transform: rotate(45deg);
 }
 
@@ -195,19 +219,19 @@
   padding-left: 8px;
 }
 
+.activity-block .activityReasoningSummary {
+  gap: 6px;
+  padding: 6px 10px 4px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
 .activity-block .toolCallItem {
   border: 0;
   border-left: 2px solid color-mix(in srgb, var(--border-color) 70%, transparent);
   background: transparent;
   border-radius: 0;
   padding-left: 8px;
-}
-
-.activityItemLabel {
-  color: var(--text-secondary);
-  padding: 8px 10px 4px;
-  font-size: 11px;
-  font-weight: 600;
 }
 
 .markdownMessage {
@@ -224,10 +248,22 @@
 
 .reasoning-content {
   color: var(--text-primary);
-  white-space: pre-wrap;
   padding: 0 10px 10px;
   font-size: 12px;
   line-height: 1.6;
+
+  :is(p, ul, ol, blockquote, pre, table, h1, h2, h3, h4, h5, h6) {
+    margin: 0 0 8px;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  :is(h1, h2, h3, h4, h5, h6) {
+    font-size: inherit;
+    font-weight: 600;
+  }
 }
 
 .code-block-header {

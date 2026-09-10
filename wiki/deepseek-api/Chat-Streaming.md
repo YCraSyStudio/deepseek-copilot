@@ -11,7 +11,6 @@ Official references:
 Main path:
 
 - `src/infrastructure/deepseek/providers/deepseek/DeepSeekProvider.ts`
-- `src/infrastructure/deepseek/providers/deepseek/VisionFallback.ts`
 - `src/infrastructure/deepseek/providers/deepseek/features/Chat.ts`
 - `src/platform/vscode/webviews/handlers/chat/Streaming.ts`
 - `src/platform/vscode/webviews/handlers/chat/generation/GenerationExecutor.ts`
@@ -28,7 +27,7 @@ Main path:
 6. Progress is checkpointed. Persistence records `completed`, `cancelled`, `interrupted`, or `error`.
 7. `GenerationRunFinalizer` reconciles persistence, usage, and checkpoints before publishing one terminal event.
 
-If the official API reports that experimental Vision is unavailable, the provider owns one bounded retry with stable V4 Flash. It does not mutate the selected UI model or persisted transcript. Image blocks are removed before the retry, and the injected fallback instruction requires the response to state that it could not inspect them. Non-stream image analysis used by V4 Pro fails closed instead.
+The provider performs no hidden retry or model rewriting: one request reaches the configured endpoint, and its failure is surfaced without omitting previously sent image references or turning the failure into invented visual output.
 
 ## DeepSeek contract
 

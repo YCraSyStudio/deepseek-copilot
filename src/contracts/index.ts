@@ -31,8 +31,7 @@ export type {
   StreamChunk,
 } from "./deepseek/Chat";
 export {
-  DEEPSEEK_PRO_MODEL_ID,
-  DEEPSEEK_VISION_MODEL_ID,
+  DEEPSEEK_FLASH_MODEL_ID,
   MAX_OUTPUT_TOKENS,
   MODEL_REGISTRY,
 } from "./deepseek/Models";

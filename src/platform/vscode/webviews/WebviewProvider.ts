@@ -300,7 +300,16 @@ export class WebviewProvider implements vscode.WebviewViewProvider, vscode.Dispo
     });
     this.commandDispatcher.register("openFileDiff", (message) => {
       void this.withWorkspaceBinding(message.conversationId, message.workspaceRevision, (binding) =>
-        this.changeDiffViewer.open(message.path, message.diff, binding));
+        this.changeDiffViewer.open(
+          {
+            path: message.path,
+            diff: message.diff,
+            beforeHash: message.beforeHash,
+            afterHash: message.afterHash,
+            preview: message.preview,
+          },
+          binding,
+        ));
     });
   }
 

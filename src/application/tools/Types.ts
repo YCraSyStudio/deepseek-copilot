@@ -39,7 +39,6 @@ export interface ToolHandlerContext {
   availableToolNames?: readonly string[];
   authorizedUserUrls?: readonly string[];
   webTainted?: boolean;
-  analyzeImages?: (question: string, imageIds: string[], signal?: AbortSignal) => Promise<string>;
 }
 
 /** Tool-call validation result. */

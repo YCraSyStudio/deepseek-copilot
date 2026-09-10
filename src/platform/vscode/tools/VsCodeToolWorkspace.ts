@@ -2,6 +2,7 @@ import * as path from "node:path";
 import { open, realpath } from "node:fs/promises";
 import * as vscode from "vscode";
 import type {
+  ToolHostDocumentSymbol,
   ToolWorkspaceEntryType,
   ToolWorkspaceFilePreview,
   ToolWorkspaceFindOptions,
@@ -15,6 +16,7 @@ import {
   type WorkspaceRunSnapshot,
 } from "@/platform/vscode/workspace";
 import { createInlineDiffPreview } from "./InlineDiffPreview";
+import { fileChangeRegistry } from "@/platform/vscode/editor/diff/FileChangeRegistry";
 import { executeInVsCodeTerminal, VSCODE_TERMINAL_SHELL_DESCRIPTION } from "./VsCodeTerminalExecution";
 import {
   createAbortError,
@@ -188,6 +190,9 @@ export function createVsCodeToolWorkspace(
         ? vscode.Uri.file(externalPath)
         : toLogicalUri(await resolveAndValidateLogicalPath(snapshot, relativePath, true));
       const openDocument = findOpenTextDocument(uri);
+      const previous = openDocument
+        ? Buffer.from(openDocument.getText(), "utf8")
+        : await readExistingBytes(uri);
       if (openDocument) {
         const replacement = decodeTextEdit(content, relativePath);
         const edit = new vscode.WorkspaceEdit();
@@ -199,6 +204,7 @@ export function createVsCodeToolWorkspace(
         await vscode.workspace.fs.writeFile(uri, content);
       }
       inlinePreview.clear();
+      fileChangeRegistry.record(relativePath, previous, content);
     },
 
     async stat(relativePath: string): Promise<ToolWorkspaceStat> {
@@ -235,6 +241,20 @@ export function createVsCodeToolWorkspace(
       return entries.map(([name, type]) => [name, toEntryType(type)]);
     },
 
+    async readDocumentSymbols(relativePath: string): Promise<ToolHostDocumentSymbol[]> {
+      const externalPath = resolveAllowedExternalPath(snapshot, relativePath, options.allowOutsideWorkspace === true);
+      const uri = externalPath
+        ? vscode.Uri.file(externalPath)
+        : toLogicalUri(await resolveAndValidateLogicalPath(snapshot, relativePath, options.unrestricted === true));
+      // A language service that never loaded the file answers with no symbols, so load it first.
+      const document = findOpenTextDocument(uri) ?? await vscode.workspace.openTextDocument(uri);
+      const symbols = await vscode.commands.executeCommand<Array<vscode.DocumentSymbol | vscode.SymbolInformation>>(
+        "vscode.executeDocumentSymbolProvider",
+        document.uri,
+      );
+      return (symbols ?? []).map(toHostDocumentSymbol);
+    },
+
     async prepareFileDiff(relativePath: string, before: string, after: string): Promise<void> {
       const externalPath = resolveAllowedExternalPath(snapshot, relativePath, options.allowOutsideWorkspace === true);
       const originalUri = externalPath ? vscode.Uri.file(externalPath) : toResolvedUri(snapshot, relativePath);
@@ -247,9 +267,43 @@ export function createVsCodeToolWorkspace(
   };
 }
 
+function toHostDocumentSymbol(symbol: vscode.DocumentSymbol | vscode.SymbolInformation): ToolHostDocumentSymbol {
+  if (symbol instanceof vscode.SymbolInformation) {
+    return {
+      name: symbol.name,
+      kind: symbolKindName(symbol.kind),
+      startLine: symbol.location.range.start.line,
+      endLine: symbol.location.range.end.line,
+      nameLine: symbol.location.range.start.line,
+      children: [],
+    };
+  }
+  return {
+    name: symbol.name,
+    kind: symbolKindName(symbol.kind),
+    startLine: symbol.range.start.line,
+    endLine: symbol.range.end.line,
+    nameLine: symbol.selectionRange.start.line,
+    children: symbol.children.map(toHostDocumentSymbol),
+  };
+}
+
+function symbolKindName(kind: vscode.SymbolKind): string {
+  return (vscode.SymbolKind[kind] ?? "symbol").toLowerCase();
+}
+
 function findOpenTextDocument(uri: vscode.Uri): vscode.TextDocument | undefined {
   const target = uri.toString(true);
   return vscode.workspace.textDocuments.find((document) => document.uri.toString(true) === target);
+}
+
+async function readExistingBytes(uri: vscode.Uri): Promise<Uint8Array | undefined> {
+  try {
+    return await vscode.workspace.fs.readFile(uri);
+  } catch {
+    // Missing files are expected when a new file is created.
+    return undefined;
+  }
 }
 
 function decodeTextEdit(content: Uint8Array, relativePath: string): string {

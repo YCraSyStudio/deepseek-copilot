@@ -11,7 +11,7 @@ Responsibilities:
 - keep FIM unavailable until a dedicated beta endpoint and request contract are implemented.
 - support tool calls.
 - upload, reference, and delete images through the DeepSeek Files API.
-- provide V4 Vision directly and as the visual analyzer used by V4 Pro.
+- provide DeepSeek V4.1 Flash vision by sending DeepSeek Files API references directly.
 - map HTTP/SSE errors into errors handlers can consume.
 
 Do not reintroduce `Ollama`, a multiprovider selector, or placeholders for other providers.

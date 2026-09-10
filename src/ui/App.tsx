@@ -4,6 +4,7 @@ import { Header, HistoryTransitionPanel, type HistoryTransition } from "@webview
 import { ChatView, SettingsView, HistoryView } from "./views";
 import { VsCodeProvider } from "./views/chatView/contexts";
 import type { Conversation, HandlerToWebviewMessage } from "@/contracts";
+import type { ConversationUsageSnapshot } from "@/shared/usage/Usage";
 import { getVsCodeApi } from "./VsCodeApi";
 import { getUiLocale, subscribeUiLocale } from "./i18n";
 import { beginNavigationRequest, isLatestNavigationRequest, NAVIGATION_STARTED_EVENT } from "./NavigationRequests";
@@ -14,12 +15,23 @@ function App() {
   useSyncExternalStore(subscribeUiLocale, getUiLocale, getUiLocale);
   const [currentView, setCurrentView] = useState<ViewType>("chat");
   const [loadedConversation, setLoadedConversation] = useState<Conversation | null>(null);
+  // Mirrored in a ref because a deletion arrives from the host after the state
+  // that identifies the deleted conversation is no longer readable in the handler.
+  const loadedConversationIdRef = useRef<string | undefined>(undefined);
+  // Conversation-wide usage reported by the host so the popover can total the
+  // messages that history paging dropped from memory.
+  const [conversationUsage, setConversationUsage] = useState<ConversationUsageSnapshot | undefined>();
   const [chatRevision, setChatRevision] = useState(0);
   const [historyEnabled, setHistoryEnabled] = useState<boolean>();
   const [historyUpdatePending, setHistoryUpdatePending] = useState(false);
   const [historyTransition, setHistoryTransition] = useState<HistoryTransition | null>(null);
   const [navigationPending, setNavigationPending] = useState(false);
+  const [earlierMessagesLoaded, setEarlierMessagesLoaded] = useState(0);
   const pendingHistoryRequestRef = useRef<string | undefined>(undefined);
+
+  useEffect(() => {
+    loadedConversationIdRef.current = loadedConversation?.id;
+  }, [loadedConversation]);
 
   const handleNewConversation = useCallback(() => {
     const vscode = getVsCodeApi();
@@ -30,6 +42,8 @@ function App() {
 
   const handleCancelWorkspaceMismatch = useCallback(() => {
     setLoadedConversation(null);
+    setConversationUsage(undefined);
+    setEarlierMessagesLoaded(0);
     setCurrentView("history");
     setNavigationPending(false);
     setChatRevision((revision) => revision + 1);
@@ -42,6 +56,8 @@ function App() {
       if (message.type === "conversationLoaded") {
         if (!isLatestNavigationRequest(message.requestId)) {return;}
         setLoadedConversation(message.conversation);
+        setConversationUsage(message.usage);
+        setEarlierMessagesLoaded(0);
         setNavigationPending(false);
         setChatRevision((revision) => revision + 1);
         setCurrentView("chat");
@@ -56,13 +72,19 @@ function App() {
           hasEarlierMessages: message.hasEarlierMessages,
           historyCursor: message.cursor,
         } : current);
+        // The page is prepended above the transcript, so the chat has to render its tail
+        // instead of hiding the earlier messages the user just asked for.
+        setEarlierMessagesLoaded((count) => count + message.messages.length);
         setNavigationPending(false);
         setChatRevision((revision) => revision + 1);
       } else if (message.type === "conversationDeleted") {
         const deletedId = message.id;
         setLoadedConversation((current) => (current?.id === deletedId ? null : current));
+        setConversationUsage((current) => (loadedConversationIdRef.current === deletedId ? undefined : current));
       } else if (message.type === "clearChat") {
         setLoadedConversation(null);
+        setConversationUsage(undefined);
+        setEarlierMessagesLoaded(0);
         setNavigationPending(false);
         setChatRevision((revision) => revision + 1);
       } else if (message.type === "newConversationReady") {
@@ -70,6 +92,8 @@ function App() {
         const vscode = getVsCodeApi();
         vscode?.setState({ schemaVersion: 4, mode: "persistent", draft: "", referencedFiles: [] });
         setLoadedConversation(null);
+        setConversationUsage(undefined);
+        setEarlierMessagesLoaded(0);
         setNavigationPending(false);
         setChatRevision((revision) => revision + 1);
       } else if (message.type === "historyError" && message.requestId && isLatestNavigationRequest(message.requestId)) {
@@ -125,7 +149,9 @@ function App() {
           <ChatView
             key={chatRevision}
             loadedConversation={loadedConversation}
+            conversationUsage={conversationUsage}
             navigationPending={navigationPending}
+            earlierMessagesLoaded={earlierMessagesLoaded}
             onCancelWorkspaceMismatch={handleCancelWorkspaceMismatch}
           />
         </div>

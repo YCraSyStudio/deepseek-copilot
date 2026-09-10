@@ -10,7 +10,7 @@ Honor the user's reasoning selection and place truthful, measured bounds on mode
 
 ## To-Do List
 
-- [ ] Complete issue draft 020 first so cost regressions are observable.
+- [ ] Make cost regressions observable with the built-in usage telemetry, reading the price tier and currency consistently (draft 020 no longer exists as a document).
 - [ ] Preserve the user's thinking-mode choice for tool rounds; tools are supported in both thinking and non-thinking modes.
 - [ ] Never upgrade reasoning effort or enable hidden reasoning solely because tools are present.
 - [ ] Define phase-specific output ceilings for planning/tool rounds and the final answer while treating the user's maximum as an upper bound.

@@ -1,0 +1,187 @@
+.imageLightboxBackdrop {
+  z-index: 60;
+  background: rgb(0 0 0 / 68%);
+  display: flex;
+  position: fixed;
+  inset: 0;
+}
+
+.imageLightboxDialog {
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  position: relative;
+  outline: none;
+  animation: imageLightboxEnter 90ms ease-out;
+}
+
+.imageLightboxHeader {
+  color: #fff;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: none;
+  padding: 10px 14px 2px;
+  font-size: 11px;
+  letter-spacing: .02em;
+  overflow: hidden;
+  opacity: .8;
+}
+
+.imageLightboxViewport {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: block;
+  /* Bottom padding leaves room for the floating zoom controls. */
+  padding: 14px 20px 78px;
+  overflow: auto;
+  scrollbar-width: thin;
+
+  &.isPannable {
+    cursor: grab;
+  }
+
+  &.isPanning {
+    cursor: grabbing;
+    /* The drag owns the pointer, so selecting text must not fight it. */
+    user-select: none;
+  }
+}
+
+/*
+ * Canvas sized to the image or to the viewport, whichever is bigger: the image is
+ * centred while it fits, and once it does not, it overflows into the scrollable
+ * viewport instead of being squashed. The image therefore never loses its
+ * aspect ratio, however far the user zooms in.
+ */
+.imageLightboxCanvas {
+  align-items: center;
+  justify-content: center;
+  width: max-content;
+  height: max-content;
+  min-width: 100%;
+  min-height: 100%;
+  display: flex;
+}
+
+.imageLightboxImage {
+  /* Never shrinks: a zoomed image grows and scrolls rather than deforming. */
+  flex: none;
+  border-radius: 4px;
+  display: block;
+  box-shadow: 0 14px 44px rgb(0 0 0 / 55%);
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.imageLightboxControls {
+  align-items: center;
+  gap: 10px;
+  display: flex;
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.imageLightboxZoom {
+  color: #fff;
+  background: rgb(32 32 32 / 90%);
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 999px;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  display: flex;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 45%);
+}
+
+.imageLightboxButton {
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: 50%;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  font-size: 15px;
+  cursor: pointer;
+  display: grid;
+
+  &:hover:not(:disabled) {
+    background: rgb(255 255 255 / 14%);
+  }
+
+  &:disabled {
+    cursor: default;
+    opacity: .35;
+  }
+
+  &:focus-visible {
+    outline: 1px solid rgb(255 255 255 / 45%);
+    outline-offset: -1px;
+  }
+}
+
+.imageLightboxZoomValue {
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  min-width: 52px;
+  height: 30px;
+  padding: 0 6px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+
+  &:hover {
+    background: rgb(255 255 255 / 14%);
+  }
+
+  &:focus-visible {
+    outline: 1px solid rgb(255 255 255 / 45%);
+    outline-offset: -1px;
+  }
+}
+
+.imageLightboxClose {
+  color: #fff;
+  background: rgb(32 32 32 / 90%);
+  border: 1px solid rgb(255 255 255 / 14%);
+  width: 34px;
+  height: 34px;
+  font-size: 16px;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 45%);
+}
+
+@keyframes imageLightboxEnter {
+  from {
+    opacity: 0;
+    transform: scale(.985);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (max-width: 360px) {
+  .imageLightboxViewport {
+    padding: 12px 12px 74px;
+  }
+
+  .imageLightboxZoomValue {
+    min-width: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .imageLightboxDialog {
+    animation: none;
+  }
+}

@@ -10,7 +10,7 @@ export const userManual: PageContent = {
       title: "Primeros pasos",
       items: [
         "Abre Yar's DeepSeek Copilot desde la Activity Bar e introduce la API key en Settings. Las credenciales se guardan por origen de API normalizado en Secret Storage de VS Code; al reabrir Settings solo se muestra una preview enmascarada como placeholder.",
-        "Elige V4 Vision (Flash) o V4 Pro, thinking mode, reasoning effort, reserva de salida y límite de generaciones concurrentes. Las capacidades V4 registradas usan 1M tokens de contexto total y 384K de salida máxima; la extensión reserva 8.192 tokens de salida por defecto. La concurrencia predeterminada es 8 y admite valores entre 1 y 16.",
+        "Elige thinking mode, reasoning effort, reserva de salida y límite de generaciones concurrentes. El chat usa DeepSeek V4.1 Flash con 1M tokens de contexto total y 384K de salida máxima; la reserva de salida predeterminada es de 384.000 tokens. La concurrencia predeterminada es 8 y admite valores entre 1 y 16.",
         "Escribe ./ para autocompletar rutas seguras del workspace. El recorrido a padres con ../ nunca se acepta. En multi-root, las rutas comienzan por un alias estable como ./frontend/src/App.tsx.",
         "Usa la única acción + o los comandos del explorador/editor para aportar contexto. Los archivos externos ordinarios se convierten en snapshots acotados y de solo lectura; las imágenes se suben a DeepSeek tras verificar su firma binaria.",
         "Usa Stop generation para cancelar la petición actual y su árbol de procesos. El prompt enviado, el timeline parcial y los resultados de tools completadas permanecen como turno cancelled; los efectos ya realizados no se revierten.",
@@ -20,10 +20,11 @@ export const userManual: PageContent = {
       title: "Imágenes y visión",
       items: [
         "El mismo selector acepta archivos de contexto y hasta ocho imágenes JPEG, PNG, GIF o WebP. También pueden pegarse con Ctrl+V o Cmd+V; el portapapeles admite 16 MiB y el selector respeta el límite de DeepSeek de 64 MiB.",
-        "V4 Vision (Flash) recibe directamente los file IDs de DeepSeek. V4 Pro solo recibe analyze_images cuando el prompt actual contiene imágenes; la tool pide a Vision una descripción textual acotada que Pro puede leer.",
-        "Si Vision experimental deja de estar disponible en la API oficial, el trabajo de texto se reintenta una vez con V4 Flash estable. Un chat directo con imágenes continúa sin ellas e indica la limitación; el análisis visual de V4 Pro falla explícitamente para no confundir un modelo de texto con Vision.",
+        "DeepSeek V4.1 Flash recibe directamente los file IDs de DeepSeek, por lo que las imágenes del prompt actual se leen en la misma generación que su texto.",
+        "Un fallo del proveedor se muestra tal cual: la extensión nunca reintenta en silencio, elimina referencias de imagen ya enviadas ni reescribe el nombre del modelo para que una petición visual fallida parezca correcta.",
         "Las subidas usan DeepSeek Files API con purpose user_data y expiración de 30 días. Base64 solo existe durante el IPC del portapapeles y nunca se guarda en historial ni se incluye en mensajes al proveedor.",
         "Quitar una imagen del borrador intenta borrarla en local y remoto. El borrado permanente de una conversación limpia imágenes solo al terminar la ventana de Deshacer.",
+        "Al hacer clic en una imagen adjunta, tanto una miniatura del compositor como una imagen de un mensaje enviado, se abre un visor a pantalla completa. Ajusta la imagen a la ventana de forma predeterminada, conserva su proporción y permite arrastrar una imagen ampliada para desplazarla en lugar de deformarla. Ofrece zoom out, el porcentaje de ajuste (clic para ajustar), zoom in y cerrar, y también responde a Escape, al fondo y a las teclas +, - y 0.",
       ],
     },
     {
@@ -54,6 +55,22 @@ export const userManual: PageContent = {
         "El uso de la conversación aparece en un popover compacto junto al selector de permisos, incluidos totales por modelo tras cambiar de modelo. Si algunas peticiones de DeepSeek omiten el uso, las peticiones informadas aún producen un coste mínimo marcado explícitamente.",
         "Un read_file correcto no duplica el contenido del archivo en Chat. Usa Open file para inspeccionarlo en el editor; las lecturas fallidas sí muestran su diagnóstico.",
         "Las llamadas completadas de create_file, edit_file y apply_patch ofrecen View change cuando existe un diff completo. Abre el contenido anterior y posterior registrado para esa ejecución concreta, independientemente de cambios posteriores en el working tree.",
+        "Un turno terminado cierra con el resumen de archivos editados: una fila por archivo escrito con sus adiciones y eliminaciones, Show N more files a partir del cuarto, y Review para abrir todos los cambios del turno. El host registra el contenido anterior y posterior exactos durante la sesión, así que un cambio grande sigue abriéndose completo aunque el diff guardado en el resultado de la tool esté acotado para el contexto del modelo. Revertir un cambio aplicado aún no está implementado.",
+        "El coste de uso puede mostrarse en dólares estadounidenses o en yuanes chinos desde Settings → Usage & cost. Cada moneda usa la propia tabla de precios publicada por DeepSeek, así que no se inventa ningún tipo de cambio; los totales persistidos siguen siendo canónicos en USD y se reconvierten para mostrarlos.",
+      ],
+    },
+    {
+      title: "Conversaciones largas",
+      items: [
+        "Un transcript largo no se monta entero. Al abrir solo se renderizan los 40 mensajes más recientes, más cada página de historial que el usuario haya cargado desde disco; Show N earlier messages revela otros 40 de lo que ya está en memoria y mantiene en su sitio el mensaje que estás leyendo en lugar de saltar.",
+        "La reconciliación de tool calls, los totales de uso, la persistencia del borrador y la paginación del historial siguen operando sobre la conversación completa cargada; solo se acota la lista renderizada, y las filas memorizadas mantienen fluida la escritura de un borrador.",
+      ],
+    },
+    {
+      title: "Vista general del workspace",
+      items: [
+        "list_workspace dibuja todo el proyecto como un árbol indentado en una sola llamada, así que un chat nuevo no tiene que encadenar llamadas a list_directory. Se incluyen las entradas ocultas, y una carpeta con demasiado contenido se resume como ... en lugar de volcarse o excluirse en silencio.",
+        "Su argumento path opcional acota el árbol a una carpeta del workspace. Lee como máximo 300 carpetas y se detiene tras 400 entradas o 48 KiB, resumiendo una carpeta en lugar de listarla cuando contiene más de 25 entradas, o 60 en la raíz del workspace, o cuando su subárbol no cabe en el presupuesto de líneas restante.",
       ],
     },
     {
@@ -78,7 +95,7 @@ export const userManual: PageContent = {
     {
       title: "Ejecución de terminal",
       items: [
-        "Cada comando del agente se ejecuta de forma no interactiva y visible en un terminal integrado dedicado de VS Code mediante Shell Integration. El terminal se cierra al finalizar y el resultado capturado permanece en el chat.",
+        "Cada comando del agente se ejecuta de forma no interactiva y visible en un terminal integrado dedicado de VS Code mediante Shell Integration. El mismo terminal se reutiliza para comandos posteriores para que su scrollback e historial sigan visibles, y solo se cierra por timeout, cancelación, un directorio de trabajo incorrecto o el apagado de la extensión, mientras el resultado capturado permanece en el chat.",
         "El resultado registra stdout/stderr acotados, código de salida, señal, timeout, cancelación, directorio efectivo y shell.",
         "La salida está limitada; si se trunca, se conservan el principio y el final y se marca la parte central omitida.",
         "Se rechazan los launchers de procesos desacoplados o en segundo plano. Los terminales del agente desactivan la reutilización de servidores de compilación y nodos de .NET para no dejar workers huérfanos ni archivos del proyecto bloqueados.",

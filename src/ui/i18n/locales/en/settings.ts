@@ -116,7 +116,10 @@ export const settings = {
     },
     usage: {
       title: "Usage & cost",
-      breakdown: "Show token usage under responses"
+      breakdown: "Show token usage under responses",
+      currency: "Cost currency",
+      currencyUsd: "US dollar (USD)",
+      currencyCny: "Chinese yuan (CNY)"
     },
     limits: {
       maxTokens: "Max output tokens",

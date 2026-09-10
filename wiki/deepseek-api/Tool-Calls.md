@@ -14,7 +14,6 @@ Key files:
 - `src/infrastructure/deepseek/providers/deepseek/features/toolCall/ToolCallRequest.ts`
 - `src/infrastructure/deepseek/providers/deepseek/features/toolCall/ToolCallStreaming.ts`
 - `src/platform/vscode/webviews/handlers/chat/toolCalls/ToolCallSession.ts`
-- `src/infrastructure/tools/builtins/vision/AnalyzeImages.ts`
 
 ## Cycle
 
@@ -26,10 +25,6 @@ Key files:
 6. Tool execution has no artificial round or per-block call limit. It continues until a final response, cancellation, context/output boundary, or error.
 7. At 20 completed tool rounds, and every 5 rounds thereafter, a separate tool-free progress reviewer evaluates recent context plus a compact cumulative activity history. It compares that history with the original request, treats self-initiated optional test/debug loops as finalization evidence once the requested deliverables build, and asks the primary model to stop tools and summarize. Its `finalize`, `blocked`, or `continue` decision becomes guidance for the next normal round, while uncertain or unavailable reviews continue safely.
 8. Only complete `assistant(tool_calls) -> tool results -> assistant` sequences are replayed to the provider.
-
-## `analyze_images`
-
-This tool is included only for V4 Pro when the current prompt contains image attachments. Its arguments contain the visual question; trusted image file IDs come from generation context, not from model-provided paths or arbitrary IDs. It sends the images to `deepseek-v4-flash-vision-exp` with thinking disabled, then returns a bounded text description to Pro. V4 Vision does not receive this tool because it reads the same file content blocks directly.
 
 ## Strict mode
 

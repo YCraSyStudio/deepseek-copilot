@@ -1,5 +1,5 @@
 import {
-  PRICE_CATALOG_VERSION,
+  READABLE_PRICE_CATALOG_VERSIONS,
   USAGE_PHASES,
   USAGE_SCHEMA_VERSION,
   type PhaseUsage,
@@ -58,7 +58,15 @@ export function normalizeUsageAggregate(value: unknown): UsageAggregate | undefi
   if (value.model !== undefined && (typeof value.model !== "string" || value.model.length > 256)) {
     return undefined;
   }
-  if (value.priceCatalogVersion !== undefined && value.priceCatalogVersion !== PRICE_CATALOG_VERSION) {
+  if (
+    value.priceCatalogVersion !== undefined &&
+    (typeof value.priceCatalogVersion !== "number" ||
+      !READABLE_PRICE_CATALOG_VERSIONS.includes(value.priceCatalogVersion))
+  ) {
+    return undefined;
+  }
+  const priceCatalogVersion = value.priceCatalogVersion as number | undefined;
+  if (value.pricedAt !== undefined && !isUtcInstant(value.pricedAt)) {
     return undefined;
   }
   if (value.currency !== undefined && value.currency !== "USD") {
@@ -87,7 +95,10 @@ export function normalizeUsageAggregate(value: unknown): UsageAggregate | undefi
     schemaVersion: USAGE_SCHEMA_VERSION,
     officialEndpoint: value.officialEndpoint,
     ...(value.model !== undefined ? { model: value.model } : {}),
-    ...(value.priceCatalogVersion !== undefined ? { priceCatalogVersion: PRICE_CATALOG_VERSION } : {}),
+    // The stored catalog version is preserved: an estimate produced under older
+    // rates must not be relabelled as if it had been priced with current ones.
+    ...(priceCatalogVersion !== undefined ? { priceCatalogVersion } : {}),
+    ...(value.pricedAt !== undefined ? { pricedAt: value.pricedAt } : {}),
     ...(value.currency !== undefined ? { currency: "USD" } : {}),
     ...(value.costUsd !== undefined ? { costUsd: value.costUsd } : {}),
     count: value.count,
@@ -197,6 +208,15 @@ function safeCountAdd(left: number, right: number): number {
 
 function isOptionalNonNegativeNumber(value: unknown): value is number | undefined {
   return value === undefined || (typeof value === "number" && Number.isFinite(value) && value >= 0);
+}
+
+/** Accepts only the canonical UTC form written by `refreshUsageCost`. */
+function isUtcInstant(value: unknown): value is string {
+  if (typeof value !== "string" || value.length > 40) {
+    return false;
+  }
+  const parsed = new Date(value);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString() === value;
 }
 
 function isNonNegativeCount(value: unknown): value is number {
